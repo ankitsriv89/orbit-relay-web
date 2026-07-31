@@ -1,11 +1,19 @@
 /**
- * Shared HUD (collapsible panel) and navigation logic for SpaceTrack pages.
+ * Shared HUD (collapsible panel) and mobile-nav logic, used by every page
+ * that has the `.key-hud` panel pattern: /orbit/, /starlink/ and all of
+ * /spacetrack/.
  *
  * Provides:
- *  - Collapsible left-side HUD panels (only one expanded at a time)
+ *  - Collapsible HUD panels, optionally single-expanded via `exclusive`
  *  - Hamburger menu toggle (navigable sections)
  *  - Tab switching within HUD bodies
  *  - Mobile breakpoint awareness
+ *
+ * `exclusive` controls when opening one panel collapses the others:
+ *  - 'mobile' (default): only on narrow screens, where panels would overlap.
+ *    This is /orbit/'s original behavior — desktop has room for several
+ *    panels open at once.
+ *  - 'always': every panel toggle collapses the rest, regardless of width.
  */
 
 const MOBILE_MQ = window.matchMedia('(max-width: 768px)');
@@ -37,7 +45,7 @@ export function collapseHud(hudId) {
     collapsePanel(hud);
 }
 
-export function wireHudToggle(hudId, toggleId, bodyId) {
+export function wireHudToggle(hudId, toggleId, bodyId, { exclusive = 'mobile' } = {}) {
     const hud = document.getElementById(hudId);
     const toggle = document.getElementById(toggleId);
     const body = document.getElementById(bodyId);
@@ -45,17 +53,19 @@ export function wireHudToggle(hudId, toggleId, bodyId) {
     _hudPanels.push(hud);
     toggle.addEventListener('click', () => {
         const willExpand = hud.classList.contains('key-hud--collapsed');
-        if (willExpand) {
+        // On narrow screens (or always, if asked) keep only one panel
+        // expanded so cards don't overlap.
+        if (willExpand && (exclusive === 'always' || (exclusive === 'mobile' && isMobile()))) {
             _hudPanels.forEach(p => { if (p !== hud) collapsePanel(p); });
         }
         const collapsed = hud.classList.toggle('key-hud--collapsed');
         body.hidden = collapsed;
         toggle.setAttribute('aria-expanded', String(!collapsed));
-        document.body.classList.toggle('hud-panel-open', !collapsed);
+        document.body.classList.toggle('hud-panel-open', !collapsed && isMobile());
     });
 }
 
-export function initMobileListener() {
+export function initMobileListener(onChange) {
     MOBILE_MQ.addEventListener('change', () => {
         if (!isMobile()) {
             document.body.classList.remove('hud-panel-open');
@@ -64,6 +74,7 @@ export function initMobileListener() {
             open.slice(1).forEach(collapsePanel);
             document.body.classList.toggle('hud-panel-open', open.length > 0);
         }
+        if (onChange) onChange();
     });
 }
 

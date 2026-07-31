@@ -7,7 +7,7 @@ import { orbVel, fmtLat, fmtLon } from '../orbit-engine/astro.js';
 import { initGlobe, initTimeWarpButtons } from './shared/globe.js';
 import { State } from './shared/state.js';
 import { API, getApiBase } from './shared/api.js';
-import { wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds } from './shared/hud.js';
+import { wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds } from '/shared/hud.js';
 import {
     TYPE_COLORS, COUNTRY_COLORS, colorForRow, regimeSize, colorForCountry,
 } from './shared/utils.js';

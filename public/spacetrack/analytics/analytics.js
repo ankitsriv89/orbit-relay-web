@@ -1,43 +1,11 @@
 import { $, setText, num } from '../shared/utils.js';
 import { getApiBase } from '../shared/api.js';
+import { wireHudToggle, initMobileListener } from '/shared/hud.js';
 
 /* ── HUD toggle ──────────────────────────────────────────────────────────── */
-const MOBILE_MQ = window.matchMedia('(max-width: 768px)');
-const isMobile = () => MOBILE_MQ.matches;
-const _hudPanels = [];
-
-function collapsePanel(p) {
-    p.classList.add('key-hud--collapsed');
-    const b = p.querySelector('.key-hud-body');
-    const t = p.querySelector('.key-hud-toggle');
-    if (b) b.hidden = true;
-    if (t) t.setAttribute('aria-expanded', 'false');
-}
-
-function wireHudToggle(hudId, toggleId, bodyId) {
-    const hud = $(hudId), toggle = $(toggleId), body = $(bodyId);
-    if (!hud || !toggle || !body) return;
-    _hudPanels.push(hud);
-    toggle.addEventListener('click', () => {
-        const willExpand = hud.classList.contains('key-hud--collapsed');
-        if (willExpand) _hudPanels.forEach(p => { if (p !== hud && isMobile()) collapsePanel(p); });
-        const c = hud.classList.toggle('key-hud--collapsed');
-        body.hidden = c;
-        toggle.setAttribute('aria-expanded', String(!c));
-        document.body.classList.toggle('hud-panel-open', !c && isMobile());
-    });
-}
-
 wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');
 
-MOBILE_MQ.addEventListener('change', () => {
-    if (!isMobile()) document.body.classList.remove('hud-panel-open');
-    else {
-        const open = _hudPanels.filter(p => !p.classList.contains('key-hud--collapsed'));
-        open.slice(1).forEach(collapsePanel);
-        document.body.classList.toggle('hud-panel-open', open.length > 0);
-    }
-});
+initMobileListener();
 
 /* ── Analytics ────────────────────────────────────────────────────────────────
  * Launch-history dashboard: launches by decade, top launch sites, debris

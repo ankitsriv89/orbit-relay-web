@@ -1,6 +1,6 @@
 import { $, setText, num, relTime } from '../shared/utils.js';
 import { getApiBase } from '../shared/api.js';
-import { wireHudToggle, initHamburgerMenu } from '../shared/hud.js';
+import { wireHudToggle, initHamburgerMenu } from '/shared/hud.js';
 
 /* ── HUD toggle ──────────────────────────────────────────────────────────── */
 wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');

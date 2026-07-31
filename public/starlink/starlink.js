@@ -11,6 +11,7 @@ import { parseTLE, fetchTLE }  from '/orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '/orbit-engine/astro.js';
+import { wireHudToggle, initMobileListener } from '/shared/hud.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 Cesium.Ion.defaultAccessToken =
@@ -30,39 +31,7 @@ let   slFullLoaded  = false;
 const SOURCE = 'celestrak';
 const tle = (group, live) => fetchTLE(group, { source: SOURCE, live });
 
-/* ── Viewport ────────────────────────────────────────────────────────── */
-const MOBILE_MQ = window.matchMedia('(max-width: 600px)');
-const isMobile  = () => MOBILE_MQ.matches;
-
-/* ── HUD toggle helper ─────────────────────────────────────────────── */
-const _hudPanels = [];
-
-function collapsePanel(p) {
-    p.classList.add('key-hud--collapsed');
-    const b = p.querySelector('.key-hud-body');
-    const t = p.querySelector('.key-hud-toggle');
-    if (b) b.hidden = true;
-    if (t) t.setAttribute('aria-expanded', 'false');
-}
-
-function wireHudToggle(hudId, toggleId, bodyId) {
-    const hud    = document.getElementById(hudId);
-    const toggle = document.getElementById(toggleId);
-    const body   = document.getElementById(bodyId);
-    if (!hud || !toggle || !body) return;
-    _hudPanels.push(hud);
-    toggle.addEventListener('click', () => {
-        const willExpand = hud.classList.contains('key-hud--collapsed');
-        if (willExpand && isMobile()) {
-            _hudPanels.forEach(p => { if (p !== hud) collapsePanel(p); });
-        }
-        const collapsed = hud.classList.toggle('key-hud--collapsed');
-        body.hidden     = collapsed;
-        toggle.setAttribute('aria-expanded', String(!collapsed));
-        document.body.classList.toggle('hud-panel-open', !collapsed && isMobile());
-    });
-}
-
+/* ── HUD toggle ──────────────────────────────────────────────────────── */
 wireHudToggle('stats-hud',   'stats-hud-toggle',   'stats-hud-body');
 wireHudToggle('density-hud', 'density-hud-toggle',  'density-hud-body');
 
@@ -109,14 +78,7 @@ clock.multiplier    = 1;
 /* ── Engine ────────────────────────────────────────────────────────── */
 const engine = new SatEngine({ viewer });
 
-MOBILE_MQ.addEventListener('change', () => {
-    if (!isMobile()) {
-        document.body.classList.remove('hud-panel-open');
-    } else {
-        const open = _hudPanels.filter(p => !p.classList.contains('key-hud--collapsed'));
-        open.slice(1).forEach(collapsePanel);
-        document.body.classList.toggle('hud-panel-open', open.length > 0);
-    }
+initMobileListener(() => {
     tuneViewerForDevice(viewer);
     engine.requestRender();
 });

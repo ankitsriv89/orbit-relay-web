@@ -6,7 +6,7 @@ import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, setText, num, relTime, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge, TYPE_COLORS, colorFor } from '../shared/utils.js';
 import { getApiBase } from '../shared/api.js';
-import { wireHudToggle, initHamburgerMenu, wireTabs } from '../shared/hud.js';
+import { wireHudToggle, initHamburgerMenu, wireTabs } from '/shared/hud.js';
 
 const RENDER_CAP = 500;
 

@@ -20,6 +20,7 @@ import { parseTLE, fetchTLE }  from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '../orbit-engine/astro.js';
+import { wireHudToggle, initMobileListener, initHamburgerMenu } from '/shared/hud.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 Cesium.Ion.defaultAccessToken =
@@ -34,95 +35,15 @@ const SOURCE = 'celestrak';
 const tle = (group, live) => fetchTLE(group, { source: SOURCE, live });
 
 /* ── Viewport ──────────────────────────────────────────────────────────────
- * One live MediaQueryList rather than a fresh matchMedia() at click time. The
- * old form only sampled the viewport when a panel was toggled, so rotating the
- * phone while a panel was open left `body.hud-panel-open` — and the single-panel
- * rule — describing the previous orientation until the next tap. The `change`
- * listener re-applies the rule the moment the breakpoint is crossed, and also
- * re-tunes the render resolution for the new width.
+ * `isMobile`/`wireHudToggle`/`initMobileListener` come from the shared HUD
+ * module (see /shared/hud.js) — the mobile MediaQueryList lives there so
+ * rotating the phone re-applies the single-panel rule and re-tunes render
+ * resolution via the `initMobileListener` callback below, rather than only
+ * sampling the viewport at the next tap.
  */
-const MOBILE_MQ = window.matchMedia('(max-width: 768px)');
-const isMobile  = () => MOBILE_MQ.matches;
-
-/* ── HUD toggle helper ─────────────────────────────────────────────────── */
-const _hudPanels = [];
-
-function collapsePanel(p) {
-    p.classList.add('key-hud--collapsed');
-    const b = p.querySelector('.key-hud-body');
-    const t = p.querySelector('.key-hud-toggle');
-    if (b) b.hidden = true;
-    if (t) t.setAttribute('aria-expanded', 'false');
-}
-
-function wireHudToggle(hudId, toggleId, bodyId) {
-    const hud    = document.getElementById(hudId);
-    const toggle = document.getElementById(toggleId);
-    const body   = document.getElementById(bodyId);
-    if (!hud || !toggle || !body) return;
-    _hudPanels.push(hud);
-    toggle.addEventListener('click', () => {
-        const willExpand = hud.classList.contains('key-hud--collapsed');
-        // On narrow screens keep only one panel expanded so cards don't overlap.
-        if (willExpand && isMobile()) {
-            _hudPanels.forEach(p => { if (p !== hud) collapsePanel(p); });
-        }
-        const collapsed = hud.classList.toggle('key-hud--collapsed');
-        body.hidden     = collapsed;
-        toggle.setAttribute('aria-expanded', String(!collapsed));
-        // Mobile: while one panel is open, hide the OTHER collapsed chips so an
-        // expanded panel can never cover (and block taps on) another chip.
-        document.body.classList.toggle('hud-panel-open', !collapsed && isMobile());
-    });
-}
 
 wireHudToggle('iss-hud',      'iss-hud-toggle',      'iss-hud-body');
 wireHudToggle('layers-hud',   'layers-hud-toggle',   'layers-hud-body');
-
-/* ── Hamburger menu (mobile) ───────────────────────────────────────────── */
-function initHamburgerMenu() {
-    const hamburgerBtn = document.getElementById('hamburger-btn');
-    const mobileMenu = document.getElementById('mobile-menu');
-    if (!hamburgerBtn || !mobileMenu) return;
-
-    function closeMobileMenu() {
-        mobileMenu.hidden = true;
-        hamburgerBtn.classList.remove('hamburger--open');
-        hamburgerBtn.setAttribute('aria-expanded', 'false');
-        document.body.classList.remove('mobile-menu-open');
-    }
-
-    hamburgerBtn.addEventListener('click', () => {
-        const open = mobileMenu.hidden;
-        if (open) {
-            mobileMenu.hidden = false;
-            hamburgerBtn.classList.add('hamburger--open');
-            hamburgerBtn.setAttribute('aria-expanded', 'true');
-            document.body.classList.add('mobile-menu-open');
-        } else {
-            closeMobileMenu();
-        }
-    });
-
-    /* Close on outside-click (tap the backdrop) */
-    mobileMenu.addEventListener('click', (e) => {
-        if (e.target === mobileMenu) closeMobileMenu();
-    });
-
-    /* Close on Escape key */
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !mobileMenu.hidden) closeMobileMenu();
-    });
-
-    /* Close when a link is tapped */
-    mobileMenu.querySelectorAll('a').forEach(link => {
-        link.addEventListener('click', closeMobileMenu);
-    });
-
-    /* Close button */
-    const closeBtn = document.getElementById('mobile-menu-close');
-    if (closeBtn) closeBtn.addEventListener('click', closeMobileMenu);
-}
 
 initHamburgerMenu();
 
@@ -242,17 +163,10 @@ const engine = new SatEngine({ viewer });
  * while a panel is open and `body.hud-panel-open` stays set on a wide layout,
  * where the rule does not apply — and that class HIDES the other collapsed
  * chips, so their toggles are gone with nothing left to bring them back.
+ * The single-panel re-collapse itself lives in initMobileListener; only the
+ * render re-tune (width-dependent) is specific to this page.
  */
-MOBILE_MQ.addEventListener('change', () => {
-    if (!isMobile()) {
-        document.body.classList.remove('hud-panel-open');
-    } else {
-        // Narrow again: at most one panel may be open. Keep the first.
-        const open = _hudPanels.filter(p => !p.classList.contains('key-hud--collapsed'));
-        open.slice(1).forEach(collapsePanel);
-        document.body.classList.toggle('hud-panel-open', open.length > 0);
-    }
-    // Render resolution is width-dependent, so the budget moves with the layout.
+initMobileListener(() => {
     tuneViewerForDevice(viewer);
     engine.requestRender();
 });

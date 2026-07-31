@@ -2,7 +2,7 @@ import { EARTH_R_KM, orbVel } from '../../orbit-engine/astro.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, setText, fmtLat, fmtLon } from '../shared/utils.js';
-import { wireHudToggle, initHamburgerMenu, wireTabs, expandHud } from '../shared/hud.js';
+import { wireHudToggle, initHamburgerMenu, wireTabs, expandHud } from '/shared/hud.js';
 
 const { viewer, engine } = initGlobe();
 const clock = viewer.clock;
