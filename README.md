@@ -1,10 +1,11 @@
 # Orbital Relay
 
-Interactive satellite visualization and tracking platform built on Cloudflare.
+Interactive satellite visualization and tracking platform built on Cloudflare Pages.
 
 **Domain:** orbitalrelay.space  
-**Deployment:** Cloudflare Pages (`orbit-relay` project)  
-**Data:** D1 (orbit-catalog) + R2 (orbit-data)
+**Deployment:** Cloudflare Pages (auto-deploy on git push)  
+**Data:** D1 (orbit-catalog) + R2 (orbit-data)  
+**GitHub:** ankitsriv89/orbit-relay-web
 
 ## Development
 
@@ -15,14 +16,15 @@ npm run dev  # Local dev server on http://localhost:8788
 
 ## Deployment
 
+Automatic — just push to `main`:
 ```bash
-npm run deploy  # Deploy to orbit-relay.pages.dev, then DNS routes to orbitalrelay.space
+git push origin main  # Cloudflare auto-deploys
 ```
 
 ## Architecture
 
-- **Public static files:** `public/` (HTML, CSS, JS, assets)
-- **Pages Functions:** `functions/api/` (serverless edge functions)
+- **Static files:** `public/` (HTML, CSS, JS, TLE data)
+- **Pages Functions:** `functions/api/` (optional serverless functions)
 - **Data bindings:** D1 (ORBIT_DB) + R2 (ORBIT_R2) via wrangler.toml
 - **TLE ingestion:** Separate `orbit-ingest` Worker (writes to D1/R2)
 
