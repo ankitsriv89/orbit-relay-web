@@ -1,0 +1,79 @@
+# orbit-ingest — scheduled Space-Track ingest for the Orbital Relay (plan 33).
+#
+# A separate Worker rather than a Pages Function because **Pages Functions
+# cannot run cron triggers** — scheduled handlers are Workers-only. It shares
+# storage with the signal-playground Pages project: the Worker writes D1 + R2,
+# the Pages Functions read them.
+#
+# Deploy (from this directory):
+#   npx wrangler deploy
+#
+# Then, ALSO from this directory — these are Worker-scoped, and must never be
+# set on the Pages project:
+#   npx wrangler secret put SPACETRACK_IDENTITY   # anksr2gcp@gmail.com
+#   npx wrangler secret put SPACETRACK_PASSWORD
+#
+# Fire a cron locally without waiting for the schedule:
+#   npx wrangler dev --test-scheduled
+#   curl 'http://localhost:8787/__scheduled?cron=17+*/6+*+*+*'
+
+name = "orbit-ingest"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# ---- Schedules --------------------------------------------------------------
+# Minute :17 is deliberate. The docs require avoiding the top and bottom of the
+# hour and recommend a 10-20 minute offset.
+#
+# GP runs 6-hourly, not the permitted 1/hour — the cap is a ceiling, not a
+# target, and SGP4 drift is ~1-3 km/day in LEO, so a 6-hour-older elset is
+# sub-kilometre and invisible on a globe. NOTE: the delta window in the query
+# must match this cadence (now-0.28) or elsets are silently missed.
+#
+# The daily jobs sit at 17:20/17:25 UTC because SATCAT and BOXSCORE are
+# documented as "once per day AFTER 1700 UTC", and firing them together lets
+# them share one 2-hour session cookie.
+[triggers]
+crons = [
+  "17 */6 * * *",   # GP delta
+  "20 17 * * *",    # SATCAT delta + DECAY + BOXSCORE
+  "25 17 * * 3",    # 60-day decay predictions (Wednesdays, per the docs)
+]
+
+# ---- Storage ----------------------------------------------------------------
+# Write side. The Pages project (../../wrangler.toml) carries read-side copies
+# of the D1 and R2 bindings; ORBIT_KV is bound HERE ONLY, because it holds the
+# live Space-Track session cookie and nothing in Pages has any business reading
+# a credential.
+[[d1_databases]]
+binding = "ORBIT_DB"
+database_name = "orbit-catalog"
+database_id = "e5fe1563-71ef-4fb4-9e04-554c87caf821"
+
+[[r2_buckets]]
+binding = "ORBIT_R2"
+bucket_name = "orbit-data"
+
+[[kv_namespaces]]
+binding = "ORBIT_KV"
+id = "ce1a448d9c1d41789035a75aded2efd1"
+
+# ---- Workers AI (plan 33 wave 6) --------------------------------------------
+# The daily brief's narrative. Bound here so the Worker fallback path stays
+# complete; the Actions runner reaches the same interface over the REST API via
+# scripts/ai-node.mjs. Inference happens once a day inside the ingest and never
+# on a read, so this binding is not on the Pages project and must not be added
+# to it — a per-request model call is exactly what wave 6 is designed to avoid.
+[ai]
+binding = "ORBIT_AI"
+
+# ---- Vars -------------------------------------------------------------------
+# Space-Track offers a test server for script development. Point SPACETRACK_BASE
+# at it and every query follows — that is the ONLY change needed to switch, so
+# development never has to risk the production account.
+#
+# ORBIT_AI_CARDS gates the narrative. Unset (the default) means the brief is
+# still built and still written, from its SQL facts, with no model call at all.
+[vars]
+SPACETRACK_BASE = "https://www.space-track.org"
+ORBIT_AI_CARDS = "0"

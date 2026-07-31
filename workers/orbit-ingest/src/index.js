@@ -1,0 +1,159 @@
+/**
+ * orbit-ingest — scheduled Space-Track ingest for the Orbital Relay (plan 33).
+ *
+ * A Worker rather than a Pages Function because **Pages Functions cannot run
+ * cron triggers**. It owns the write side of the shared storage; the Pages
+ * project carries read-only copies of the D1 and R2 bindings and never sees
+ * ORBIT_KV, which holds the live session cookie.
+ *
+ * Three schedules, dispatched on `event.cron`:
+ *
+ *   17 * / 6 * * *   GP delta          → objects, new-object events, R2 bundles
+ *   20 17 * * *      SATCAT + DECAY + BOXSCORE → daily catalog state, full bundle
+ *   25 17 * * 3      60-day decay predictions  → reentry watch list
+ *
+ * Fire one locally without waiting for the clock:
+ *   npx wrangler dev --test-scheduled
+ *   curl 'http://localhost:8787/__scheduled?cron=17+*%2F6+*+*+*'
+ */
+
+import { ingestGP } from './ingest-gp.js';
+import { ingestSatcat } from './ingest-satcat.js';
+import { ingestDecay } from './ingest-decay.js';
+import { ingestBoxscore } from './ingest-boxscore.js';
+import { buildGroupArtifacts, buildFullCatalog, buildSummary, buildFeed, buildAnalytics } from './derive.js';
+import { buildBrief } from './brief.js';
+import { MAX_CALLS_PER_HOUR } from './spacetrack.js';
+
+export const CRON_GP      = '17 */6 * * *';
+export const CRON_DAILY   = '20 17 * * *';
+export const CRON_WEEKLY  = '25 17 * * 3';
+
+/**
+ * Run a step, capture its outcome, and keep going.
+ *
+ * Steps are deliberately not chained on success. A boxscore outage must not
+ * cost us the R2 artifact regeneration that the globe reads — the whole point
+ * of the daily job is that the site stays current, and partial data beats a
+ * skipped run. Failures surface in the log and in `GET /` rather than
+ * propagating and marking the whole invocation dead.
+ */
+async function step(report, name, fn) {
+  const t0 = Date.now();
+  try {
+    const result = await fn();
+    report.steps.push({ name, ok: true, ms: Date.now() - t0, ...result });
+  } catch (err) {
+    report.ok = false;
+    report.steps.push({ name, ok: false, ms: Date.now() - t0, error: String(err && err.message || err) });
+    console.error(`[orbit-ingest] ${name} failed:`, err);
+  }
+}
+
+export async function runGP(env) {
+  const report = { job: 'gp', ok: true, steps: [] };
+  await step(report, 'ingest-gp', () => ingestGP(env));
+  // Bundles are regenerated even if the ingest failed: the previous elsets are
+  // still in D1 and a fresh artifact from slightly stale data beats none.
+  await step(report, 'artifacts', async () => ({ groups: await buildGroupArtifacts(env) }));
+  await step(report, 'feed', async () => { await buildFeed(env); return {}; });
+  return report;
+}
+
+export async function runDaily(env) {
+  const report = { job: 'daily', ok: true, steps: [] };
+  await step(report, 'ingest-satcat', () => ingestSatcat(env));
+  await step(report, 'ingest-decay', () => ingestDecay(env, 'daily'));
+  await step(report, 'ingest-boxscore', () => ingestBoxscore(env));
+
+  let groups = null;
+  await step(report, 'artifacts', async () => (groups = await buildGroupArtifacts(env), { groups }));
+  // ~5 MB, so once a day rather than every six hours.
+  await step(report, 'full-catalog', async () => ({ objects: await buildFullCatalog(env) }));
+  await step(report, 'summary', async () => { await buildSummary(env, { groups }); return {}; });
+  await step(report, 'feed', async () => { await buildFeed(env); return {}; });
+  // Launch history barely moves day to day (new elsets, not new launch years),
+  // so once a day alongside summary rather than every six hours.
+  await step(report, 'analytics', async () => { await buildAnalytics(env); return {}; });
+  // Last, and once a day rather than every six hours: the brief narrates the
+  // events the steps above have just recorded, and it is the only step that can
+  // reach a model. Its own failures are already swallowed into
+  // `narrative_status`, so reaching step()'s catch here means D1 or R2 broke.
+  await step(report, 'brief', async () => {
+    const card = await buildBrief(env);
+    return { narrative: card.narrative_status };
+  });
+  return report;
+}
+
+export async function runWeekly(env) {
+  const report = { job: 'weekly', ok: true, steps: [] };
+  await step(report, 'ingest-decay-60day', () => ingestDecay(env, '60day'));
+  await step(report, 'feed', async () => { await buildFeed(env); return {}; });
+  return report;
+}
+
+export default {
+  async scheduled(event, env, ctx) {
+    const job = { [CRON_GP]: runGP, [CRON_DAILY]: runDaily, [CRON_WEEKLY]: runWeekly }[event.cron];
+    if (!job) {
+      console.error(`[orbit-ingest] no handler for cron "${event.cron}"`);
+      return;
+    }
+    // waitUntil keeps the invocation alive for the whole report, including the
+    // artifact writes that happen after the last upstream response.
+    ctx.waitUntil((async () => {
+      const report = await job(env);
+      console.log('[orbit-ingest]', JSON.stringify(report));
+    })());
+  },
+
+  /**
+   * Status only. This Worker has no public surface by design — it holds
+   * Space-Track credentials, and an unauthenticated trigger would let anyone
+   * spend the account's rate budget.
+   *
+   * A manual reseed is available at POST /run?job=gp|daily|weekly, gated on the
+   * INGEST_TOKEN secret. Set no token and the route does not exist.
+   */
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/run' && request.method === 'POST') {
+      const token = env.INGEST_TOKEN;
+      const given = request.headers.get('authorization');
+      if (!token || given !== `Bearer ${token}`) {
+        return new Response('Not found', { status: 404 });
+      }
+      const job = { gp: runGP, daily: runDaily, weekly: runWeekly }[url.searchParams.get('job')];
+      if (!job) return json({ error: 'job must be gp, daily or weekly' }, 400);
+      return json(await job(env));
+    }
+
+    if (url.pathname !== '/') return new Response('Not found', { status: 404 });
+
+    const [objects, calls, lastEvent] = await Promise.all([
+      env.ORBIT_DB.prepare('SELECT COUNT(*) AS n, MAX(updated_at) AS t FROM objects').first(),
+      env.ORBIT_DB.prepare('SELECT COUNT(*) AS n FROM api_calls WHERE ts > ?')
+        .bind(Date.now() - 3600_000).first(),
+      env.ORBIT_DB.prepare('SELECT ts, kind FROM events ORDER BY id DESC LIMIT 1').first(),
+    ]).catch(() => [null, null, null]);
+
+    return json({
+      worker: 'orbit-ingest',
+      objects: objects ? objects.n : null,
+      last_ingest: objects ? objects.t : null,
+      calls_last_hour: calls ? calls.n : null,
+      budget_limit: MAX_CALLS_PER_HOUR,
+      last_event: lastEvent || null,
+      crons: [CRON_GP, CRON_DAILY, CRON_WEEKLY],
+    });
+  },
+};
+
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+  });
+}

@@ -1,0 +1,228 @@
+Global Responsive UI Refactoring Prompt
+
+Version: 1.0
+
+Objective
+
+Refactor the entire application to use a single responsive design system
+shared by every page. The current implementation appears to have been
+designed page-by-page, leading to inconsistent layouts, overlapping
+controls, duplicated styles, and poor mobile usability.
+
+Do NOT redesign the visual identity. Preserve the cyber-themed
+aesthetic, colors, typography, animations, Cesium globe, and overall
+branding. Refactor only the layout architecture, responsiveness,
+component organization, and usability.
+
+------------------------------------------------------------------------
+
+Scope
+
+Apply these changes consistently to every page, including (but not
+limited to):
+
+-   Home
+-   Orbital Relay
+-   SpaceTrack
+-   ISS Telemetry
+-   Starlink
+-   Analytics
+-   Brief
+-   Signal
+-   Conjunctions
+-   Any future pages
+
+------------------------------------------------------------------------
+
+Global Layout
+
+Create a reusable AppLayout shared across all pages.
+
+AppLayout should contain:
+
+-   Header
+-   Primary content area
+-   Visualization area
+-   Controls area
+-   Footer
+
+Each page should inject only its page-specific content.
+
+------------------------------------------------------------------------
+
+Responsive Breakpoints
+
+Support:
+
+-   Desktop (>=1200px)
+-   Laptop (1024–1199px)
+-   Tablet (768–1023px)
+-   Mobile (<768px)
+
+Avoid page-specific media query hacks.
+
+------------------------------------------------------------------------
+
+Header
+
+Implement one reusable responsive header.
+
+Desktop: - Logo - Navigation - Menu/Profile
+
+Mobile: - Logo - Hamburger menu
+
+Hide secondary navigation inside the mobile menu.
+
+------------------------------------------------------------------------
+
+Globe & Visualization
+
+The visualization must always be the primary focus.
+
+Requirements: - Largest visual element. - Responsive scaling. - Never
+clipped. - Never hidden behind UI. - Centered on every screen size.
+
+------------------------------------------------------------------------
+
+Floating Panels
+
+Current floating cards create clutter on mobile.
+
+Desktop: - Floating cards are acceptable.
+
+Mobile: - Replace floating cards with: - Bottom drawer - Slide-out
+drawer - Bottom navigation - Action sheet
+
+Never allow cards to overlap the globe.
+
+------------------------------------------------------------------------
+
+Time Controls
+
+Move time controls into a dedicated layout region.
+
+Never overlap: - Navigation - Footer - Globe - Action cards
+
+------------------------------------------------------------------------
+
+Navigation
+
+Standardize navigation across the application.
+
+Desktop: Persistent top navigation.
+
+Mobile: Bottom navigation plus hamburger menu.
+
+------------------------------------------------------------------------
+
+Panels
+
+Standardize all cards: - Same padding - Same border radius - Same
+typography - Same hover states - Same spacing - Same shadows
+
+Examples: - Filters - Results - ISS Telemetry - Layers - Starlink -
+Catalog
+
+------------------------------------------------------------------------
+
+Responsive Hierarchy
+
+Every page should follow:
+
+Header
+
+↓
+
+Primary Visualization
+
+↓
+
+Primary Controls
+
+↓
+
+Secondary Controls
+
+↓
+
+Footer
+
+------------------------------------------------------------------------
+
+Eliminate Overlap
+
+Audit entire project for: - position:absolute - position:fixed -
+negative margins - translate transforms - arbitrary z-index values
+
+Replace layout positioning with Flexbox or CSS Grid whenever possible.
+
+Interactive controls must never overlap.
+
+------------------------------------------------------------------------
+
+Shared Components
+
+Refactor into reusable components:
+
+-   AppLayout
+-   Header
+-   Footer
+-   Card
+-   Button
+-   Panel
+-   Drawer
+-   Bottom Navigation
+-   Time Controls
+-   Status Badge
+-   Section Header
+
+Avoid duplicated UI code.
+
+------------------------------------------------------------------------
+
+Shared State
+
+Maintain state across pages:
+
+-   Selected object
+-   Filters
+-   Camera position
+-   Time controls
+-   User preferences
+
+Use a centralized state solution.
+
+------------------------------------------------------------------------
+
+Accessibility
+
+Implement: - Semantic HTML - Keyboard navigation - Visible focus
+indicators - ARIA labels - WCAG AA contrast - Minimum 44x44px touch
+targets
+
+------------------------------------------------------------------------
+
+Performance
+
+-   Lazy-load heavy routes
+-   Code split pages
+-   Memoize expensive Cesium components
+-   Debounce search/filter inputs
+-   Virtualize large lists
+-   Prevent unnecessary globe re-renders
+
+------------------------------------------------------------------------
+
+Acceptance Criteria
+
+The refactor is complete when:
+
+-   No UI elements overlap.
+-   Every page follows the same layout architecture.
+-   Mobile UI is optimized instead of being a scaled desktop layout.
+-   The globe remains the primary visual element.
+-   Navigation is consistent across all pages.
+-   All components are reusable.
+-   Responsive behavior works from 320px to 4K.
+-   Existing functionality is preserved.
+-   Existing cyber-themed design language is preserved.

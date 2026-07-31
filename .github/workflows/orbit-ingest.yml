@@ -1,0 +1,167 @@
+# Space-Track ingest for the Orbital Relay (plan 33 wave 2b).
+#
+# **Why Actions and not the Worker's own cron.** The GP job parses and upserts
+# most of the ~28k catalog in one go — roughly 300 ms of CPU against Workers
+# Free's 10 ms per invocation. Streaming fixed the memory ceiling, not the CPU
+# one, and cadence cannot fix it either: CPU is driven by rows/day, which is
+# fixed, so even 1-hourly (the fastest GP rate Space-Track permits) is ~55 ms.
+# `workers/orbit-ingest/wrangler.toml` keeps its crons and `scheduled()` handler
+# in the repo, deployable and unused, as the fallback.
+#
+# The runner (`scripts/run-ingest.mjs`) calls the *same* job functions the
+# Worker would — only `env` differs, via `scripts/env-node.mjs`.
+#
+# Repo secrets required (Settings → Secrets and variables → Actions):
+#   SPACETRACK_IDENTITY     the Space-Track account email — there is no API key,
+#   SPACETRACK_PASSWORD     these two values ARE the credentials
+#   CLOUDFLARE_ACCOUNT_ID
+#   CLOUDFLARE_API_TOKEN    D1:Edit — used for the D1 HTTP API
+#   R2_ACCESS_KEY_ID        from an R2 API token (Object Read & Write).
+#   R2_SECRET_ACCESS_KEY    SigV4 cannot consume a Cloudflare API token, so R2
+#                           needs its own pair — this is not a duplicate.
+#   ORBIT_D1_DATABASE_ID    e5fe1563-71ef-4fb4-9e04-554c87caf821
+#
+# Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron).
+name: orbit-ingest
+
+on:
+  schedule:
+    # Minute :17 is deliberate — the Space-Track docs require avoiding the top
+    # and bottom of the hour and recommend a 10-20 minute offset.
+    #
+    # GitHub cron is UTC, and it is best-effort *late*, never early: runs are
+    # queued and can slip by many minutes under load. That is harmless for GP
+    # (the delta window is 6.72h against a 6h cadence, so overlap absorbs a slip
+    # and upserts are idempotent), and it is why the daily jobs sit further past
+    # the hour than the Worker's :20/:25 — SATCAT and BOXSCORE are documented as
+    # once per day AFTER 1700 UTC, and a job that slips *earlier* is not a risk
+    # while one scheduled too close to the boundary is a needless one.
+    - cron: '17 */6 * * *'   # GP delta          → objects, events, R2 bundles
+    - cron: '35 17 * * *'    # SATCAT + DECAY + BOXSCORE → daily catalog state
+    - cron: '40 17 * * 3'    # 60-day decay predictions  → reentry watch list
+
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Which job to run'
+        required: true
+        default: gp
+        type: choice
+        options: [gp, daily, weekly, seed]
+
+# One ingest at a time, ever. Two concurrent runs would race each other's
+# upserts and — worse — both spend against a rate budget whose ceiling is an
+# account suspension. Queued rather than cancelled: a half-finished ingest that
+# gets killed leaves the catalog partially updated.
+concurrency:
+  group: orbit-ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    if: github.event_name == 'schedule' || github.event.inputs.job != 'seed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: workers/orbit-ingest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Which job this run is depends on which cron fired. GitHub gives the
+      # matched expression in github.event.schedule, so the mapping lives here
+      # rather than in three near-identical workflow files.
+      #
+      # Both values come in through `env` and are re-validated against a fixed
+      # list. `type: choice` is enforced by the API, not by the runner, so the
+      # value still reaches a shell — and anything reaching a shell from an
+      # event payload is treated as untrusted here regardless.
+      - name: Pick the job
+        id: pick
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_JOB: ${{ github.event.inputs.job }}
+        run: |
+          case "$SCHEDULE" in
+            '17 */6 * * *') job=gp ;;
+            '35 17 * * *')  job=daily ;;
+            '40 17 * * 3')  job=weekly ;;
+            *)              job="$INPUT_JOB" ;;
+          esac
+          case "$job" in
+            gp|daily|weekly) ;;
+            *) echo "::error::unexpected job '$job'"; exit 2 ;;
+          esac
+          echo "job=$job" >> "$GITHUB_OUTPUT"
+          echo "Running orbit-ingest job: $job"
+
+      # No dependencies and no build step — the ingest modules are plain ESM,
+      # so this is `node`, a checkout and nothing else.
+      - name: Run ingest
+        run: node --no-warnings scripts/run-ingest.mjs "$JOB"
+        env:
+          JOB:                   ${{ steps.pick.outputs.job }}
+          SPACETRACK_IDENTITY:   ${{ secrets.SPACETRACK_IDENTITY }}
+          SPACETRACK_PASSWORD:   ${{ secrets.SPACETRACK_PASSWORD }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}
+          R2_ACCESS_KEY_ID:      ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY:  ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # Wave 6 — the daily brief's narrative. All four are optional and all
+          # four being absent is a supported state: the brief is still built and
+          # still written from its SQL facts, with no model call anywhere.
+          ORBIT_AI_CARDS:        ${{ vars.ORBIT_AI_CARDS }}
+          ORBIT_AI_PROVIDER:     ${{ vars.ORBIT_AI_PROVIDER }}
+          ORBIT_AI_MODEL:        ${{ vars.ORBIT_AI_MODEL }}
+          CLOUDFLARE_AI_TOKEN:   ${{ secrets.CLOUDFLARE_AI_TOKEN }}
+          GROQ_API_KEY:          ${{ secrets.GROQ_API_KEY }}
+
+  # One-time full-catalog seed, manual only.
+  #
+  # It makes exactly ONE upstream call and GP is capped at one per hour, so a
+  # failed run costs the whole hour — which is why it is never on a schedule and
+  # never chained to anything.
+  seed:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'seed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: workers/orbit-ingest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Seed the catalog
+        run: node --no-warnings scripts/bootstrap.mjs --http
+        env:
+          SPACETRACK_IDENTITY:   ${{ secrets.SPACETRACK_IDENTITY }}
+          SPACETRACK_PASSWORD:   ${{ secrets.SPACETRACK_PASSWORD }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}
+
+      # The seed only fills D1. The bundles the globe actually reads are R2
+      # artifacts, so build them straight away rather than leaving the site
+      # blank until the next scheduled run.
+      - name: Build the R2 artifacts
+        run: node --no-warnings scripts/run-ingest.mjs daily
+        env:
+          SPACETRACK_IDENTITY:   ${{ secrets.SPACETRACK_IDENTITY }}
+          SPACETRACK_PASSWORD:   ${{ secrets.SPACETRACK_PASSWORD }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}
+          R2_ACCESS_KEY_ID:      ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY:  ${{ secrets.R2_SECRET_ACCESS_KEY }}

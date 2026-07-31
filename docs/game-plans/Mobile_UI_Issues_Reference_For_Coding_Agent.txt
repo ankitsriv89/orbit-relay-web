@@ -1,0 +1,97 @@
+Mobile UI Issues Reference for Coding Agent
+
+Purpose: Reference document describing issues to fix in the mobile UI.
+
+1. Overlapping Components
+
+-   Time controls overlap Catalog.
+-   Time controls overlap Results.
+-   Interactive elements must never overlap.
+-   Replace absolute positioning with Flexbox/Grid.
+
+2. Globe Size
+
+-   Increase globe size.
+-   Make globe the primary visual element.
+-   Reduce navigation footprint.
+
+3. Navigation Cards
+
+-   Reduce height of Catalog and Filters cards.
+-   Maintain consistent padding.
+-   Improve information density.
+
+4. Results Button
+
+-   Ensure Results button is always fully visible.
+-   Prevent clipping and overlap.
+
+5. Time Controls
+
+-   Place in dedicated full-width row.
+-   Never float over navigation.
+
+6. Header
+
+-   Increase spacing between logo, source and menu.
+-   Add padding around hamburger menu.
+
+7. Footer
+
+-   Add bottom spacing.
+-   Respect safe-area insets.
+-   Prevent footer overlap.
+
+8. Responsive Layout
+
+Desktop: - Floating panels.
+
+Tablet: - Compact side panels.
+
+Mobile: - Globe-first layout. - Bottom navigation or drawer. - No
+permanent sidebar.
+
+9. Layout Order
+
+Header ↓ Large Globe ↓ Time Controls ↓ Bottom Navigation ↓ Footer
+
+10. Touch Targets
+
+Minimum 44×44 px for: - Menu - Pause - Speed controls - Catalog -
+Results - Filters
+
+11. Spacing
+
+Use consistent 8 px spacing scale. Avoid arbitrary margins and padding.
+
+12. Prevent Layout Collisions
+
+Audit: - position:absolute - position:fixed - negative margins -
+translate transforms
+
+Replace with Flexbox/Grid where practical.
+
+13. Mobile Navigation
+
+Prefer: - Bottom navigation - Floating action bar - Slide-out filter
+drawer
+
+14. Accessibility
+
+Implement: - Keyboard navigation - Visible focus states - ARIA labels -
+WCAG AA contrast - Semantic HTML
+
+15. Performance
+
+-   Debounce search.
+-   Lazy-load heavy panels.
+-   Avoid unnecessary Cesium re-renders.
+
+Acceptance Criteria
+
+-   No overlapping UI.
+-   Globe is primary focus.
+-   All controls fully visible.
+-   Responsive layout from 320–768 px.
+-   Consistent spacing.
+-   Cyber-themed aesthetic preserved.

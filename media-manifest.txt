@@ -1,0 +1,18 @@
+assets/music/default/marsapiens/Agent Protocol-01.mp3	Agent Protocol-01.mp3
+assets/music/default/marsapiens/Agent Protocol-02.mp3	Agent Protocol-02.mp3
+assets/music/default/marsapiens/ariana-speaks-01.mp3	ariana-speaks-01.mp3
+assets/music/default/marsapiens/ariana-speaks-02.mp3	ariana-speaks-02.mp3
+assets/music/default/marsapiens/ATHENA's Lullaby-01.mp3	ATHENA's Lullaby-01.mp3
+assets/music/default/marsapiens/ATHENA's Lullaby-02.mp3	ATHENA's Lullaby-02.mp3
+assets/music/default/marsapiens/CREON Never Sleeps-01.mp3	CREON Never Sleeps-01.mp3
+assets/music/default/marsapiens/CREON Never Sleeps-02.mp3	CREON Never Sleeps-02.mp3
+assets/music/default/marsapiens/feed-the-grid-01.mp3	feed-the-grid-01.mp3
+assets/music/default/marsapiens/feed-the-grid-02.mp3	feed-the-grid-02.mp3
+assets/music/default/marsapiens/Genetic Ghost-01.mp3	Genetic Ghost-01.mp3
+assets/music/default/marsapiens/Genetic Ghost-02.mp3	Genetic Ghost-02.mp3
+assets/music/default/marsapiens/Red Dust Rising-01.mp3	Red Dust Rising-01.mp3
+assets/music/default/marsapiens/Red Dust Rising-02.mp3	Red Dust Rising-02.mp3
+assets/music/default/marsapiens/The Machine War-01.mp3	The Machine War-01.mp3
+assets/music/default/marsapiens/The Machine War-02.mp3	The Machine War-02.mp3
+assets/music/default/marsapiens/Vault of Earth-01.mp3	Vault of Earth-01.mp3
+assets/music/default/marsapiens/Vault of Earth-02.mp3	Vault of Earth-02.mp3

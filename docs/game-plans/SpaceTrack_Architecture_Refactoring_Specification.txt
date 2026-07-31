@@ -1,0 +1,282 @@
+SpaceTrack Refactoring Specification
+
+Version: 1.0
+
+Objective
+
+Refactor the application from a tab-heavy single-page interface into a
+modular multi-page application.
+
+The Catalog (SpaceTrack) page should be dedicated exclusively to
+discovering, filtering, and visualizing space objects. All analytical
+and reporting functionality should be moved into dedicated pages.
+
+------------------------------------------------------------------------
+
+Overall Application Structure
+
+Create the following routes/pages:
+
+-   Catalog (Main SpaceTrack page)
+-   Signal
+-   Conjunctions
+-   Brief
+-   Analytics
+
+Maintain a shared application shell (header/navigation/theme) across all
+pages.
+
+Persist the selected object and filter state when navigating between
+pages.
+
+------------------------------------------------------------------------
+
+Catalog (Main Page)
+
+Purpose: Operational satellite discovery and visualization only.
+
+Keep only:
+
+-   3D Cesium Globe
+-   Search
+-   Filter panel
+-   Results panel
+-   Selected object summary
+-   Time controls
+
+Remove:
+
+-   Analytics
+-   Charts
+-   Reports
+-   Signal analysis
+-   Conjunction analysis
+
+The Catalog page should remain clean and optimized for plotting and
+selecting objects.
+
+------------------------------------------------------------------------
+
+Filter Panel
+
+The filter panel should contain only filtering functionality.
+
+Examples:
+
+-   Search
+-   Object type
+-   Country
+-   Orbit class
+-   Launch year
+-   Operator
+-   Inclination
+-   Apogee/Perigee
+-   Derived filters
+
+No analytics or secondary tabs should remain inside this panel.
+
+On mobile:
+
+-   Replace permanent sidebar with slide-out drawer or bottom sheet.
+
+------------------------------------------------------------------------
+
+Results Panel
+
+Display:
+
+-   Matching satellites
+-   Sorting
+-   Pagination or virtualization
+-   Quick selection
+-   Highlight selected object
+
+Selecting an object updates the globe and stores the selection globally.
+
+------------------------------------------------------------------------
+
+Signal Page
+
+Purpose: Communication and visibility analysis.
+
+Suggested sections:
+
+-   Ground station visibility
+-   Signal coverage
+-   Radio frequencies
+-   Doppler shift
+-   Link budget
+-   Pass predictions
+-   Coverage maps
+
+Do not duplicate filtering UI from Catalog.
+
+Use the currently selected object.
+
+------------------------------------------------------------------------
+
+Conjunctions Page
+
+Purpose: Collision avoidance and close approach analysis.
+
+Suggested features:
+
+-   Active conjunction alerts
+-   Close approaches
+-   Collision probability
+-   Relative velocity
+-   Miss distance
+-   Timeline
+-   Historical conjunction events
+
+Allow future integration with live conjunction APIs.
+
+------------------------------------------------------------------------
+
+Brief Page
+
+Purpose: Mission summary and object overview.
+
+Display:
+
+-   Satellite name
+-   NORAD ID
+-   COSPAR ID
+-   Operator
+-   Country
+-   Mission
+-   Launch information
+-   Orbital parameters
+-   Velocity
+-   Apogee
+-   Perigee
+-   Inclination
+-   Orbital period
+-   Status
+-   Description
+
+Future enhancements:
+
+-   Export PDF
+-   Printable report
+-   Shareable summary
+
+------------------------------------------------------------------------
+
+Analytics Page
+
+Purpose: Aggregate statistics and visualizations.
+
+Suggested dashboards:
+
+-   Orbit distribution
+-   Country ownership
+-   Launch timeline
+-   Active vs inactive objects
+-   Object type distribution
+-   Operator statistics
+-   Debris trends
+-   Mission categories
+-   Historical growth
+
+This page should contain charts and dashboards rather than operational
+controls.
+
+------------------------------------------------------------------------
+
+Navigation
+
+Replace sidebar tabs with top-level navigation.
+
+Example:
+
+SpaceTrack | Catalog | Signal | Conjunctions | Brief | Analytics
+
+Navigation should preserve application state.
+
+------------------------------------------------------------------------
+
+Shared State
+
+Use centralized state management.
+
+Persist:
+
+-   Selected object
+-   Active filters
+-   Camera position (optional)
+-   Time controls
+-   User preferences
+
+Possible implementations:
+
+-   React Context
+-   Zustand
+-   Redux Toolkit
+
+------------------------------------------------------------------------
+
+Component Organization
+
+Suggested structure:
+
+src/ components/ catalog/ globe/ filters/ results/ signal/ conjunctions/
+brief/ analytics/ layout/ common/
+
+pages or app/ catalog/ signal/ conjunctions/ brief/ analytics/
+
+Keep components small, reusable, and focused.
+
+------------------------------------------------------------------------
+
+Responsive Design
+
+Desktop: - Globe + filter/results layout.
+
+Tablet: - Compact side panel.
+
+Mobile: - Globe remains primary. - Filters open as drawer or bottom
+sheet. - No permanent sidebar.
+
+------------------------------------------------------------------------
+
+Performance
+
+-   Lazy-load heavy pages.
+-   Code-split route components.
+-   Virtualize long lists.
+-   Debounce search.
+-   Memoize expensive computations.
+-   Avoid unnecessary Cesium re-renders.
+
+------------------------------------------------------------------------
+
+Accessibility
+
+Implement:
+
+-   Keyboard navigation
+-   Visible focus states
+-   WCAG AA contrast
+-   Semantic HTML
+-   ARIA labels
+-   Minimum 44x44 px touch targets
+
+------------------------------------------------------------------------
+
+Design Principle
+
+The application should follow separation of concerns:
+
+Catalog = Discover and Plot
+
+Signal = Communication Analysis
+
+Conjunctions = Collision Analysis
+
+Brief = Object Information
+
+Analytics = Statistical Insights
+
+Each page should have sufficient space to present detailed information
+without overloading the main tracking interface.
