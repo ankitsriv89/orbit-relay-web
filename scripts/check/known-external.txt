@@ -1,0 +1,11 @@
+# References resolve.mjs should not check against the filesystem.
+#
+# Anything with a scheme (https:, data:, mailto:) or a protocol-relative `//`
+# prefix is skipped automatically — this file is only for first-party-looking
+# paths that are legitimately served from somewhere else.
+#
+# One entry per line. Blank lines and `#` comments ignored.
+
+# Cesium's CDN build sets its own base URL at runtime and serves Workers/,
+# Assets/, Widgets/ from there — no such directories exist in public/.
+/Build/Cesium/

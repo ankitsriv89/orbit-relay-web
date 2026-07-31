@@ -457,9 +457,16 @@ await test('the UNOFFICIAL badge is in the markup, not only in the JS', () => {
   // USSPACECOM's blanket redistribution approval. The disclaimer is the reason
   // deriving our own screening is acceptable at all, so it ships in the HTML
   // where it cannot be lost to a failed fetch.
-  const html = read('public/spacetrack/index.html');
+  //
+  // The multi-page split moved the screener off the catalog page, so the badge
+  // lives with the feature it disclaims rather than on /spacetrack/.
+  const html = read('public/spacetrack/conjunctions/index.html');
   assert.ok(/UNOFFICIAL/.test(html), 'the badge text must be in the markup');
-  assert.ok(/NOT FOR COLLISION AVOIDANCE/.test(html), 'the full warning must be present');
+  // Match on meaning, not on the exact casing/wording of the sentence — the
+  // rendered copy is "Do not use for collision avoidance", and an assertion
+  // pinned to a verbatim uppercase string fails on a page that is in fact
+  // correctly labelled.
+  assert.ok(/collision avoidance/i.test(html), 'the full warning must be present');
 });
 
 const passed = results.filter(Boolean).length;

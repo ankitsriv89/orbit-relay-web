@@ -1,0 +1,34 @@
+# CI — the guardrail for a repo with no build step.
+#
+# Everything here is offline and takes seconds. There are no secrets on purpose:
+# the checks are filesystem arithmetic and `node --check`, matching the "no
+# network" discipline of the orbit-ingest suite.
+#
+# This is deliberately NOT part of `orbit-ingest.yml` — that is a *scheduled
+# ingest* workflow whose concurrency group and secret surface have nothing to do
+# with CI.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install orbit-ingest deps
+        run: npm --prefix workers/orbit-ingest ci || npm --prefix workers/orbit-ingest install
+
+      - name: Test
+        run: npm test

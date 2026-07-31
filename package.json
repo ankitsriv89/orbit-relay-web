@@ -5,7 +5,10 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "wrangler pages dev public"
+    "dev": "wrangler pages dev public",
+    "check:syntax": "node scripts/check/syntax.mjs",
+    "check:resolve": "node scripts/check/resolve.mjs",
+    "test": "npm run check:syntax && npm run check:resolve && npm --prefix workers/orbit-ingest test"
   },
   "keywords": ["orbit", "satellite", "space-track", "celestrak"],
   "author": "Ankit Srivastava",
