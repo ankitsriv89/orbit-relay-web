@@ -23,8 +23,8 @@ import {
 /* ── Token + constants ─────────────────────────────────────────────────── */
 Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
-    'eyJqdGkiOiI2MjFjZDg5My0zMTRiLTQ3ZjMtOTNlNi1iM2E3ZGNjYWE5ZTQiLCJpZCI6MzkzOTM1LCJpYXQiOjE3NzE5Nzk4NTd9.' +
-    'eAH51ApKzzuBIkgwf-rqo4G2U6cSBOQMTPFAALBb2Hg';
+    'eyJqdGkiOiIzYzZiN2NkMi1iNDQ3LTRmODUtOTE3MS00NGU5MTMyYmQwM2YiLCJpZCI6MzkzOTM1LCJzdWIiOiJhbmtpdCBzcml2YXN0YXZhIiwiaXNzIjoiaHR0cHM6Ly9hcGkuY2VzaXVtLmNvbSIsImF1ZCI6Im9yYml0YWwtcmVsYXktcHJvZHVjdGlvbiIsImlhdCI6MTc4NTUwMDU1N30.' +
+    'lwi3qNBYX_GS2119noduOSEGZvHE3W2osCc46_ydD-U';
 
 const SAT_CAP_DEFAULT = 40;      // Starlink shown on load
 const SAT_CAP_MAX     = 600;     // baseline slider maximum
