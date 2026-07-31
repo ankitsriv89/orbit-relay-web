@@ -2,47 +2,169 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/orbit/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Orbital Relay — Live Satellite Tracking &amp; Catalog Intelligence</title>
+    <meta name="description" content="Track 28,000+ tracked objects in real time. Live 3D orbits, Space-Track catalog search, conjunction screening, RF link budgets, and daily orbital briefs — all sourced from Space-Track.org and CelesTrak.">
+    <meta name="theme-color" content="#050810">
+    <link rel="canonical" href="https://orbitalrelay.space/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Orbital Relay — Live Satellite Tracking & Catalog Intelligence">
+    <meta property="og:description" content="Real-time 3D orbits, the full Space-Track catalog, conjunction screening, and pass prediction — built on official USSPACECOM and CelesTrak data.">
+    <meta property="og:url" content="https://orbitalrelay.space/">
+    <meta property="og:image" content="https://orbitalrelay.space/icons/favicon-512.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Orbital Relay — Live Satellite Tracking & Catalog Intelligence">
+    <meta name="twitter:description" content="Real-time 3D orbits, the full Space-Track catalog, conjunction screening, and pass prediction.">
+    <meta name="twitter:image" content="https://orbitalrelay.space/icons/favicon-512.png">
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="/css/tokens.css">
     <link rel="stylesheet" href="/css/landing.css">
-    <title>Orbital Relay — Satellite Intelligence Platform</title>
 </head>
 <body>
-    <div class="container">
-        <img src="/orbit/logo.png" alt="Orbital Relay" class="logo">
-        <h1>Orbital Relay</h1>
-        <p class="tagline">Real-time satellite intelligence & tracking platform</p>
+    <a class="skip-link" href="#main">Skip to content</a>
 
-        <div class="features">
-            <div class="feature">
-                <div class="feature-title">🛰️ Live Tracking</div>
-                <div class="feature-desc">Track satellites, debris, and space objects in real-time</div>
-            </div>
-            <div class="feature">
-                <div class="feature-title">🌍 3D Visualization</div>
-                <div class="feature-desc">Interactive globe with orbital mechanics and ephemeris</div>
-            </div>
-            <div class="feature">
-                <div class="feature-title">📊 Analytics</div>
-                <div class="feature-desc">Conjunction analysis and orbital predictions</div>
-            </div>
-            <div class="feature">
-                <div class="feature-title">⚡ Real-time Data</div>
-                <div class="feature-desc">Live feeds from Space-Track and CelesTrak</div>
-            </div>
+    <header class="site-header">
+        <div class="site-header__inner">
+            <span class="wordmark">ORBITAL<span class="wordmark__accent">·</span>RELAY</span>
+            <a class="header-cta" href="/orbit/">LAUNCH →</a>
         </div>
+    </header>
 
-        <div class="cta-section">
-            <a href="/orbit/" class="cta-button cta-button--primary">Launch Orbital Relay</a>
-            <a href="/spacetrack/" class="cta-button cta-button--secondary">Space-Track Catalog</a>
-            <a href="/starlink/" class="cta-button cta-button--secondary">Starlink Constellation</a>
-        </div>
+    <main id="main">
+        <section class="hero" aria-labelledby="hero-title">
+            <canvas id="hero-canvas" aria-hidden="true"></canvas>
+            <div class="hero__content">
+                <p class="eyebrow">SATELLITE CATALOG INTELLIGENCE</p>
+                <h1 id="hero-title">Every tracked object in orbit,<br>rendered live.</h1>
+                <p class="hero__sub">
+                    A 3D globe, a 28,000-object catalog, conjunction screening and RF link
+                    budgets — built directly on Space-Track.org and CelesTrak, not a mockup
+                    of them.
+                </p>
+                <div class="hero__actions">
+                    <a href="/orbit/" class="btn btn--primary">Launch Orbital Relay</a>
+                    <a href="/spacetrack/" class="btn btn--ghost">Browse the catalog</a>
+                </div>
+            </div>
+        </section>
 
-        <div class="footer">
-            <p>Powered by CesiumJS, Space-Track, and CelesTrak</p>
-            <p class="footer-copyright">© 2026 Orbital Relay. All rights reserved.</p>
+        <section class="stat-strip" aria-label="Live catalog status">
+            <div class="stat-strip__inner" id="stat-strip">
+                <div class="stat" data-stat="tracked">
+                    <span class="stat__value" id="stat-tracked">—</span>
+                    <span class="stat__label">tracked objects</span>
+                </div>
+                <div class="stat" data-stat="payloads">
+                    <span class="stat__value" id="stat-payloads">—</span>
+                    <span class="stat__label">active payloads</span>
+                </div>
+                <div class="stat" data-stat="debris">
+                    <span class="stat__value" id="stat-debris">—</span>
+                    <span class="stat__label">tracked debris</span>
+                </div>
+                <div class="stat" data-stat="updated">
+                    <span class="stat__value" id="stat-updated">—</span>
+                    <span class="stat__label">catalog age</span>
+                </div>
+            </div>
+            <p class="stat-strip__note" id="stat-strip-note" hidden>
+                Live counts unavailable right now — showing the last published catalog snapshot.
+            </p>
+        </section>
+
+        <section class="apps" aria-labelledby="apps-title">
+            <div class="section-head">
+                <p class="eyebrow">SEVEN VIEWS, ONE CATALOG</p>
+                <h2 id="apps-title">Pick how you want to look at orbit.</h2>
+            </div>
+
+            <div class="app-grid">
+                <a class="app-card app-card--feature" href="/orbit/">
+                    <span class="app-card__kicker">CINEMATIC VIEW</span>
+                    <h3>Orbital Relay</h3>
+                    <p>A live 3D globe of stations, debris and constellations with real
+                       orbital mechanics — click any satellite for its full telemetry.</p>
+                    <span class="app-card__link">Open the globe →</span>
+                </a>
+
+                <a class="app-card" href="/spacetrack/">
+                    <span class="app-card__kicker">28,000+ OBJECTS</span>
+                    <h3>Space-Track Catalog</h3>
+                    <p>Search, filter and render the full USSPACECOM object catalog —
+                       every payload, rocket body and tracked fragment.</p>
+                    <span class="app-card__link">Browse the catalog →</span>
+                </a>
+
+                <a class="app-card" href="/spacetrack/signal/">
+                    <span class="app-card__kicker">GROUND STATIONS</span>
+                    <h3>Signal</h3>
+                    <p>Visibility windows, coverage maps, pass prediction and RF link
+                       budgets for any object against any ground station.</p>
+                    <span class="app-card__link">Plan a pass →</span>
+                </a>
+
+                <a class="app-card" href="/spacetrack/conjunctions/">
+                    <span class="app-card__kicker">CLOSE-APPROACH SCREENING</span>
+                    <h3>Conjunctions</h3>
+                    <p>Derived close-approach analysis between tracked objects.
+                       Unofficial — not for collision avoidance.</p>
+                    <span class="app-card__link">Screen conjunctions →</span>
+                </a>
+
+                <a class="app-card" href="/spacetrack/brief/">
+                    <span class="app-card__kicker">DAILY DIGEST</span>
+                    <h3>Brief</h3>
+                    <p>A daily rundown of catalog changes, new launches and the
+                       reentry watch — grounded strictly in the day's facts.</p>
+                    <span class="app-card__link">Read today's brief →</span>
+                </a>
+
+                <a class="app-card" href="/spacetrack/analytics/">
+                    <span class="app-card__kicker">CATALOG TRENDS</span>
+                    <h3>Analytics</h3>
+                    <p>Launch history, debris families and a country-by-decade
+                       launch matrix across the entire catalog.</p>
+                    <span class="app-card__link">See the trends →</span>
+                </a>
+
+                <a class="app-card" href="/starlink/">
+                    <span class="app-card__kicker">8,000+ SATELLITES</span>
+                    <h3>Starlink Constellation</h3>
+                    <p>The full live Starlink shell rendered as orbital planes —
+                       the largest constellation in the catalog, on its own globe.</p>
+                    <span class="app-card__link">View the constellation →</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="provenance" aria-labelledby="provenance-title">
+            <div class="provenance__inner">
+                <h2 id="provenance-title" class="sr-only">Data provenance</h2>
+                <p class="provenance__citation">
+                    Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron),
+                    redistributed under USSPACECOM express blanket approval for basic SSA
+                    data, plus CelesTrak GP element sets.
+                </p>
+                <p class="provenance__warn">
+                    ⚠ Conjunction and pass-prediction output on this site is unofficial and
+                    must never be used for collision avoidance or operational maneuver
+                    decisions.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <p>Built on CesiumJS, Space-Track.org and CelesTrak. No build step, no bundler
+               — what ships is what runs.</p>
+            <p class="site-footer__meta">© 2026 Orbital Relay</p>
         </div>
-    </div>
+    </footer>
 
     <script src="/js/landing.js"></script>
 </body>

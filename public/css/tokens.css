@@ -1,0 +1,28 @@
+/* Orbital Relay — shared design tokens.
+ *
+ * Single source of truth for color or type values used on more than one
+ * page. `orbit.css` and `spacetrack.css` still declare their own --sa-*,
+ * --hud-blur and --panel-* today (see AGENTS.md/CLAUDE.md — migrating those
+ * without behaviour change is tracked separately); this file is additive and
+ * safe to `<link>` anywhere without touching the HUD pages.
+ */
+:root {
+    --font-mono: "SFMono-Regular", "JetBrains Mono", "Roboto Mono", "Courier New", monospace;
+
+    /* Signal palette — the product's actual accent (orbit.css / spacetrack.css
+       both converge on #00ccff-#00d2ff already; this is that value, named). */
+    --c-void:      #050810;
+    --c-panel:     #0c1420;
+    --c-panel-alt: #0e1a2a;
+    --c-line:      rgba(0, 210, 255, 0.16);
+    --c-signal:    #00d2ff;
+    --c-signal-dim:#0090b8;
+    --c-text:      #e8f4fa;
+    --c-text-dim:  #7d94a3;
+    --c-warn:      #ff8c5a;
+
+    --sa-top:    env(safe-area-inset-top, 0px);
+    --sa-right:  env(safe-area-inset-right, 0px);
+    --sa-bottom: env(safe-area-inset-bottom, 0px);
+    --sa-left:   env(safe-area-inset-left, 0px);
+}

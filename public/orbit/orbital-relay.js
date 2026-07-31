@@ -2,20 +2,21 @@
  * ORBITAL RELAY — the cinematic Celestrak view.
  *
  * CesiumJS 3D globe with real satellite orbits + live tracking, driven by
- * Celestrak group files (STATIONS + STARLINK + constellation groups).
+ * Celestrak group files (STATIONS + constellation groups). Starlink has its
+ * own dedicated page at /starlink/.
  *
  * The rendering and propagation engine lives in `/orbit-engine/` and is shared
  * with `/spacetrack/` (plan 33 wave 3) — points in one PointPrimitiveCollection,
  * a throttled tick in a Web Worker, transferable position buffers. What is left
- * here is this page: its HUDs, its 16 group checkboxes, the Starlink density
- * panel, the inspector card and the fly-to cinematics.
+ * here is this page: its HUDs, its 16 group checkboxes, the inspector card and
+ * the fly-to cinematics.
  *
  * Features: time-warp, click-to-inspect, ground tracks, coverage footprints,
- * animated orbit trails, constellation pulse FX, Starlink fetch-full-constellation.
+ * animated orbit trails, constellation pulse FX.
  */
 
 import { SatEngine, SatPoint, tuneViewerForDevice } from '../orbit-engine/sat-engine.js';
-import { parseTLE, parseTLEChunked, fetchTLE }  from '../orbit-engine/tle.js';
+import { parseTLE, fetchTLE }  from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '../orbit-engine/astro.js';
@@ -25,16 +26,6 @@ Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
     'eyJqdGkiOiIzYzZiN2NkMi1iNDQ3LTRmODUtOTE3MS00NGU5MTMyYmQwM2YiLCJpZCI6MzkzOTM1LCJzdWIiOiJhbmtpdCBzcml2YXN0YXZhIiwiaXNzIjoiaHR0cHM6Ly9hcGkuY2VzaXVtLmNvbSIsImF1ZCI6Im9yYml0YWwtcmVsYXktcHJvZHVjdGlvbiIsImlhdCI6MTc4NTUwMDU1N30.' +
     'lwi3qNBYX_GS2119noduOSEGZvHE3W2osCc46_ydD-U';
-
-const SAT_CAP_DEFAULT = 40;      // Starlink shown on load
-const SAT_CAP_MAX     = 600;     // baseline slider maximum
-const SAT_CAP_FULL    = 8000;    // hard ceiling for "fetch all"
-
-// Starlink state — all parsed records + spawned sat points
-const slAllRecords  = [];
-const slEntities    = [];
-let   slActiveCount = SAT_CAP_DEFAULT;
-let   slFullLoaded  = false;
 
 /** This page is Celestrak. Space-Track has its own page now — see the SOURCE
  *  row, where the button is a link rather than an in-place switch. */
@@ -312,89 +303,17 @@ let layerCount = 0;
 
 function updateSatBar() {
     const stVis = stationEntities.reduce((n, e) => n + (e.show ? 1 : 0), 0);
-    const slVis = slEntities.reduce((n, e) => n + (e.show ? 1 : 0), 0);
-    if (elCount) elCount.textContent = 1 + stVis + slVis + layerCount;
+    if (elCount) elCount.textContent = 1 + stVis + layerCount;
 }
 
-/* ── Starlink panel: slider + fetch-all ────────────────────────────────── */
-const slSlider       = document.getElementById('sl-slider');
-const slCountDisplay = document.getElementById('sl-count-display');
-const slTotalDisplay = document.getElementById('sl-total-display');
-const slLabelMax     = document.getElementById('sl-label-max');
-const slControls     = document.getElementById('starlink-controls');
-const slStatusEl     = document.getElementById('layer-status-starlink');
-const stStatusEl     = document.getElementById('layer-status-stations-other');
-const slFetchAllBtn  = document.getElementById('sl-fetch-all');
-const slFetchHint    = document.getElementById('sl-fetch-hint');
-
-const slColor = Cesium.Color.fromCssColorString('#00ccff');
-
-function spawnStarlink(i) {
-    const rec = slAllRecords[i];
-    return engine.addSatellite(rec.satrec, slColor, 4, false,
-        { satrec: rec.satrec, l1: rec.l1, l2: rec.l2,
-          name: rec.name, group: 'STARLINK', pulse: false });
-}
-
-function updateStarlinkCount(n) {
-    slActiveCount = Math.max(SAT_CAP_DEFAULT, Math.min(n, slAllRecords.length));
-
-    for (let i = slEntities.length; i < slActiveCount; i++) {
-        slEntities.push(spawnStarlink(i));
-    }
-    for (let i = 0; i < slEntities.length; i++) {
-        slEntities[i].show = i < slActiveCount;
-    }
-
-    if (slCountDisplay) slCountDisplay.textContent = slActiveCount;
-    if (slStatusEl)     slStatusEl.textContent     = slActiveCount;
-    updateSatBar();
-}
-
-if (slSlider) {
-    slSlider.addEventListener('input', () => {
-        updateStarlinkCount(parseInt(slSlider.value, 10));
-    });
-}
-
-// Fetch the full live constellation from the proxy, then open up the slider.
-if (slFetchAllBtn) {
-    slFetchAllBtn.addEventListener('click', async () => {
-        if (slFullLoaded || slFetchAllBtn.disabled) return;
-        slFetchAllBtn.disabled = true;
-        slFetchAllBtn.textContent = '… FETCHING LIVE …';
-        try {
-            const text   = await tle('STARLINK', true);   // live=true → proxy first
-            const parsed = (await parseTLEChunked(text)).slice(0, SAT_CAP_FULL);
-            if (parsed.length > slAllRecords.length) {
-                // Append only the new records beyond the baseline batch.
-                for (let i = slAllRecords.length; i < parsed.length; i++) {
-                    slAllRecords.push(parsed[i]);
-                }
-            }
-            slFullLoaded = true;
-            if (slSlider)       slSlider.max = slAllRecords.length;
-            if (slLabelMax)     slLabelMax.textContent = slAllRecords.length;
-            if (slTotalDisplay) slTotalDisplay.textContent = slAllRecords.length;
-            slFetchAllBtn.textContent = `✓ ${slAllRecords.length} LOADED`;
-            slFetchAllBtn.classList.add('is-loaded');
-            if (slFetchHint) slFetchHint.textContent = 'slide right to render more';
-        } catch (err) {
-            console.warn('[orbital-relay] fetch-all failed:', err);
-            slFetchAllBtn.disabled = false;
-            slFetchAllBtn.textContent = '⬇ RETRY FETCH';
-            if (slFetchHint) slFetchHint.textContent = 'fetch failed — try again';
-        }
-    });
-}
+const stStatusEl = document.getElementById('layer-status-stations-other');
 
 /* ── Load TLE data ─────────────────────────────────────────────────────── */
 async function loadSatellites() {
     setLoadingState(true);
 
-    const [stResult, slResult] = await Promise.allSettled([
+    const [stResult] = await Promise.allSettled([
         tle('STATIONS'),
-        tle('STARLINK'),
     ]);
 
     if (stResult.status === 'fulfilled') {
@@ -423,22 +342,6 @@ async function loadSatellites() {
         if (stStatusEl) stStatusEl.textContent = '';
     } else {
         console.warn('[orbital-relay] STATIONS fetch failed:', stResult.reason);
-    }
-
-    if (slResult.status === 'fulfilled') {
-        const parsed = parseTLE(slResult.value).slice(0, SAT_CAP_MAX);
-        slAllRecords.push(...parsed);
-        if (slSlider)       slSlider.max = slAllRecords.length;
-        if (slLabelMax)     slLabelMax.textContent = slAllRecords.length;
-        if (slTotalDisplay) slTotalDisplay.textContent = slAllRecords.length;
-        for (let i = 0; i < SAT_CAP_DEFAULT && i < slAllRecords.length; i++) {
-            const e = spawnStarlink(i);
-            e.show = false;
-            slEntities.push(e);
-        }
-        slActiveCount = SAT_CAP_DEFAULT;
-    } else {
-        console.warn('[orbital-relay] STARLINK fetch failed:', slResult.reason);
     }
 
     updateSatBar();
@@ -595,19 +498,6 @@ document.querySelectorAll('.layer-cb').forEach(cb => {
                 stationEntities.forEach(e => { e.show = cb.checked; });
                 if (stStatusEl) stStatusEl.textContent = cb.checked ? stationEntities.length : '';
                 updateSatBar();
-            } else if (group === 'starlink') {
-                if (slControls) slControls.hidden = !cb.checked;
-                if (cb.checked) {
-                    for (let i = 0; i < slActiveCount; i++) {
-                        if (slEntities[i]) slEntities[i].show = true;
-                    }
-                    if (slStatusEl) slStatusEl.textContent = slActiveCount;
-                    engine.flyToSats(slEntities.slice(0, slActiveCount));
-                } else {
-                    slEntities.forEach(e => { e.show = false; });
-                    if (slStatusEl) slStatusEl.textContent = '';
-                }
-                updateSatBar();
             }
         } else {
             const color = cb.dataset.color;
@@ -653,7 +543,6 @@ window.__orbit = {
     satCollection: engine.satCollection,
     allSats: engine.allSats,
     layerState,
-    slEntities,
     stationEntities,
     get satPointCount() { return engine.satPointCount; },
     get entityCount()   { return viewer.entities.values.length; },
