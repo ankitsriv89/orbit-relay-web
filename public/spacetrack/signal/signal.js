@@ -1,4 +1,4 @@
-import { EARTH_R_KM, orbVel } from '/orbit-engine/astro.js';
+import { EARTH_R_KM, orbVel } from '../orbit-engine/astro.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, setText, fmtLat, fmtLon } from '../shared/utils.js';

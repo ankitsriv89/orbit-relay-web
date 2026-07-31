@@ -3,7 +3,7 @@
  * 3D Cesium Globe + Filters + Results + Object Dossier
  */
 
-import { orbVel, fmtLat, fmtLon } from '/orbit-engine/astro.js';
+import { orbVel, fmtLat, fmtLon } from '../orbit-engine/astro.js';
 import { initGlobe, initTimeWarpButtons } from './shared/globe.js';
 import { State } from './shared/state.js';
 import { API, getApiBase } from './shared/api.js';

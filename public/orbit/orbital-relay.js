@@ -14,11 +14,11 @@
  * animated orbit trails, constellation pulse FX, Starlink fetch-full-constellation.
  */
 
-import { SatEngine, SatPoint, tuneViewerForDevice } from '/orbit-engine/sat-engine.js';
-import { parseTLE, parseTLEChunked, fetchTLE }  from '/orbit-engine/tle.js';
+import { SatEngine, SatPoint, tuneViewerForDevice } from '../orbit-engine/sat-engine.js';
+import { parseTLE, parseTLEChunked, fetchTLE }  from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
-} from '/orbit-engine/astro.js';
+} from '../orbit-engine/astro.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 Cesium.Ion.defaultAccessToken =
