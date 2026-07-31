@@ -5,3 +5,19 @@ dist/
 .wrangler/
 *.log
 .DS_Store
+
+# Personal overrides — these are per-developer by design and must not be shared.
+# The non-.local siblings (.claude/settings.json, CLAUDE.md) ARE committed.
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Local media caches, generated not authored.
+media-mirror/
+media-manifest.txt
+
+# Python venv under scripts/mars-terrain/ — ~18k files, unrelated to the catalog.
+.venv/
+__pycache__/
+
+# LibreOffice lock files left beside docs/game-plans/*.docx
+.~lock.*#
