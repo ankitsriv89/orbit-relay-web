@@ -1,0 +1,48 @@
+# Cloudflare Pages reads this ONLY at the root of public/. Do not move it.
+#
+# Ported from the pre-split playground repo, dropping every rule for a game that
+# does not live here. Nothing in public/ is content-hashed — there is no build
+# step to hash with — so `immutable` is unsafe for anything we ship and edit.
+# Long TTLs below are reserved for genuinely frozen third-party bytes.
+
+# TLE baselines refresh on a Celestrak cadence; six hours is well inside it.
+/data/tle/*
+  Cache-Control: public, max-age=21600
+
+# Shared globe engine — /orbit/ and /spacetrack/ both load it. Deliberately NOT
+# immutable: the vendored satellite.js is content-addressed by nothing, so a
+# version bump has to be able to reach both pages.
+/orbit-engine/*
+  Cache-Control: public, max-age=86400
+
+/orbit-engine/vendor/*
+  Cache-Control: public, max-age=604800
+
+/orbit/*
+  Cache-Control: public, max-age=86400
+
+/spacetrack/*
+  Cache-Control: public, max-age=86400
+
+/starlink/*
+  Cache-Control: public, max-age=86400
+
+# Landing-page assets. Un-hashed filenames rule out immutable long-TTL caching;
+# stale-while-revalidate gets the latency without serving a stale file for a day.
+/css/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+/js/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+/icon.svg
+  Cache-Control: public, max-age=86400
+
+# Security headers. No CSP here on purpose: these pages load Cesium from a CDN
+# and run two Web Workers, so a policy written blind would break the globe.
+# Add one deliberately, with the CDN and worker-src enumerated, and test it.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(self), microphone=(), camera=(), interest-cohort=()

@@ -1,0 +1,14 @@
+# Cloudflare Pages reads this ONLY at the root of public/. Do not move it.
+#
+# Extensionless → directory redirects, so /orbit and /spacetrack/signal reach
+# the same page as their trailing-slash forms. Pages resolves directory indexes
+# on its own; these make the canonical form explicit and keep the two spellings
+# from splitting cache entries.
+
+/orbit                    /orbit/                    301
+/starlink                 /starlink/                 301
+/spacetrack               /spacetrack/               301
+/spacetrack/signal        /spacetrack/signal/        301
+/spacetrack/conjunctions  /spacetrack/conjunctions/  301
+/spacetrack/brief         /spacetrack/brief/         301
+/spacetrack/analytics     /spacetrack/analytics/     301

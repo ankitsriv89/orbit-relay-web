@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # snapshot_tle.sh — fetch a baseline TLE snapshot for the standalone Orbital
-# Relay, one file per Celestrak group, written to public/orbit/data/tle/celestrak/.
+# Relay, one file per Celestrak group, written to public/data/tle/celestrak/.
 #
 # Why a baseline snapshot: the page reads data/tle/celestrak/<group>.txt for an
 # instant first plot (works even if the live Pages Function is cold), and the
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUT="$(cd "$HERE/.." && pwd)/public/orbit/data/tle/celestrak"
+OUT="$(cd "$HERE/.." && pwd)/public/data/tle/celestrak"
 BASE="https://celestrak.org/NORAD/elements/gp.php?FORMAT=TLE&GROUP="
 SLEEP="${SLEEP:-4}"   # seconds between groups, to dodge the 403 cooldown
 
@@ -53,4 +53,4 @@ for g in $GROUPS; do
 done
 
 echo
-echo "==> Done. Commit the refreshed files under public/orbit/data/tle/celestrak/ and redeploy."
+echo "==> Done. Commit the refreshed files under public/data/tle/celestrak/ and redeploy."
