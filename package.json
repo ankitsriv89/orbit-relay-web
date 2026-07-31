@@ -5,8 +5,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "wrangler pages dev public",
-    "deploy": "wrangler pages deploy public --project-name orbit-relay"
+    "dev": "wrangler pages dev public"
   },
   "keywords": ["orbit", "satellite", "space-track", "celestrak"],
   "author": "Ankit Srivastava",

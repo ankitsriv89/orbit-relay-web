@@ -1,5 +1,5 @@
-# Cloudflare Pages + Workers config for Orbital Relay
-# Deploy: wrangler pages deploy public --project-name orbit-relay
+# Cloudflare Pages config for Orbital Relay
+# Deploy: git push → Cloudflare auto-deploys from GitHub
 # Domain: orbitalrelay.space
 
 name = "orbit-relay"
