@@ -1,0 +1,27 @@
+# Cloudflare Pages + Workers config for Orbital Relay
+# Deploy: wrangler pages deploy public --project-name orbit-relay
+# Domain: orbitalrelay.space
+
+name = "orbit-relay"
+pages_build_output_dir = "public"
+compatibility_date = "2024-11-01"
+
+# ---- Orbit catalog D1 binding (shared from signal-playground) --------
+# Read side only. The Pages Functions (/api/object, /api/search, /api/feed, and
+# the tle.js Space-Track read-through) query this; the orbit-ingest Worker owns
+# writing to it and carries its own copy of this binding.
+#
+# Schema is applied in the signal-playground wrangler.toml:
+#   wrangler d1 execute orbit-catalog --remote --file d1/orbit.sql
+[[d1_databases]]
+binding = "ORBIT_DB"
+database_name = "orbit-catalog"
+database_id = "e5fe1563-71ef-4fb4-9e04-554c87caf821"
+
+# ---- Orbit artifacts R2 binding (shared from signal-playground) ------
+# Pre-rendered TLE bundles + feed JSON, regenerated after each ingest so the
+# globe's hot path is a flat object read rather than a D1 query. Read side only
+# here; the orbit-ingest Worker writes these and carries its own binding.
+[[r2_buckets]]
+binding = "ORBIT_R2"
+bucket_name = "orbit-data"

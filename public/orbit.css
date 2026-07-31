@@ -1,0 +1,1247 @@
+:root {
+    --font-mono: "SFMono-Regular", "JetBrains Mono", "Roboto Mono", "Courier New", monospace;
+
+    /* Notch / home-indicator insets, 0 on everything without them.
+     *
+     * Every piece of fixed chrome on these two pages adds these to its offset
+     * rather than wrapping the offset in max(): the HUD panels are stacked
+     * chips at DISTINCT offsets, and max() would collapse the spacing between
+     * two of them the moment an inset exceeded the smaller offset — putting one
+     * panel's toggle back under another's body, which is the exact failure the
+     * stack was built to avoid. Adding shifts the whole stack inward and keeps
+     * the gaps, and is a no-op at 0.
+     */
+    --sa-top:    env(safe-area-inset-top, 0px);
+    --sa-right:  env(safe-area-inset-right, 0px);
+    --sa-bottom: env(safe-area-inset-bottom, 0px);
+    --sa-left:   env(safe-area-inset-left, 0px);
+
+    /* Blur radius for .orbital-hud. A 16px backdrop-filter over a full-screen
+       WebGL canvas is one of the most expensive things a mobile GPU can be
+       asked for; the mobile breakpoint halves it. */
+    --hud-blur: 16px;
+
+    /* Shared design tokens */
+    --panel-radius: 8px;
+    --panel-padding: 18px 22px;
+    --panel-gap: 24px;
+    --nav-height: 56px;
+    --bottom-nav-height: 56px;
+    --time-bar-height: 48px;
+}
+
+/* ==========================================================================
+   ORBITAL RELAY — live satellite tracker
+   ========================================================================== */
+
+body[data-page-id="orbital-relay"] {
+    overflow: hidden;
+}
+
+/* Both orbit pages are a full-screen globe with fixed chrome: there is nothing
+   to scroll, so the grey tap flash and the long-press selection popup are pure
+   noise on touch. */
+body[data-page-id="orbital-relay"],
+body[data-page-id="spacetrack-catalog"] {
+    -webkit-tap-highlight-color: transparent;
+}
+
+#cesium-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    /* Cesium installs its own pointer handlers for rotate/zoom/tilt. Without
+       this the browser also claims the gesture for pull-to-refresh, double-tap
+       zoom and edge swipe-back, which fight the globe on every drag. */
+    touch-action: none;
+}
+
+/* Strip Cesium's default chrome — keep only the globe */
+#cesium-container .cesium-widget-credits {
+    display: none !important;
+}
+
+#cesium-container .cesium-viewer-toolbar,
+#cesium-container .cesium-viewer-animationContainer,
+#cesium-container .cesium-viewer-timelineContainer,
+#cesium-container .cesium-viewer-bottom {
+    display: none !important;
+}
+
+/* Shared HUD card */
+.orbital-hud {
+    position: fixed;
+    z-index: 15;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 1.4px;
+    color: rgba(200, 240, 255, 0.95);
+    background: linear-gradient(145deg, rgba(0, 12, 24, 0.92) 0%, rgba(0, 25, 45, 0.88) 100%);
+    border: 1px solid rgba(0, 210, 255, 0.45);
+    border-radius: 8px;
+    padding: 18px 22px;
+    backdrop-filter: blur(var(--hud-blur));
+    min-width: 210px;
+    box-shadow:
+        0 0 30px rgba(0, 210, 255, 0.08),
+        0 4px 24px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    /* A readings dashboard, not prose: a long-press to drag-select a label is
+       never what was meant. Inputs re-enable selection below. */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* …except the things you genuinely might want to copy or edit. */
+.orbital-hud input,
+.orbital-hud textarea,
+.orbital-hud .hud-val,
+.orbital-hud .st-result__name {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+/* ISS panel — amber accent, top-left */
+#iss-hud {
+    top: calc(68px + var(--sa-top));
+    left: calc(24px + var(--sa-left));
+    border-color: rgba(245, 166, 35, 0.55);
+    box-shadow:
+        0 0 30px rgba(245, 166, 35, 0.12),
+        0 4px 24px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.hud-title {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: rgba(0, 210, 255, 0.6);
+    border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+#iss-hud .hud-title {
+    color: rgba(245, 166, 35, 0.7);
+    border-color: rgba(245, 166, 35, 0.2);
+}
+
+.hud-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 6px;
+}
+
+.hud-label {
+    color: rgba(200, 240, 255, 0.45);
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+}
+
+.hud-val {
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.hud-live {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(245, 166, 35, 0.2);
+    color: #f5a623;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    animation: tv-signal-blink 1.6s infinite;
+}
+
+.hud-divider {
+    border: none;
+    border-top: 1px solid rgba(0, 210, 255, 0.15);
+    margin: 12px 0;
+}
+
+.hud-controls {
+    font-size: 0.58rem;
+    color: rgba(200, 240, 255, 0.35);
+    letter-spacing: 1.5px;
+    line-height: 1.7;
+}
+
+.hud-controls-hint {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 210, 255, 0.15);
+    font-size: 0.58rem;
+    color: rgba(200, 240, 255, 0.35);
+    letter-spacing: 1.5px;
+    text-align: center;
+}
+
+/* Bottom satellite count bar */
+.orbital-sat-bar {
+    position: fixed;
+    bottom: calc(24px + var(--sa-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(200, 240, 255, 0.7);
+    background: rgba(0, 12, 24, 0.82);
+    border: 1px solid rgba(0, 210, 255, 0.3);
+    border-radius: 20px;
+    padding: 8px 20px;
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.06);
+}
+
+.orbital-sat-bar span {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+/* Relay ship overlay */
+#relay-ship {
+    position: fixed;
+    bottom: -18px;
+    right: 36px;
+    width: 80px;
+    z-index: 3;
+    color: #f5a623;
+    opacity: 0.55;
+    filter: drop-shadow(0 0 10px rgba(245, 166, 35, 0.45));
+    pointer-events: none;
+}
+
+/* Signal Key toggle button */
+.key-hud-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    width: 100%;
+    text-align: left;
+}
+
+.key-hud-toggle-arrow {
+    font-size: 0.55rem;
+    color: rgba(0, 210, 255, 0.6);
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+#key-hud:not(.key-hud--collapsed) .key-hud-toggle-arrow {
+    transform: rotate(90deg);
+}
+
+.key-hud-body {
+    margin-top: 12px;
+}
+
+/* Collapsed state: shrink min-width to just fit the title row */
+.key-hud--collapsed {
+    min-width: 0;
+}
+
+/* ISS HUD toggle uses amber accent to match ISS color */
+#iss-hud .key-hud-toggle-arrow {
+    color: rgba(245, 166, 35, 0.7);
+}
+
+/* Constellation layers panel — bottom right (replaces former top-right position) */
+#layers-hud {
+    bottom: calc(80px + var(--sa-bottom));
+    right: calc(24px + var(--sa-right));
+    min-width: 0;
+    /* Cap to the viewport so the expanded (multi-nation) list can't crop
+       off the bottom of the screen. border-box so padding counts inside the cap. */
+    box-sizing: border-box;
+    max-height: calc(100vh - 160px - 24px);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scroll the layer list inside the panel rather than overflowing the viewport */
+#layers-hud .key-hud-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+#layers-hud .key-hud-body::-webkit-scrollbar {
+    width: 6px;
+}
+#layers-hud .key-hud-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 210, 255, 0.4);
+    border-radius: 3px;
+}
+
+.layer-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+}
+
+.layer-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 9px;
+}
+
+.layer-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    letter-spacing: 1.2px;
+    color: rgba(200, 240, 255, 0.85);
+    user-select: none;
+}
+
+/* Hide native checkbox — swatch acts as indicator */
+.layer-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.layer-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    opacity: 0.3;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Swatch + label brighten when checked */
+.layer-label:has(input:checked) .layer-swatch {
+    opacity: 1;
+    transform: scale(1.3);
+}
+
+.layer-label:has(input:checked) {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.layer-name {
+    font-weight: 600;
+    letter-spacing: 1.5px;
+}
+
+.layer-flag {
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.layer-status {
+    font-size: 0.58rem;
+    color: rgba(200, 240, 255, 0.4);
+    letter-spacing: 1px;
+    min-width: 26px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ISS row — no checkbox, static indicator */
+.layer-label--static {
+    cursor: default;
+    user-select: none;
+}
+
+.layer-label--static .layer-swatch {
+    opacity: 1;
+}
+
+/* Section divider rows inside layer list */
+.layer-item--section {
+    margin-top: 6px;
+    margin-bottom: 4px;
+    border-top: 1px solid rgba(0, 210, 255, 0.12);
+    padding-top: 6px;
+    justify-content: flex-start;
+}
+
+.layer-section-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(0, 210, 255, 0.35);
+    text-transform: uppercase;
+}
+
+/* ── Time-warp controls ─────────────────────────────────────────────────── */
+/* ── Time-warp controls ─────────────────────────────────────────────────── */
+.time-warp {
+    bottom: calc(72px + var(--sa-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    min-width: 0;
+}
+.tw-label {
+    font-size: 0.58rem;
+    letter-spacing: 2px;
+    color: rgba(0, 210, 255, 0.6);
+    font-weight: 700;
+}
+.tw-btns { display: flex; gap: 4px; }
+.tw-btn {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    min-width: 38px;
+    padding: 5px 8px;
+    background: rgba(0, 210, 255, 0.08);
+    color: rgba(200, 240, 255, 0.7);
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+@media (hover: hover) {
+    .tw-btn:hover { background: rgba(0, 210, 255, 0.2); color: #fff; }
+}
+.tw-btn--active {
+    background: rgba(0, 210, 255, 0.85);
+    color: #001018;
+    box-shadow: 0 0 12px rgba(0, 210, 255, 0.45);
+}
+
+/* ── Satellite inspector card ───────────────────────────────────────────── */
+.sat-detail {
+    bottom: calc(120px + var(--sa-bottom));
+    right: calc(24px + var(--sa-right));
+    min-width: 210px;
+    max-width: 250px;
+    z-index: 16;
+}
+.sat-detail-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+    background: none;
+    border: none;
+    color: rgba(200, 240, 255, 0.5);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+@media (hover: hover) {
+    .sat-detail-close:hover { color: #00d2ff; }
+}
+.sat-detail .hud-title { color: rgba(0, 210, 255, 0.85); padding-right: 24px; }
+
+/* Mobile bottom nav — hidden on desktop, shown by the media query below */
+.mobile-bottom-nav {
+    display: none;
+}
+
+/* ── Mobile / Tablet (<768px) ────────────────────────────────────────────────
+ * Shared orbit.css responsive rules for both /orbit/ and /spacetrack/ pages.
+ * The 768px breakpoint aligns with spacetrack.css's responsive tiers. */
+@media (max-width: 768px) {
+    /* Half the blur: a 16px backdrop-filter sampled over a full-screen WebGL
+       canvas is one of the most expensive things a phone GPU can be handed, and
+       at this size the panels are small enough that 8px reads the same. */
+    :root {
+        --hud-blur: 8px;
+    }
+
+    /* ── Hamburger menu: visible on mobile ──────────────────────────────── */
+    .hamburger-btn {
+        display: flex;
+    }
+
+    /* ── Hide desktop nav links on mobile (bottom nav replaces them) ────── */
+    .spacetrack-nav__list {
+        display: none;
+    }
+    .spacetrack-nav__source-link {
+        display: block;
+    }
+    .spacetrack-nav {
+        padding:
+            calc(8px + var(--sa-top))
+            calc(12px + var(--sa-right))
+            8px
+            calc(12px + var(--sa-left));
+    }
+
+    /* ── Mobile bottom navigation bar ───────────────────────────────────── */
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 26;
+        height: calc(56px + var(--sa-bottom));
+        padding-bottom: var(--sa-bottom);
+        background: linear-gradient(0deg, rgba(0, 8, 16, 0.95) 0%, rgba(0, 8, 16, 0.88) 100%);
+        border-top: 1px solid rgba(0, 210, 255, 0.2);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        align-items: center;
+        justify-content: space-around;
+        pointer-events: auto;
+    }
+    .mobile-bottom-nav__item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 6px 4px;
+        background: none;
+        border: none;
+        border-radius: 6px;
+        color: rgba(160, 210, 240, 0.5);
+        font-family: var(--font-mono);
+        font-size: 0.45rem;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: color 0.15s, background 0.15s;
+        -webkit-tap-highlight-color: transparent;
+        text-align: center;
+        line-height: 1.2;
+    }
+    @media (hover: hover) {
+        .mobile-bottom-nav__item:hover {
+            color: rgba(200, 240, 255, 0.85);
+            background: rgba(0, 210, 255, 0.08);
+        }
+    }
+    .mobile-bottom-nav__item--active {
+        color: #00d2ff;
+        background: rgba(0, 210, 255, 0.1);
+    }
+    .mobile-bottom-nav__icon {
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+    .mobile-bottom-nav__label {
+        white-space: nowrap;
+    }
+
+    /* ── HUD panels ─────────────────────────────────────────────────────── */
+    #iss-hud {
+        top: calc(48px + var(--sa-top));
+        left: calc(8px + var(--sa-left));
+    }
+
+    /* Layers HUD hidden on mobile — replaced by filter drawer */
+    #layers-hud {
+        display: none;
+    }
+
+    /* ── Filter drawer (mobile) ─────────────────────────────────────────── */
+    .filter-drawer-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 28;
+        background: rgba(0, 8, 16, 0.6);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+    }
+
+    .filter-drawer-overlay[open] {
+        display: block;
+    }
+
+    #relay-ship {
+        width: 48px;
+        right: calc(8px + var(--sa-right));
+        bottom: calc(56px + var(--sa-bottom));
+        opacity: 0.4;
+    }
+
+    /* Time warp: sit above the bottom nav bar */
+    .time-warp {
+        bottom: calc(64px + var(--sa-bottom));
+        left: calc(8px + var(--sa-left));
+        right: calc(8px + var(--sa-right));
+        transform: none;
+        justify-content: center;
+        max-width: none;
+        border-radius: 6px;
+    }
+
+    .sat-detail {
+        left: calc(8px + var(--sa-left));
+        right: calc(8px + var(--sa-right));
+        bottom: calc(130px + var(--sa-bottom));
+        max-width: none;
+        z-index: 35;
+    }
+
+    .orbital-hud {
+        font-size: 0.6rem;
+        padding: 10px 12px;
+        min-width: 0;
+        border-radius: 6px;
+    }
+
+    /* ── Footer: hidden on mobile (bottom nav replaces it) ──────────────── */
+    .orbital-footer {
+        display: none;
+    }
+
+    /* ── Sat bar: hidden on mobile (clutters the smaller viewport) ─────── */
+    .orbital-sat-bar {
+        display: none;
+    }
+
+    /* ── Touch targets ──────────────────────────────────────────────────────
+     * 44px is Apple's HIG minimum and roughly the width of an adult fingertip
+     * contact patch. These controls were laid out for a mouse: the close button
+     * was 20×20 and the source buttons ~22px tall, which on a phone means
+     * missing them and rotating the globe instead.
+     *
+     * Where growing the painted box would wreck the layout (the HUD toggles,
+     * the close button), the target is grown with padding or a ::after overlay
+     * rather than by changing the visual size.
+     */
+    .tw-btn,
+    .source-btn {
+        min-height: 44px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .refresh-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 1.15rem;
+    }
+
+    .sat-detail-close {
+        width: 44px;
+        height: 44px;
+        top: 4px;
+        right: 4px;
+        font-size: 1.1rem;
+    }
+
+    /* The toggle is a full-width row already; give it height rather than bulk. */
+    .key-hud-toggle {
+        min-height: 44px;
+    }
+
+    .layer-item,
+    .layer-item label {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    .layer-item input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* ── Legibility ─────────────────────────────────────────────────────────
+     * 0.58rem is ~9px. These are readings meant to be glanced at on a moving
+     * phone, so nothing that carries information drops below ~11px.
+     */
+    .hud-label,
+    .hud-controls,
+    .hud-controls-hint,
+    .year-label,
+    .year-status,
+    .orbital-footer {
+        font-size: max(0.68rem, 11px);
+    }
+
+    .hud-val {
+        font-size: max(0.8rem, 13px);
+    }
+
+    /* The chip titles are the primary navigation on a phone — when every panel
+       is collapsed, this text IS the interface. At 0.6rem (9.6px) with 2.5px of
+       letter-spacing it was the smallest type on the page and the most
+       important. The arrow next to it was 8.8px. */
+    .hud-title,
+    .hud-title--bare {
+        font-size: max(0.75rem, 12px);
+    }
+
+    .key-hud-toggle-arrow {
+        font-size: max(0.7rem, 11px);
+    }
+
+    .layer-name,
+    .layer-status,
+    .layer-section-label,
+    .tw-label,
+    .tw-btn {
+        font-size: max(0.68rem, 11px);
+    }
+}
+
+/* Landscape phones are 700–950px wide, so they never reach the 768px
+   breakpoint and get the desktop layout — but they are only ~380–430px TALL,
+   which is where the real constraint is. Cap the panels against the short axis
+   and pull the top offset up under the (now side-mounted) notch. */
+@media (max-height: 500px) and (orientation: landscape) {
+    #iss-hud,
+    #layers-hud {
+        top: calc(56px + var(--sa-top));
+        max-height: calc(100vh - 56px - 56px - var(--sa-top) - var(--sa-bottom));
+        overflow-y: auto;
+    }
+
+    .orbital-sat-bar {
+        display: none;      /* the globe needs the vertical room more */
+    }
+
+    .orbital-hud {
+        padding: 10px 14px;
+    }
+}
+
+/* ── Tablet (769–1024px) ────────────────────────────────────────────────────
+ * Panels are repositioned as compact side stacks. The globe remains dominant.
+ * Hamburger nav still works; no bottom nav. */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #iss-hud {
+        top: calc(56px + var(--sa-top));
+        left: calc(16px + var(--sa-left));
+    }
+
+    #layers-hud {
+        top: calc(56px + var(--sa-top));
+        right: calc(16px + var(--sa-right));
+    }
+
+    .orbital-hud:not(.key-hud--collapsed) {
+        max-width: min(40vw, 220px);
+    }
+
+    #relay-ship {
+        width: 64px;
+        right: calc(24px + var(--sa-right));
+    }
+
+    .sat-detail {
+        bottom: calc(120px + var(--sa-bottom));
+        right: calc(16px + var(--sa-right));
+    }
+}
+
+/* ── Laptop (1025–1199px) ───────────────────────────────────────────────────
+ * Similar to desktop but with slightly tighter spacing. */
+@media (min-width: 1025px) and (max-width: 1199px) {
+    #iss-hud {
+        left: calc(20px + var(--sa-left));
+    }
+
+    #layers-hud {
+        right: calc(20px + var(--sa-right));
+    }
+
+    .orbital-hud:not(.key-hud--collapsed) {
+        max-width: min(35vw, 240px);
+    }
+}
+
+@media (max-width: 480px) {
+    .orbital-hud {
+        font-size: 0.58rem;
+        padding:   8px 10px;
+    }
+}
+
+/* ── Focus ──────────────────────────────────────────────────────────────────
+ * A background-only focus style is invisible to anyone driving this by keyboard
+ * or switch access, and on the active button it is invisible to everyone. A
+ * ring is not decoration here; it is the only thing that says where you are.
+ */
+.orbital-hud button:focus-visible,
+.orbital-hud input:focus-visible,
+.orbital-hud select:focus-visible,
+.orbital-hud a:focus-visible,
+.tw-btn:focus-visible,
+.source-btn:focus-visible,
+.refresh-btn:focus-visible,
+.spacetrack-nav__brand:focus-visible,
+.spacetrack-nav__link:focus-visible,
+.spacetrack-nav__source-link:focus-visible {
+    outline: 2px solid rgba(0, 210, 255, 0.95);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+
+/* ==========================================================================
+   STANDALONE additions — source toggle, refresh, neutral chrome
+   ========================================================================== */
+
+/* Source toggle row inside the LAYERS hud */
+.source-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.25);
+}
+.source-row__label {
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+    color: rgba(160, 210, 240, 0.7);
+}
+.source-toggle {
+    display: flex;
+    border: 1px solid rgba(0, 210, 255, 0.4);
+    border-radius: 5px;
+    overflow: hidden;
+}
+.source-btn {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    background: transparent;
+    color: rgba(200, 240, 255, 0.85);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.source-btn + .source-btn { border-left: 1px solid rgba(0, 210, 255, 0.3); }
+.source-btn--active {
+    background: rgba(0, 210, 255, 0.85);
+    color: #001018;
+    font-weight: 700;
+}
+.source-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Space-Track is its own page now, so that half of the toggle is an <a> and the
+   current page's half is a <span>. Both keep the button look; only the link is
+   interactive. */
+.source-btn--link {
+    text-decoration: none;
+    display: inline-block;
+}
+.source-btn--link:hover,
+.source-btn--link:focus-visible {
+    background: rgba(0, 210, 255, 0.22);
+    color: #eaf9ff;
+}
+
+.refresh-btn {
+    margin-left: auto;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 210, 255, 0.4);
+    background: transparent;
+    color: rgba(200, 240, 255, 0.95);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+}
+@media (hover: hover) {
+    .refresh-btn:hover { background: rgba(0, 210, 255, 0.18); }
+}
+.refresh-btn.is-spinning { animation: refresh-spin 1.1s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+
+/* ── Top navigation (shared with spacetrack pages) ──────────────────────────
+ * Reuses .spacetrack-nav classes for consistent navigation across all pages. */
+.spacetrack-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding:
+        calc(10px + var(--sa-top))
+        calc(16px + var(--sa-right))
+        10px
+        calc(16px + var(--sa-left));
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 1.5px;
+    background: linear-gradient(180deg, rgba(0, 8, 16, 0.85) 0%, rgba(0, 8, 16, 0.4) 80%, transparent 100%);
+    pointer-events: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.spacetrack-nav::-webkit-scrollbar { display: none; }
+
+.spacetrack-nav__brand {
+    color: rgba(0, 210, 255, 0.9);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.spacetrack-nav__logo {
+    height: 28px;
+    width: 28px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+@media (hover: hover) {
+    .spacetrack-nav__brand:hover { color: #00d2ff; }
+}
+
+.spacetrack-nav__list {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+}
+
+.spacetrack-nav__link {
+    display: block;
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: rgba(160, 210, 240, 0.55);
+    text-decoration: none;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+    .spacetrack-nav__link:hover {
+        color: rgba(200, 240, 255, 0.85);
+        background: rgba(0, 210, 255, 0.08);
+    }
+}
+.spacetrack-nav__link--active {
+    color: #00d2ff;
+    background: rgba(0, 210, 255, 0.1);
+}
+
+.spacetrack-nav__source-link {
+    padding: 4px 9px;
+    color: rgba(160, 210, 240, 0.45);
+    text-decoration: none;
+    font-size: 0.55rem;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s, background 0.15s;
+}
+@media (hover: hover) {
+    .spacetrack-nav__source-link:hover {
+        color: rgba(200, 240, 255, 0.85);
+        background: rgba(0, 210, 255, 0.08);
+    }
+}
+
+/* Hamburger button — hidden on desktop, shown on mobile */
+.hamburger-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: border-color 0.15s;
+    margin-left: auto;
+}
+.hamburger-line {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: rgba(200, 240, 255, 0.85);
+    border-radius: 1px;
+    transition: transform 0.2s, opacity 0.2s;
+}
+.hamburger-btn.hamburger--open .hamburger-line:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+}
+.hamburger-btn.hamburger--open .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+.hamburger-btn.hamburger--open .hamburger-line:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+}
+
+/* Mobile menu overlay (shared with spacetrack pages) */
+/* ── Filter drawer (mobile slide-out, layers) ────────────────────────────── */
+.filter-drawer-overlay {
+    display: none;
+}
+
+.filter-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 29;
+    width: min(85vw, 320px);
+    background: linear-gradient(145deg, rgba(0, 12, 24, 0.97) 0%, rgba(0, 25, 45, 0.95) 100%);
+    border-left: 1px solid rgba(0, 210, 255, 0.35);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(16px + var(--sa-top)) 16px calc(16px + var(--sa-bottom)) 16px;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    scrollbar-width: thin;
+}
+
+.filter-drawer-overlay[open] {
+    display: block;
+}
+
+.filter-drawer-overlay[open] .filter-drawer {
+    transform: translateX(0);
+}
+
+.filter-drawer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+}
+
+.filter-drawer__title {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(0, 210, 255, 0.8);
+}
+
+.filter-drawer__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    color: rgba(200, 240, 255, 0.7);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.filter-drawer__close:hover {
+    border-color: rgba(0, 210, 255, 0.6);
+    color: #00d2ff;
+}
+
+body.layers-drawer-open { overflow: hidden; }
+
+.mobile-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: rgba(0, 8, 16, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 32px 48px;
+    animation: mobile-menu-fade-in 0.15s ease-out;
+}
+.mobile-menu[hidden] { display: none; }
+.mobile-menu__close {
+    position: absolute;
+    top: calc(16px + var(--sa-top));
+    right: calc(16px + var(--sa-right));
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    color: rgba(200, 240, 255, 0.7);
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, color 0.15s;
+    z-index: 1;
+}
+.mobile-menu__close:hover { border-color: rgba(0, 210, 255, 0.6); color: #00d2ff; }
+@keyframes mobile-menu-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.mobile-menu__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    max-width: 280px;
+    align-items: center;
+}
+.mobile-menu__logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    margin-bottom: 16px;
+    border-radius: 8px;
+}
+.mobile-menu__link {
+    display: block;
+    padding: 16px 12px;
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    letter-spacing: 2.5px;
+    font-weight: 700;
+    color: rgba(160, 210, 240, 0.65);
+    text-decoration: none;
+    text-align: center;
+    border-radius: 6px;
+    transition: background 0.12s, color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+}
+.mobile-menu__link:active {
+    background: rgba(0, 210, 255, 0.12);
+    color: rgba(220, 245, 255, 0.95);
+}
+.mobile-menu__link--active {
+    color: #00d2ff;
+    background: rgba(0, 210, 255, 0.1);
+}
+.mobile-menu__source {
+    font-size: 0.85rem;
+    color: rgba(160, 210, 240, 0.4);
+}
+.mobile-menu__divider {
+    border: none;
+    border-top: 1px solid rgba(0, 210, 255, 0.12);
+    margin: 12px 0;
+}
+
+/* Mobile bottom navigation bar — hidden on desktop, shown on mobile.
+   Must appear BEFORE the @media (max-width: 768px) block so the media query's
+   display:flex wins on mobile (same specificity, later rule wins). */
+
+.orbital-footer {
+    position: fixed;
+    bottom: calc(8px + var(--sa-bottom));
+    right: calc(16px + var(--sa-right));
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0 6px;
+    max-width: min(72vw, 640px);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 1px;
+    color: rgba(160, 200, 230, 0.55);
+    pointer-events: none;
+}
+
+/* Separator drawn in CSS so the citation stays one uninterrupted string in the
+   markup — it is a required attribution, not a list of credits to punctuate. */
+.orbital-footer span + span::before {
+    content: "· ";
+    color: rgba(160, 200, 230, 0.35);
+}
+
+.orbital-footer__cite {
+    color: rgba(160, 200, 230, 0.7);
+}
+
+/* ==========================================================================
+   MOBILE — the STANDALONE components above
+   ==========================================================================
+   The source toggle, the refresh button and the neutral chrome are declared
+    BELOW the main `@media (max-width: 768px)` block, so any override written up
+   there loses the cascade to them at equal specificity — which is exactly what
+   happened on the first pass: `.refresh-btn` stayed 26px because its base rule
+   came later in the file. Their mobile sizing therefore lives here, after the
+   rules it is overriding, rather than being hoisted up and silently ignored.
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .refresh-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 1.15rem;
+    }
+
+    .source-btn {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+        font-size: max(0.68rem, 11px);
+    }
+
+    .source-row__label {
+        font-size: max(0.68rem, 11px);
+    }
+
+    .source-row {
+        flex-wrap: wrap;
+    }
+}

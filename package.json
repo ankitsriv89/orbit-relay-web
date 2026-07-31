@@ -1,0 +1,17 @@
+{
+  "name": "orbit-relay-web",
+  "version": "1.0.0",
+  "description": "Orbital Relay — interactive satellite visualization and tracking",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public --project-name orbit-relay"
+  },
+  "keywords": ["orbit", "satellite", "space-track", "celestrak"],
+  "author": "Ankit Srivastava",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}
