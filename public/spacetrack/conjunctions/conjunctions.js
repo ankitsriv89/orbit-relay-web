@@ -1,7 +1,7 @@
-import { orbVel, fmtLat, fmtLon } from '../orbit-engine/astro.js';
+import { orbVel, fmtLat, fmtLon } from '../../orbit-engine/astro.js';
 import {
     ConjunctionScreener, SCREEN_WINDOWS, SCREEN_THRESHOLDS_KM,
-} from '../orbit-engine/screen-client.js';
+} from '../../orbit-engine/screen-client.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, setText, num, relTime, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge, TYPE_COLORS, colorFor } from '../shared/utils.js';

@@ -3,7 +3,7 @@
  */
 
 const TLE_ENDPOINT  = '/api/tle';          // Pages Function: live proxy + edge cache
-const TLE_FILE_BASE = '/orbit/data/tle';   // shipped baseline snapshots (Celestrak only)
+const TLE_FILE_BASE = '/data/tle';         // shipped baseline snapshots (Celestrak only)
 
 /**
  * Parse a 3LE bundle: name line, line 1, line 2, repeating.
@@ -65,10 +65,19 @@ export function parseTLEChunked(text, chunkSize = 500) {
     });
 }
 
-/** Upstream signals "no data" with prose and a 200, so the body has to be read. */
+/**
+ * Upstream signals "no data" with prose and a 200, so the body has to be read.
+ * Also guards against a misrouted request landing on the SPA's index.html
+ * (also a 200) instead of the TLE endpoint/asset: real 3LE bundles have a
+ * "1 " line as line 2, which no such fallback body will ever produce.
+ */
 export function tleLooksValid(t) {
-    return t && !t.includes('No GP data') && !t.includes('Invalid query') &&
-           !t.startsWith('GP data has not updated') && t.trim().length >= 10;
+    if (!t || t.includes('No GP data') || t.includes('Invalid query') ||
+        t.startsWith('GP data has not updated') || t.trim().length < 10) {
+        return false;
+    }
+    const lines = t.trim().split('\n').map(l => l.trim()).filter(Boolean);
+    return lines.length >= 2 && lines[1].startsWith('1 ');
 }
 
 /**

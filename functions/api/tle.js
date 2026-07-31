@@ -5,7 +5,7 @@
 // Celestrak sends no CORS header, so the browser can't fetch it directly; this
 // runs server-side (no CORS) and caches each group via the Cloudflare Cache API
 // (~6h). On a throttle/empty upstream it falls back to the shipped baseline file
-// under /orbit/data/tle/<source>/<group>.txt, so the page never goes blank.
+// under /data/tle/<source>/<group>.txt, so the page never goes blank.
 //
 // source=spacetrack reads the R2 bundle the orbit-ingest Worker regenerates
 // after each ingest (`tle/spacetrack/<group>.txt`). That is a flat object read,
@@ -41,8 +41,14 @@ function text(status, body, cache, extra) {
 }
 
 function looksInvalid(t) {
-  return !t || t.startsWith('GP data has not updated') ||
-         t.includes('Invalid query') || t.trim().length < 10;
+  if (!t || t.startsWith('GP data has not updated') ||
+      t.includes('Invalid query') || t.trim().length < 10) {
+    return true;
+  }
+  // Guards against a misrouted asset fetch landing on the SPA's index.html
+  // (also a 200): real 3LE bundles have a "1 " line as line 2.
+  const lines = t.trim().split('\n');
+  return lines.length < 2 || !lines[1].trim().startsWith('1 ');
 }
 
 /**
@@ -123,7 +129,7 @@ export async function onRequest(context) {
   // Fall back to the shipped baseline file if upstream throttled/empty.
   if (looksInvalid(body)) {
     try {
-      const assetUrl = new URL(`/orbit/data/tle/celestrak/${group}.txt`, url.origin);
+      const assetUrl = new URL(`/data/tle/celestrak/${group}.txt`, url.origin);
       const assetResp = await next(new Request(assetUrl));
       if (assetResp.ok) {
         const baseline = await assetResp.text();

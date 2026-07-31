@@ -7,10 +7,10 @@
     <meta name="description" content="Signal analysis — ground station visibility, coverage maps, and pass predictions for selected objects.">
     <meta name="theme-color" content="#000000">
     <title>Signal Analysis — Space-Track</title>
-    <script src="../orbit-engine/cesium-base.js"></script>
+    <script src="../../orbit-engine/cesium-base.js"></script>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-    <link rel="stylesheet" href="../orbit/orbit.css">
+    <link rel="stylesheet" href="../../orbit/orbit.css">
     <link rel="stylesheet" href="../spacetrack.css">
 </head>
 <body data-page-id="spacetrack-signal">
@@ -19,7 +19,7 @@
     <div id="cesium-container" aria-hidden="true"></div>
 
     <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="SpaceTrack main navigation">
-        <a href="../orbit/" class="spacetrack-nav__brand">◂ HOME</a>
+        <a href="/" class="spacetrack-nav__brand">◂ HOME</a>
         <ul class="spacetrack-nav__list" role="menubar">
             <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">CATALOG</a></li>
             <li><a href="/spacetrack/signal/" class="spacetrack-nav__link spacetrack-nav__link--active" role="menuitem">SIGNAL</a></li>
@@ -28,7 +28,7 @@
             <li><a href="/spacetrack/analytics/" class="spacetrack-nav__link" role="menuitem">ANALYTICS</a></li>
         </ul>
         <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
-        <a href="../orbit/" class="spacetrack-nav__source-link" title="Celestrak view">CELESTRAK ↗</a>
+        <a href="../../orbit/" class="spacetrack-nav__source-link" title="Celestrak view">CELESTRAK ↗</a>
         <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
             <span class="hamburger-line"></span>
             <span class="hamburger-line"></span>
@@ -46,7 +46,7 @@
             <a href="/spacetrack/analytics/" class="mobile-menu__link">ANALYTICS</a>
             <hr class="mobile-menu__divider">
             <a href="/starlink/" class="mobile-menu__link mobile-menu__source">STARLINK ↗</a>
-            <a href="../orbit/" class="mobile-menu__link mobile-menu__source">CELESTRAK ↗</a>
+            <a href="../../orbit/" class="mobile-menu__link mobile-menu__source">CELESTRAK ↗</a>
         </div>
     </div>
 
@@ -191,7 +191,7 @@
         </a>
     </nav>
 
-    <script src="../orbit-engine/vendor/satellite.min.js"></script>
+    <script src="../../orbit-engine/vendor/satellite.min.js"></script>
     <script type="module" src="signal.js"></script>
 </body>
 </html>

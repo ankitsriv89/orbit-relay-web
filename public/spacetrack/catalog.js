@@ -1191,7 +1191,7 @@ if (ageColorToggle) {
    TIER 3.1 — LOD SYSTEM
    ══════════════════════════════════════════════════════════════════════════════ */
 const LOD_CLOSE_THRESHOLD = 500000;
-const LOD FAR_THRESHOLD = 5000000;
+const LOD_FAR_THRESHOLD = 5000000;
 const LOD_CLOSE_CAP = 400;
 
 function updateLOD() {

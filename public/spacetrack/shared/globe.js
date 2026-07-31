@@ -1,4 +1,4 @@
-import { SatEngine, tuneViewerForDevice } from '../orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice } from '../../orbit-engine/sat-engine.js';
 import { State } from './state.js';
 
 Cesium.Ion.defaultAccessToken =
