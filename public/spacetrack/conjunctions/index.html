@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <meta name="description" content="Conjunction screening — derived close-approach analysis between objects on the globe.">
+    <meta name="theme-color" content="#000000">
+    <title>Conjunctions — Space-Track</title>
+    <script src="/orbit-engine/cesium-base.js"></script>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link rel="stylesheet" href="/orbit/orbit.css">
+    <link rel="stylesheet" href="../spacetrack.css">
+</head>
+<body data-page-id="spacetrack-conjunctions">
+
+    <div class="vfx-overlay" aria-hidden="true"><div class="noise-layer"></div></div>
+    <div id="cesium-container" aria-hidden="true"></div>
+
+    <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="SpaceTrack main navigation">
+        <a href="/orbit/" class="spacetrack-nav__brand">◂ HOME</a>
+        <ul class="spacetrack-nav__list" role="menubar">
+            <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">CATALOG</a></li>
+            <li><a href="/spacetrack/signal/" class="spacetrack-nav__link" role="menuitem">SIGNAL</a></li>
+            <li><a href="/spacetrack/conjunctions/" class="spacetrack-nav__link spacetrack-nav__link--active" role="menuitem">CONJUNCTIONS</a></li>
+            <li><a href="/spacetrack/brief/" class="spacetrack-nav__link" role="menuitem">BRIEF</a></li>
+            <li><a href="/spacetrack/analytics/" class="spacetrack-nav__link" role="menuitem">ANALYTICS</a></li>
+        </ul>
+        <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
+        <a href="/orbit/" class="spacetrack-nav__source-link" title="Celestrak view">CELESTRAK ↗</a>
+        <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+    </nav>
+
+    <div id="mobile-menu" class="mobile-menu" hidden role="navigation" aria-label="Navigation menu">
+        <button id="mobile-menu-close" class="mobile-menu__close" aria-label="Close navigation menu" type="button">✕</button>
+        <div class="mobile-menu__inner">
+            <a href="/spacetrack/" class="mobile-menu__link">CATALOG</a>
+            <a href="/spacetrack/signal/" class="mobile-menu__link">SIGNAL</a>
+            <a href="/spacetrack/conjunctions/" class="mobile-menu__link mobile-menu__link--active">CONJUNCTIONS</a>
+            <a href="/spacetrack/brief/" class="mobile-menu__link">BRIEF</a>
+            <a href="/spacetrack/analytics/" class="mobile-menu__link">ANALYTICS</a>
+            <hr class="mobile-menu__divider">
+            <a href="/starlink/" class="mobile-menu__link mobile-menu__source">STARLINK ↗</a>
+            <a href="/orbit/" class="mobile-menu__link mobile-menu__source">CELESTRAK ↗</a>
+        </div>
+    </div>
+
+    <div id="catalog-hud" class="orbital-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="catalog-hud-toggle" aria-expanded="false" aria-controls="catalog-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title hud-title--bare">// SCREEN</span>
+        </button>
+        <div id="catalog-hud-body" class="key-hud-body" hidden>
+            <div class="st-unofficial"><strong>⚠ UNOFFICIAL</strong> derived from public TLEs via SGP4 — not a conjunction assessment. Do not use for collision avoidance.</div>
+            <label class="st-field"><span class="st-field__label">THRESHOLD</span><select id="c-threshold" class="st-input"></select></label>
+            <label class="st-field"><span class="st-field__label">WINDOW</span><select id="c-window" class="st-input"></select></label>
+            <div class="st-progress" id="c-progress" hidden><div class="st-progress__bar" id="c-progress-bar"></div></div>
+            <div class="st-actions">
+                <button id="c-run" class="st-btn st-btn--primary">SCREEN</button>
+                <button id="c-cancel" class="st-btn" disabled>CANCEL</button>
+            </div>
+            <div class="st-hint" id="c-status">screen the objects currently rendered on the globe</div>
+            <hr class="hud-divider">
+            <ul class="st-feed" id="c-list"></ul>
+        </div>
+    </div>
+
+    <!-- Screening Panel — left side, below screen controls (collapsible) -->
+    <div id="screening-hud" class="orbital-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="screening-hud-toggle" aria-expanded="false" aria-controls="screening-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title hud-title--bare">// RESULTS</span>
+        </button>
+        <div id="screening-hud-body" class="key-hud-body" hidden>
+            <nav class="menu-tabs" role="tablist" aria-label="Conjunction screening sections">
+                <button class="menu-tab menu-tab--active" data-tab="screen" role="tab" aria-selected="true">SCREEN</button>
+                <button class="menu-tab" data-tab="objects" role="tab">RENDERED</button>
+            </nav>
+            <div class="menu-sections">
+                <div id="screen-section" class="menu-section menu-section--active" data-tab-content="screen">
+                    <div class="st-signal-section__title">CONJUNCTION SCREENING</div>
+                    <div class="st-hint" id="c-screen-hint">select a filter on the Catalog page first, then screen the rendered objects</div>
+                </div>
+                <div id="objects-section" class="menu-section" data-tab-content="objects">
+                    <div class="st-signal-section__title">RENDERED OBJECTS</div>
+                    <div class="st-hint" id="c-objects-hint">no objects rendered — open the Catalog and apply a filter</div>
+                    <ul class="st-feed" id="c-objects-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="time-warp" class="orbital-hud time-warp" role="group" aria-label="Time warp controls"></div>
+
+    <div id="dossier" class="orbital-hud sat-detail st-dossier" hidden>
+        <button id="dossier-close" class="sat-detail-close" aria-label="Close">✕</button>
+        <div class="hud-title" id="dossier-name">// OBJECT</div>
+        <div class="st-dossier__id" id="dossier-designator">—</div>
+        <div class="hud-row"><span class="hud-label">NORAD</span><span id="d-norad" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">TYPE</span><span id="d-type" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">COUNTRY</span><span id="d-country" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">LAUNCHED</span><span id="d-launch" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">SITE</span><span id="d-site" class="hud-val">—</span></div>
+        <hr class="hud-divider">
+        <div class="hud-row"><span class="hud-label">REGIME</span><span id="d-regime" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PERIOD</span><span id="d-period" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">APOGEE</span><span id="d-apogee" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PERIGEE</span><span id="d-perigee" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">INCL</span><span id="d-incl" class="hud-val">—</span></div>
+        <hr class="hud-divider">
+        <div class="hud-row"><span class="hud-label">LAT</span><span id="d-lat" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">LON</span><span id="d-lon" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">ALT</span><span id="d-alt" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">VEL</span><span id="d-vel" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">ELSET</span><span id="d-epoch" class="hud-val">—</span></div>
+        <div class="st-dossier__decay" id="dossier-decay" hidden></div>
+        <div class="st-dossier__status" id="dossier-status"></div>
+    </div>
+
+    <footer class="orbital-footer">
+        <span id="footer-source">Live data: Space-Track</span>
+        <span class="orbital-footer__cite">Orbital data courtesy of Space-Track.org (USSPACECOM / 18th Space Defense Squadron)</span>
+        <span>rendered with CesiumJS</span>
+    </footer>
+
+    <!-- Mobile bottom navigation (replaces hamburger on <768px) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" role="navigation" aria-label="SpaceTrack navigation">
+        <a href="/spacetrack/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9673;</span>
+            <span class="mobile-bottom-nav__label">CATALOG</span>
+        </a>
+        <a href="/spacetrack/signal/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9678;</span>
+            <span class="mobile-bottom-nav__label">SIGNAL</span>
+        </a>
+        <a href="/spacetrack/conjunctions/" class="mobile-bottom-nav__item mobile-bottom-nav__item--active" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9889;</span>
+            <span class="mobile-bottom-nav__label">CONJ.</span>
+        </a>
+        <a href="/spacetrack/brief/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9776;</span>
+            <span class="mobile-bottom-nav__label">BRIEF</span>
+        </a>
+        <a href="/spacetrack/analytics/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9638;</span>
+            <span class="mobile-bottom-nav__label">DATA</span>
+        </a>
+    </nav>
+
+    <script src="/orbit-engine/vendor/satellite.min.js"></script>
+    <script type="module" src="conjunctions.js"></script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <meta name="description" content="Catalog analytics — launch history, debris families, and country-by-decade launch matrix.">
+    <meta name="theme-color" content="#000000">
+    <title>Analytics — Space-Track</title>
+    <link rel="stylesheet" href="/orbit/orbit.css">
+    <link rel="stylesheet" href="../spacetrack.css">
+    <style>
+        body { background: #000810; }
+        #cesium-container { display: none; }
+    </style>
+</head>
+<body data-page-id="spacetrack-analytics">
+
+    <div class="vfx-overlay" aria-hidden="true"><div class="noise-layer"></div></div>
+
+    <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="SpaceTrack main navigation">
+        <a href="/orbit/" class="spacetrack-nav__brand">◂ HOME</a>
+        <ul class="spacetrack-nav__list" role="menubar">
+            <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">CATALOG</a></li>
+            <li><a href="/spacetrack/signal/" class="spacetrack-nav__link" role="menuitem">SIGNAL</a></li>
+            <li><a href="/spacetrack/conjunctions/" class="spacetrack-nav__link" role="menuitem">CONJUNCTIONS</a></li>
+            <li><a href="/spacetrack/brief/" class="spacetrack-nav__link" role="menuitem">BRIEF</a></li>
+            <li><a href="/spacetrack/analytics/" class="spacetrack-nav__link spacetrack-nav__link--active" role="menuitem">ANALYTICS</a></li>
+        </ul>
+        <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
+        <a href="/orbit/" class="spacetrack-nav__source-link" title="Celestrak view">CELESTRAK ↗</a>
+        <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+    </nav>
+
+    <div id="mobile-menu" class="mobile-menu" hidden role="navigation" aria-label="Navigation menu">
+        <button id="mobile-menu-close" class="mobile-menu__close" aria-label="Close navigation menu" type="button">✕</button>
+        <div class="mobile-menu__inner">
+            <a href="/spacetrack/" class="mobile-menu__link">CATALOG</a>
+            <a href="/spacetrack/signal/" class="mobile-menu__link">SIGNAL</a>
+            <a href="/spacetrack/conjunctions/" class="mobile-menu__link">CONJUNCTIONS</a>
+            <a href="/spacetrack/brief/" class="mobile-menu__link">BRIEF</a>
+            <a href="/spacetrack/analytics/" class="mobile-menu__link mobile-menu__link--active">ANALYTICS</a>
+            <hr class="mobile-menu__divider">
+            <a href="/starlink/" class="mobile-menu__link mobile-menu__source">STARLINK ↗</a>
+            <a href="/orbit/" class="mobile-menu__link mobile-menu__source">CELESTRAK ↗</a>
+        </div>
+    </div>
+
+    <div id="catalog-hud" class="orbital-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="catalog-hud-toggle" aria-expanded="false" aria-controls="catalog-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title hud-title--bare">// ANALYTICS</span>
+        </button>
+        <div id="catalog-hud-body" class="key-hud-body" hidden>
+            <div class="st-signal-section__title">LAUNCHES BY DECADE</div>
+            <div class="st-bars" id="an-decade-bars"></div>
+            <div class="st-hint" id="an-decade-hint">loading…</div>
+            <hr class="hud-divider">
+            <div class="st-signal-section__title">TOP LAUNCH SITES</div>
+            <div class="st-bars" id="an-site-bars"></div>
+            <div class="st-hint" id="an-site-hint">loading…</div>
+            <hr class="hud-divider">
+            <div class="st-signal-section__title">DEBRIS FAMILIES</div>
+            <div class="st-bars" id="an-family-bars"></div>
+            <div class="st-hint" id="an-family-hint">loading…</div>
+            <hr class="hud-divider">
+            <div class="st-signal-section__title">COUNTRY × DECADE</div>
+            <div class="st-country-matrix" id="an-country-matrix"></div>
+            <div class="st-hint" id="an-country-hint">loading…</div>
+        </div>
+    </div>
+
+    <footer class="orbital-footer">
+        <span id="footer-source">Live data: Space-Track</span>
+        <span class="orbital-footer__cite">Orbital data courtesy of Space-Track.org (USSPACECOM / 18th Space Defense Squadron)</span>
+    </footer>
+
+    <!-- Mobile bottom navigation (replaces hamburger on <768px) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" role="navigation" aria-label="SpaceTrack navigation">
+        <a href="/spacetrack/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9673;</span>
+            <span class="mobile-bottom-nav__label">CATALOG</span>
+        </a>
+        <a href="/spacetrack/signal/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9678;</span>
+            <span class="mobile-bottom-nav__label">SIGNAL</span>
+        </a>
+        <a href="/spacetrack/conjunctions/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9889;</span>
+            <span class="mobile-bottom-nav__label">CONJ.</span>
+        </a>
+        <a href="/spacetrack/brief/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9776;</span>
+            <span class="mobile-bottom-nav__label">BRIEF</span>
+        </a>
+        <a href="/spacetrack/analytics/" class="mobile-bottom-nav__item mobile-bottom-nav__item--active" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9638;</span>
+            <span class="mobile-bottom-nav__label">DATA</span>
+        </a>
+    </nav>
+
+    <script type="module" src="analytics.js"></script>
+</body>
+</html>

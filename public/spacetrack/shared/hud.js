@@ -1,0 +1,191 @@
+/**
+ * Shared HUD (collapsible panel) and navigation logic for SpaceTrack pages.
+ *
+ * Provides:
+ *  - Collapsible left-side HUD panels (only one expanded at a time)
+ *  - Hamburger menu toggle (navigable sections)
+ *  - Tab switching within HUD bodies
+ *  - Mobile breakpoint awareness
+ */
+
+const MOBILE_MQ = window.matchMedia('(max-width: 768px)');
+export const isMobile = () => MOBILE_MQ.matches;
+
+let _hudPanels = [];
+
+function collapsePanel(p) {
+    p.classList.add('key-hud--collapsed');
+    const b = p.querySelector('.key-hud-body');
+    const t = p.querySelector('.key-hud-toggle');
+    if (b) b.hidden = true;
+    if (t) t.setAttribute('aria-expanded', 'false');
+}
+
+export function expandHud(hudId) {
+    const hud = document.getElementById(hudId);
+    if (!hud) return;
+    hud.classList.remove('key-hud--collapsed');
+    const body = hud.querySelector('.key-hud-body');
+    const toggle = hud.querySelector('.key-hud-toggle');
+    if (body) body.hidden = false;
+    if (toggle) toggle.setAttribute('aria-expanded', 'true');
+}
+
+export function collapseHud(hudId) {
+    const hud = document.getElementById(hudId);
+    if (!hud) return;
+    collapsePanel(hud);
+}
+
+export function wireHudToggle(hudId, toggleId, bodyId) {
+    const hud = document.getElementById(hudId);
+    const toggle = document.getElementById(toggleId);
+    const body = document.getElementById(bodyId);
+    if (!hud || !toggle || !body) return;
+    _hudPanels.push(hud);
+    toggle.addEventListener('click', () => {
+        const willExpand = hud.classList.contains('key-hud--collapsed');
+        if (willExpand) {
+            _hudPanels.forEach(p => { if (p !== hud) collapsePanel(p); });
+        }
+        const collapsed = hud.classList.toggle('key-hud--collapsed');
+        body.hidden = collapsed;
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        document.body.classList.toggle('hud-panel-open', !collapsed);
+    });
+}
+
+export function initMobileListener() {
+    MOBILE_MQ.addEventListener('change', () => {
+        if (!isMobile()) {
+            document.body.classList.remove('hud-panel-open');
+        } else {
+            const open = _hudPanels.filter(p => !p.classList.contains('key-hud--collapsed'));
+            open.slice(1).forEach(collapsePanel);
+            document.body.classList.toggle('hud-panel-open', open.length > 0);
+        }
+    });
+}
+
+function closeMobileMenu() {
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    if (!hamburgerBtn || !mobileMenu) return;
+    mobileMenu.hidden = true;
+    hamburgerBtn.classList.remove('hamburger--open');
+    hamburgerBtn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('mobile-menu-open');
+}
+
+export function initHamburgerMenu() {
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    if (!hamburgerBtn || !mobileMenu) return;
+
+    hamburgerBtn.addEventListener('click', () => {
+        const open = mobileMenu.hidden;
+        if (open) {
+            mobileMenu.hidden = false;
+            hamburgerBtn.classList.add('hamburger--open');
+            hamburgerBtn.setAttribute('aria-expanded', 'true');
+            document.body.classList.add('mobile-menu-open');
+        } else {
+            closeMobileMenu();
+        }
+    });
+
+    /* Close on outside-click (tap the backdrop) */
+    mobileMenu.addEventListener('click', (e) => {
+        if (e.target === mobileMenu) closeMobileMenu();
+    });
+
+    /* Close on Escape key */
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !mobileMenu.hidden) closeMobileMenu();
+    });
+
+    /* Close when a link is tapped */
+    mobileMenu.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', closeMobileMenu);
+    });
+
+    /* Close button */
+    const closeBtn = document.getElementById('mobile-menu-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeMobileMenu);
+}
+
+export function wireTabs(container) {
+    if (!container) return;
+    const tabs = container.querySelectorAll('.menu-tab');
+    const sections = container.querySelectorAll('.menu-section');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.dataset.tab;
+            tabs.forEach(t => {
+                const active = t.dataset.tab === tabId;
+                t.classList.toggle('menu-tab--active', active);
+                t.setAttribute('aria-selected', String(active));
+            });
+            sections.forEach(s => {
+                s.classList.toggle('menu-section--active', s.dataset.tabContent === tabId);
+            });
+        });
+    });
+}
+
+export function closeAllHuds() {
+    _hudPanels.forEach(collapsePanel);
+    document.body.classList.remove('hud-panel-open');
+}
+
+/* ── Filter drawer (mobile slide-out) ──────────────────────────────────────
+ * The filter drawer is a right-side overlay panel used on mobile (<768px)
+ * to replace the fixed-position #filters-hud which is hidden on mobile.
+ * Only the catalog page has this element. */
+
+let _drawerOpen = false;
+
+function closeFilterDrawer() {
+    const overlay = document.getElementById('filter-drawer-overlay');
+    if (!overlay) return;
+    overlay.removeAttribute('open');
+    _drawerOpen = false;
+    document.body.classList.remove('filter-drawer-open');
+}
+
+export function openFilterDrawer() {
+    const overlay = document.getElementById('filter-drawer-overlay');
+    if (!overlay) return;
+    overlay.setAttribute('open', '');
+    _drawerOpen = true;
+    document.body.classList.add('filter-drawer-open');
+}
+
+export function toggleFilterDrawer() {
+    if (_drawerOpen) closeFilterDrawer();
+    else openFilterDrawer();
+}
+
+export function initFilterDrawer() {
+    const overlay = document.getElementById('filter-drawer-overlay');
+    const closeBtn = document.getElementById('filter-drawer-close');
+    const openBtn = document.getElementById('filter-drawer-btn');
+
+    if (openBtn) {
+        openBtn.addEventListener('click', toggleFilterDrawer);
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeFilterDrawer);
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeFilterDrawer();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && _drawerOpen) closeFilterDrawer();
+    });
+}

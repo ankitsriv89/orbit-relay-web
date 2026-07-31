@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <meta name="description" content="Signal analysis — ground station visibility, coverage maps, and pass predictions for selected objects.">
+    <meta name="theme-color" content="#000000">
+    <title>Signal Analysis — Space-Track</title>
+    <script src="/orbit-engine/cesium-base.js"></script>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link rel="stylesheet" href="/orbit/orbit.css">
+    <link rel="stylesheet" href="../spacetrack.css">
+</head>
+<body data-page-id="spacetrack-signal">
+
+    <div class="vfx-overlay" aria-hidden="true"><div class="noise-layer"></div></div>
+    <div id="cesium-container" aria-hidden="true"></div>
+
+    <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="SpaceTrack main navigation">
+        <a href="/orbit/" class="spacetrack-nav__brand">◂ HOME</a>
+        <ul class="spacetrack-nav__list" role="menubar">
+            <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">CATALOG</a></li>
+            <li><a href="/spacetrack/signal/" class="spacetrack-nav__link spacetrack-nav__link--active" role="menuitem">SIGNAL</a></li>
+            <li><a href="/spacetrack/conjunctions/" class="spacetrack-nav__link" role="menuitem">CONJUNCTIONS</a></li>
+            <li><a href="/spacetrack/brief/" class="spacetrack-nav__link" role="menuitem">BRIEF</a></li>
+            <li><a href="/spacetrack/analytics/" class="spacetrack-nav__link" role="menuitem">ANALYTICS</a></li>
+        </ul>
+        <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
+        <a href="/orbit/" class="spacetrack-nav__source-link" title="Celestrak view">CELESTRAK ↗</a>
+        <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+    </nav>
+
+    <div id="mobile-menu" class="mobile-menu" hidden role="navigation" aria-label="Navigation menu">
+        <button id="mobile-menu-close" class="mobile-menu__close" aria-label="Close navigation menu" type="button">✕</button>
+        <div class="mobile-menu__inner">
+            <a href="/spacetrack/" class="mobile-menu__link">CATALOG</a>
+            <a href="/spacetrack/signal/" class="mobile-menu__link mobile-menu__link--active">SIGNAL</a>
+            <a href="/spacetrack/conjunctions/" class="mobile-menu__link">CONJUNCTIONS</a>
+            <a href="/spacetrack/brief/" class="mobile-menu__link">BRIEF</a>
+            <a href="/spacetrack/analytics/" class="mobile-menu__link">ANALYTICS</a>
+            <hr class="mobile-menu__divider">
+            <a href="/starlink/" class="mobile-menu__link mobile-menu__source">STARLINK ↗</a>
+            <a href="/orbit/" class="mobile-menu__link mobile-menu__source">CELESTRAK ↗</a>
+        </div>
+    </div>
+
+    <div id="catalog-hud" class="orbital-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="catalog-hud-toggle" aria-expanded="false" aria-controls="catalog-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title hud-title--bare">// SELECTED OBJECT</span>
+        </button>
+        <div id="catalog-hud-body" class="key-hud-body" hidden>
+            <div class="hud-row"><span class="hud-label">NAME</span><span id="sig-obj-name" class="hud-val">—</span></div>
+            <div class="hud-row"><span class="hud-label">NORAD</span><span id="sig-obj-norad" class="hud-val">—</span></div>
+            <div class="hud-row"><span class="hud-label">TYPE</span><span id="sig-obj-type" class="hud-val">—</span></div>
+            <div class="hud-row"><span class="hud-label">REGIME</span><span id="sig-obj-regime" class="hud-val">—</span></div>
+            <hr class="hud-divider">
+            <div class="hud-row"><span class="hud-label">LAT</span><span id="sig-obj-lat" class="hud-val">—</span></div>
+            <div class="hud-row"><span class="hud-label">LON</span><span id="sig-obj-lon" class="hud-val">—</span></div>
+            <div class="hud-row"><span class="hud-label">ALT</span><span id="sig-obj-alt" class="hud-val">—</span></div>
+            <div class="hud-row"><span class="hud-label">VEL</span><span id="sig-obj-vel" class="hud-val">—</span></div>
+            <div class="hud-live">&#9679; LIVE</div>
+        </div>
+    </div>
+
+    <!-- Analysis Panel — left side, below selected object (collapsible) -->
+    <div id="analysis-hud" class="orbital-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="analysis-hud-toggle" aria-expanded="false" aria-controls="analysis-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title hud-title--bare">// ANALYSIS</span>
+        </button>
+        <div id="analysis-hud-body" class="key-hud-body" hidden>
+            <nav class="menu-tabs" role="tablist" aria-label="Signal analysis sections">
+                <button class="menu-tab menu-tab--active" data-tab="visibility" role="tab" aria-selected="true">VISIBILITY</button>
+                <button class="menu-tab" data-tab="coverage" role="tab">COVERAGE</button>
+                <button class="menu-tab" data-tab="passes" role="tab">PASSES</button>
+                <button class="menu-tab" data-tab="rf" role="tab">RF / LINK</button>
+            </nav>
+            <div class="menu-sections">
+                <div id="visibility-section" class="menu-section menu-section--active" data-tab-content="visibility">
+                    <div class="st-signal-section__title">GROUND STATION VISIBILITY</div>
+                    <label class="st-field"><span class="st-field__label">STATION</span><select id="gs-station" class="st-select"><option value="">select station</option></select></label>
+                    <label class="st-field"><span class="st-field__label">ELEVATION MASK</span><input type="range" id="gs-elev" class="st-input" min="0" max="30" value="10" step="1"><span id="gs-elev-val">10°</span></label>
+                    <label class="st-field"><span class="st-field__label">PREDICTION WINDOW</span><select id="gs-window" class="st-select"><option value="3600">1 hour</option><option value="21600" selected>6 hours</option><option value="86400">24 hours</option></select></label>
+                    <div class="st-actions"><button id="gs-compute" class="st-btn st-btn--primary">COMPUTE</button></div>
+                    <div class="st-hint" id="gs-hint">select a station and compute</div>
+                    <hr class="hud-divider">
+                    <div class="st-signal-section__title">VISIBILITY WINDOWS</div>
+                    <ul class="st-feed" id="gs-windows"></ul>
+                </div>
+
+                <div id="coverage-section" class="menu-section" data-tab-content="coverage">
+                    <div class="st-signal-section__title">COVERAGE ANALYSIS</div>
+                    <label class="st-field"><span class="st-field__label">GRID RESOLUTION</span><select id="cov-grid" class="st-select"><option value="5">5°</option><option value="2.5" selected>2.5°</option><option value="1">1°</option></select></label>
+                    <label class="st-field"><span class="st-field__label">MIN ELEVATION</span><input type="range" id="cov-elev" class="st-input" min="0" max="30" value="5" step="1"><span id="cov-elev-val">5°</span></label>
+                    <div class="st-actions"><button id="cov-compute" class="st-btn st-btn--primary">GENERATE MAP</button></div>
+                    <div class="st-hint" id="cov-hint">coverage map will render on globe</div>
+                </div>
+
+                <div id="passes-section" class="menu-section" data-tab-content="passes">
+                    <div class="st-signal-section__title">PASS PREDICTIONS</div>
+                    <label class="st-field"><span class="st-field__label">TARGET LAT/LON</span><input type="text" id="pass-target" class="st-input" placeholder="lat,lon (e.g., 37.4,-122.1)"></label>
+                    <label class="st-field"><span class="st-field__label">DAYS AHEAD</span><input type="number" id="pass-days" class="st-input" value="7" min="1" max="30"></label>
+                    <label class="st-field"><span class="st-field__label">MIN DURATION</span><input type="number" id="pass-min-dur" class="st-input" value="60" min="0" step="10"> sec</label>
+                    <div class="st-actions"><button id="pass-compute" class="st-btn st-btn--primary">PREDICT PASSES</button></div>
+                    <div class="st-hint" id="pass-hint">enter target location</div>
+                    <hr class="hud-divider">
+                    <ul class="st-feed" id="pass-list"></ul>
+                </div>
+
+                <div id="rf-section" class="menu-section" data-tab-content="rf">
+                    <div class="st-signal-section__title">RF / LINK BUDGET</div>
+                    <label class="st-field"><span class="st-field__label">FREQUENCY</span><input type="number" id="rf-freq" class="st-input" value="2200" step="100"> MHz</label>
+                    <label class="st-field"><span class="st-field__label">TX POWER</span><input type="number" id="rf-tx" class="st-input" value="10" step="1"> W</label>
+                    <label class="st-field"><span class="st-field__label">TX GAIN</span><input type="number" id="rf-tx-gain" class="st-input" value="10" step="0.1"> dBi</label>
+                    <label class="st-field"><span class="st-field__label">RX GAIN</span><input type="number" id="rf-rx-gain" class="st-input" value="40" step="0.1"> dBi</label>
+                    <label class="st-field"><span class="st-field__label">DATA RATE</span><input type="number" id="rf-rate" class="st-input" value="1000" step="100"> kbps</label>
+                    <div class="st-actions"><button id="rf-compute" class="st-btn st-btn--primary">CALCULATE</button></div>
+                    <div class="st-hint" id="rf-hint">link budget results</div>
+                    <hr class="hud-divider">
+                    <div class="hud-row"><span class="hud-label">EIRP</span><span id="rf-eirp" class="hud-val">—</span></div>
+                    <div class="hud-row"><span class="hud-label">PATH LOSS</span><span id="rf-pl" class="hud-val">—</span></div>
+                    <div class="hud-row"><span class="hud-label">G/T</span><span id="rf-gt" class="hud-val">—</span></div>
+                    <div class="hud-row"><span class="hud-label">SNR</span><span id="rf-snr" class="hud-val">—</span></div>
+                    <div class="hud-row"><span class="hud-label">MARGIN</span><span id="rf-margin" class="hud-val">—</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="time-warp" class="orbital-hud time-warp" role="group" aria-label="Time warp controls"></div>
+
+    <div id="dossier" class="orbital-hud sat-detail st-dossier" hidden>
+        <button id="dossier-close" class="sat-detail-close" aria-label="Close">✕</button>
+        <div class="hud-title" id="dossier-name">// OBJECT</div>
+        <div class="st-dossier__id" id="dossier-designator">—</div>
+        <div class="hud-row"><span class="hud-label">NORAD</span><span id="d-norad" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">TYPE</span><span id="d-type" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">COUNTRY</span><span id="d-country" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">LAUNCHED</span><span id="d-launch" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">SITE</span><span id="d-site" class="hud-val">—</span></div>
+        <hr class="hud-divider">
+        <div class="hud-row"><span class="hud-label">REGIME</span><span id="d-regime" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PERIOD</span><span id="d-period" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">APOGEE</span><span id="d-apogee" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PERIGEE</span><span id="d-perigee" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">INCL</span><span id="d-incl" class="hud-val">—</span></div>
+        <hr class="hud-divider">
+        <div class="hud-row"><span class="hud-label">LAT</span><span id="d-lat" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">LON</span><span id="d-lon" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">ALT</span><span id="d-alt" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">VEL</span><span id="d-vel" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">ELSET</span><span id="d-epoch" class="hud-val">—</span></div>
+        <div class="st-dossier__decay" id="dossier-decay" hidden></div>
+        <div class="st-dossier__status" id="dossier-status"></div>
+    </div>
+
+    <footer class="orbital-footer">
+        <span id="footer-source">Live data: Space-Track</span>
+        <span class="orbital-footer__cite">Orbital data courtesy of Space-Track.org (USSPACECOM / 18th Space Defense Squadron)</span>
+        <span>rendered with CesiumJS</span>
+    </footer>
+
+    <!-- Mobile bottom navigation (replaces hamburger on <768px) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" role="navigation" aria-label="SpaceTrack navigation">
+        <a href="/spacetrack/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9673;</span>
+            <span class="mobile-bottom-nav__label">CATALOG</span>
+        </a>
+        <a href="/spacetrack/signal/" class="mobile-bottom-nav__item mobile-bottom-nav__item--active" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9678;</span>
+            <span class="mobile-bottom-nav__label">SIGNAL</span>
+        </a>
+        <a href="/spacetrack/conjunctions/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9889;</span>
+            <span class="mobile-bottom-nav__label">CONJ.</span>
+        </a>
+        <a href="/spacetrack/brief/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9776;</span>
+            <span class="mobile-bottom-nav__label">BRIEF</span>
+        </a>
+        <a href="/spacetrack/analytics/" class="mobile-bottom-nav__item" role="menuitem">
+            <span class="mobile-bottom-nav__icon">&#9638;</span>
+            <span class="mobile-bottom-nav__label">DATA</span>
+        </a>
+    </nav>
+
+    <script src="/orbit-engine/vendor/satellite.min.js"></script>
+    <script type="module" src="signal.js"></script>
+</body>
+</html>

@@ -1,0 +1,1657 @@
+/* Space-Track catalog page — additions only.
+ *
+ * The HUD shell (panels, rows, labels, topbar, footer, time-warp, source
+ * toggle) is /orbit/orbit.css, loaded first. This file styles the controls that
+ * only exist here: the filter form, the result list and the dossier's catalog
+ * rows. Keeping one design system means /spacetrack/ reads as the same
+ * instrument as /orbit/ rather than a second product.
+ */
+
+/* Replaces the inline style the /orbit/ markup uses on its toggle titles. */
+.hud-title--bare {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+/* ── Page body ─────────────────────────────────────────────────────────────── */
+body[data-page-id="spacetrack-catalog"] {
+    overflow: hidden;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────────────────
+ * Desktop: brand + nav links + source link. Mobile: brand + source link + hamburger.
+ * Nav links are hidden at ≤768px and replaced by the bottom navigation bar. */
+
+/* Nav links visible on desktop, hidden on mobile (hamburger replaces them) */
+.spacetrack-nav__list {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+}
+
+.spacetrack-nav__link {
+    display: block;
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: rgba(160, 210, 240, 0.55);
+    text-decoration: none;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+    .spacetrack-nav__link:hover {
+        color: rgba(200, 240, 255, 0.85);
+        background: rgba(0, 210, 255, 0.08);
+    }
+}
+.spacetrack-nav__link--active {
+    color: #00d2ff;
+    background: rgba(0, 210, 255, 0.1);
+}
+
+/* Hamburger hidden on desktop, shown on mobile */
+.hamburger-btn {
+    display: none;
+}
+
+/* ── Hamburger menu (overlay, mobile only) ──────────────────────────────────── */
+.mobile-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: rgba(0, 8, 16, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 32px 48px;
+    animation: mobile-menu-fade-in 0.15s ease-out;
+}
+.mobile-menu[hidden] { display: none; }
+
+.mobile-menu__close {
+    position: absolute;
+    top: calc(16px + var(--sa-top));
+    right: calc(16px + var(--sa-right));
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    color: rgba(200, 240, 255, 0.7);
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, color 0.15s;
+    z-index: 1;
+}
+.mobile-menu__close:hover { border-color: rgba(0, 210, 255, 0.6); color: #00d2ff; }
+
+@keyframes mobile-menu-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.mobile-menu__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    max-width: 280px;
+}
+
+.mobile-menu__link {
+    display: block;
+    padding: 16px 12px;
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    letter-spacing: 2.5px;
+    font-weight: 700;
+    color: rgba(160, 210, 240, 0.65);
+    text-decoration: none;
+    text-align: center;
+    border-radius: 6px;
+    transition: background 0.12s, color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+}
+.mobile-menu__link:active {
+    background: rgba(0, 210, 255, 0.12);
+    color: rgba(220, 245, 255, 0.95);
+}
+.mobile-menu__link--active {
+    color: #00d2ff;
+    background: rgba(0, 210, 255, 0.1);
+}
+.mobile-menu__source {
+    font-size: 0.85rem;
+    color: rgba(160, 210, 240, 0.4);
+}
+.mobile-menu__divider {
+    border: none;
+    border-top: 1px solid rgba(0, 210, 255, 0.12);
+    margin: 12px 0;
+}
+
+/* ── HUD corner distribution ──────────────────────────────────────────────────
+ * HUDs are distributed across the four corners so they don't overlap each
+ * other. Each page places its HUDs in different corners:
+ *   • catalog-hud     → top-left     (summary — always the "home" panel)
+ *   • filters-hud     → top-right    (catalog filter controls)
+ *   • analysis-hud    → top-right    (signal analysis controls)
+ *   • screening-hud   → top-right    (conjunction screening controls)
+ *   • activity-hud    → bottom-left  (feed / decay / boxscore)
+ *   • results-hud     → bottom-right (filtered results list)
+ * Pages with fewer HUDs simply leave the other corners empty.
+ */
+
+/* Top-left: catalog summary on every page */
+body[data-page-id="spacetrack-catalog"] #catalog-hud,
+body[data-page-id="spacetrack-signal"] #catalog-hud,
+body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
+body[data-page-id="spacetrack-brief"] #catalog-hud,
+body[data-page-id="spacetrack-analytics"] #catalog-hud {
+    top: calc(56px + var(--sa-top));
+    left: calc(24px + var(--sa-left));
+}
+
+/* Top-right: filter / analysis / screening controls */
+body[data-page-id="spacetrack-catalog"] #filters-hud,
+body[data-page-id="spacetrack-signal"] #analysis-hud,
+body[data-page-id="spacetrack-conjunctions"] #screening-hud {
+    top: calc(56px + var(--sa-top));
+    right: calc(24px + var(--sa-right));
+    left: auto;
+}
+
+/* Bottom-left: activity feed */
+body[data-page-id="spacetrack-catalog"] #activity-hud {
+    bottom: calc(74px + var(--sa-bottom));
+    left: calc(24px + var(--sa-left));
+    top: auto;
+}
+
+/* Bottom-right: results list */
+body[data-page-id="spacetrack-catalog"] #results-hud {
+    bottom: calc(74px + var(--sa-bottom));
+    right: calc(24px + var(--sa-right));
+    left: auto;
+    top: auto;
+}
+
+/* ── Tab styles (inside HUD bodies) ────────────────────────────────────────── */
+
+/* ── HUD viewport cap + scroll ──────────────────────────────────────────────
+ * Every SpaceTrack HUD is capped to the viewport so its expanded body can
+ * never grow off-screen. The body scrolls inside the cap. Follows the same
+ * pattern as #layers-hud in /orbit/orbit.css. */
+body[data-page-id="spacetrack-catalog"] #catalog-hud,
+body[data-page-id="spacetrack-signal"] #catalog-hud,
+body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
+body[data-page-id="spacetrack-brief"] #catalog-hud,
+body[data-page-id="spacetrack-analytics"] #catalog-hud,
+body[data-page-id="spacetrack-catalog"] #filters-hud,
+body[data-page-id="spacetrack-signal"] #analysis-hud,
+body[data-page-id="spacetrack-conjunctions"] #screening-hud,
+body[data-page-id="spacetrack-catalog"] #activity-hud,
+body[data-page-id="spacetrack-catalog"] #results-hud,
+body[data-page-id="spacetrack-catalog"] #boxscore-hud {
+    box-sizing: border-box;
+    max-height: calc(100vh - 56px - 24px);
+    display: flex;
+    flex-direction: column;
+}
+
+body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body,
+body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body,
+body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body,
+body[data-page-id="spacetrack-brief"] #catalog-hud .key-hud-body,
+body[data-page-id="spacetrack-analytics"] #catalog-hud .key-hud-body,
+body[data-page-id="spacetrack-catalog"] #filters-hud .key-hud-body,
+body[data-page-id="spacetrack-signal"] #analysis-hud .key-hud-body,
+body[data-page-id="spacetrack-conjunctions"] #screening-hud .key-hud-body,
+body[data-page-id="spacetrack-catalog"] #activity-hud .key-hud-body,
+body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body,
+body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-brief"] #catalog-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-analytics"] #catalog-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-catalog"] #filters-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-signal"] #analysis-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-conjunctions"] #screening-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-catalog"] #activity-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scrollbar,
+body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body::-webkit-scrollbar {
+    width: 6px;
+}
+body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-brief"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-analytics"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-catalog"] #filters-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-signal"] #analysis-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-conjunctions"] #screening-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-catalog"] #activity-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scrollbar-thumb,
+body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 210, 255, 0.4);
+    border-radius: 3px;
+}
+.menu-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+    font-family: var(--font-mono);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.menu-tabs::-webkit-scrollbar { display: none; }
+
+.menu-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 6px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: rgba(160, 210, 240, 0.5);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+    text-align: center;
+}
+.menu-tab:hover { color: rgba(200, 240, 255, 0.8); background: rgba(0, 210, 255, 0.05); }
+.menu-tab--active { color: #00d2ff; border-bottom-color: #00d2ff; }
+
+.menu-section {
+    display: none;
+}
+.menu-section--active {
+    display: block;
+}
+
+/* ── Filter form styles ─────────────────────────────────────────────────────── */
+
+/* Filter form sections for better visual grouping */
+.st-fieldset {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.1);
+}
+
+.st-fieldset:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.st-fieldset__legend {
+    display: block;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(0, 210, 255, 0.5);
+    margin-bottom: 10px;
+}
+
+/* Filter form spacing and alignment */
+.st-field {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.st-field__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.58rem;
+    letter-spacing: 1.4px;
+    color: rgba(160, 210, 240, 0.7);
+    margin-bottom: 3px;
+}
+
+.st-input,
+.st-select {
+    min-height: 32px;
+}
+
+/* Button layout in filter panel */
+.st-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.st-btn {
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 0.62rem;
+}
+
+/* ── Filter form — derived badge + input styling ───────────────────────────── */
+.st-derived {
+    font-size: 0.5rem;
+    letter-spacing: 0.5px;
+    padding: 1px 4px;
+    border: 1px solid rgba(245, 166, 35, 0.5);
+    border-radius: 3px;
+    color: rgba(245, 190, 120, 0.9);
+    text-transform: lowercase;
+    cursor: help;
+}
+
+/* ── Color mode toggle ──────────────────────────────────────────────────── */
+.hud-row--toggle {
+    align-items: center;
+    justify-content: space-between;
+}
+
+.st-color-toggle {
+    display: inline-flex;
+    border: 1px solid rgba(0, 210, 255, 0.32);
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(0, 20, 32, 0.75);
+    cursor: pointer;
+    padding: 0;
+    font-family: var(--font-mono);
+}
+
+.st-color-toggle__option {
+    padding: 3px 8px;
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(150, 200, 230, 0.55);
+    background: transparent;
+    transition: color 0.15s, background 0.15s;
+    border: none;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.st-color-toggle__option--active {
+    color: #00d2ff;
+    background: rgba(0, 210, 255, 0.15);
+}
+
+/* ── Color legend (interactive filter chips) ───────────────────────────── */
+.st-color-legend {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+}
+
+.st-color-legend:empty {
+    display: none;
+}
+
+.st-color-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.48rem;
+    letter-spacing: 0.6px;
+    color: rgba(160, 210, 240, 0.7);
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, opacity 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.st-color-legend__item:hover {
+    background: rgba(0, 210, 255, 0.1);
+}
+
+.st-color-legend__item--active {
+    color: #00d2ff;
+    background: rgba(0, 210, 255, 0.18);
+}
+
+.st-color-legend__item--ghosted {
+    opacity: 0.35;
+}
+
+.st-color-legend__swatch {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.st-color-legend__clear {
+    font-size: 0.46rem;
+    letter-spacing: 0.5px;
+    color: rgba(255, 160, 170, 0.8);
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: none;
+}
+
+.st-color-legend__clear:hover {
+    background: rgba(255, 95, 109, 0.15);
+}
+
+.st-color-legend--filtered .st-color-legend__clear {
+    display: inline-flex;
+}
+
+/* ── Constellation hover label ─────────────────────────────────────────── */
+.st-constellation-label {
+    position: fixed;
+    z-index: 40;
+    pointer-events: none;
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(220, 245, 255, 0.95);
+    background: rgba(0, 12, 24, 0.88);
+    border: 1px solid rgba(0, 210, 255, 0.35);
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.st-constellation-label--visible {
+    opacity: 1;
+}
+
+/* ── Density heatmap canvas ────────────────────────────────────────────── */
+#density-heatmap {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+#density-heatmap--visible,
+#density-heatmap.is-visible {
+    opacity: 1;
+}
+
+/* ── Generic toggle button ─────────────────────────────────────────────── */
+.st-toggle-btn {
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(150, 200, 230, 0.55);
+    background: rgba(0, 20, 32, 0.75);
+    border: 1px solid rgba(0, 210, 255, 0.32);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.st-toggle-btn--on {
+    color: #00d2ff;
+    border-color: rgba(0, 210, 255, 0.6);
+    background: rgba(0, 210, 255, 0.12);
+}
+
+.st-input,
+.st-select {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.5px;
+    padding: 5px 7px;
+    background: rgba(0, 20, 32, 0.75);
+    color: rgba(220, 245, 255, 0.95);
+    border: 1px solid rgba(0, 210, 255, 0.32);
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.st-input:focus,
+.st-select:focus {
+    border-color: rgba(0, 210, 255, 0.85);
+    box-shadow: 0 0 0 2px rgba(0, 210, 255, 0.15);
+}
+
+/* Native select popups render on the OS layer, so the option text needs a
+   colour that works against a light system menu as well as this panel. */
+.st-select option {
+    background: #001420;
+    color: #dcf5ff;
+}
+
+.st-hint {
+    margin-top: 8px;
+    font-size: 0.56rem;
+    letter-spacing: 0.8px;
+    color: rgba(150, 200, 230, 0.75);
+    line-height: 1.5;
+}
+
+/* ── Result list ───────────────────────────────────────────────────────────── */
+.st-count {
+    color: rgba(0, 210, 255, 0.9);
+    font-weight: 400;
+}
+
+.st-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* The list is capped at 200 rows, which is still far taller than the
+       viewport — scroll inside the panel rather than growing off-screen. */
+    max-height: 40vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.st-result {
+    display: grid;
+    grid-template-columns: 10px 1fr auto;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 2px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.12);
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+@media (hover: hover) {
+    .st-result:hover { background: rgba(0, 210, 255, 0.1); }
+}
+
+/* Touch gets the feedback on press instead, where it belongs. */
+.st-result:active {
+    background: rgba(0, 210, 255, 0.16);
+}
+
+.st-result__swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.st-result__name {
+    font-size: 0.63rem;
+    color: rgba(225, 245, 255, 0.95);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-result__meta {
+    font-size: 0.53rem;
+    letter-spacing: 0.6px;
+    color: rgba(150, 200, 230, 0.7);
+    white-space: nowrap;
+}
+
+/* ── Signal feed (wave 4) ──────────────────────────────────────────────────── */
+.st-signal-section__title {
+    font-size: 0.56rem;
+    letter-spacing: 1.4px;
+    color: rgba(160, 210, 240, 0.7);
+    margin: 2px 0 5px;
+}
+
+.st-feed {
+    list-style: none;
+    margin: 0 0 4px;
+    padding: 0;
+}
+
+.st-feed__item {
+    padding: 4px 2px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.1);
+    font-size: 0.6rem;
+    line-height: 1.4;
+}
+
+.st-feed__title {
+    display: block;
+    color: rgba(225, 245, 255, 0.95);
+}
+
+.st-feed__meta {
+    display: block;
+    font-size: 0.53rem;
+    letter-spacing: 0.5px;
+    color: rgba(150, 200, 230, 0.7);
+}
+
+.st-feed--decay .st-feed__meta--soon {
+    color: rgba(255, 160, 170, 0.9);
+}
+
+.st-feed--box .st-feed__item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* ── Conjunction screening (wave 5) ────────────────────────────────────────────
+ * The disclaimer is a condition of deriving this at all, not a footnote —
+ * sized and coloured as a warning so it reads before the results do.
+ * Sticky, because the panel body scrolls and a long result list would otherwise
+ * push it out of sight: the plan's word is "permanently badged". The background
+ * composites the amber tint over an OPAQUE base so rows cannot show through it
+ * as they scroll underneath. */
+.st-unofficial {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: 0 0 10px;
+    padding: 6px 8px;
+    font-size: 0.53rem;
+    letter-spacing: 0.5px;
+    line-height: 1.55;
+    border: 1px solid rgba(245, 166, 35, 0.55);
+    border-radius: 4px;
+    color: rgba(250, 215, 160, 0.92);
+    background:
+        linear-gradient(rgba(245, 166, 35, 0.12), rgba(245, 166, 35, 0.12)),
+        rgba(2, 16, 26, 0.97);
+}
+
+.st-unofficial strong {
+    display: block;
+    color: rgba(255, 200, 110, 1);
+    letter-spacing: 1px;
+}
+
+.st-progress {
+    height: 3px;
+    margin: 8px 0 6px;
+    border-radius: 2px;
+    background: rgba(0, 210, 255, 0.12);
+    overflow: hidden;
+}
+
+.st-progress__bar {
+    height: 100%;
+    width: 0;
+    background: rgba(0, 210, 255, 0.75);
+    transition: width 0.12s linear;
+}
+
+.st-conj {
+    margin-top: 6px;
+}
+
+.st-conj__pair {
+    display: block;
+    color: rgba(225, 245, 255, 0.95);
+}
+
+/* The miss distance is the headline number, so it carries the colour. */
+.st-conj__miss {
+    color: rgba(0, 210, 255, 0.95);
+}
+
+.st-conj__miss--tight {
+    color: rgba(255, 160, 170, 0.95);
+}
+
+/* Elset age drives the real uncertainty on every number in the row, so it is
+   shown rather than implied — a week-old pair of TLEs cannot resolve a
+   kilometre. */
+.st-conj__age {
+    color: rgba(245, 190, 120, 0.85);
+}
+
+/* ── Dossier ─────────────────────────────────────────────────────────────── */
+.st-dossier {
+    max-height: 78vh;
+    overflow-y: auto;
+}
+
+.st-dossier__id {
+    font-size: 0.58rem;
+    letter-spacing: 1.4px;
+    color: rgba(150, 200, 230, 0.8);
+    margin: -4px 0 8px;
+}
+
+.st-dossier__decay {
+    margin-top: 10px;
+    padding: 5px 7px;
+    font-size: 0.56rem;
+    letter-spacing: 0.8px;
+    line-height: 1.5;
+    border: 1px solid rgba(255, 95, 109, 0.5);
+    border-radius: 4px;
+    color: rgba(255, 190, 195, 0.95);
+    background: rgba(255, 95, 109, 0.1);
+}
+
+.st-dossier__decay--done {
+    border-color: rgba(150, 200, 230, 0.4);
+    color: rgba(190, 220, 240, 0.9);
+    background: rgba(150, 200, 230, 0.08);
+}
+
+.st-dossier__status {
+    margin-top: 8px;
+    font-size: 0.54rem;
+    letter-spacing: 0.6px;
+    line-height: 1.5;
+    color: rgba(150, 200, 230, 0.7);
+}
+
+.st-dossier__status:empty {
+    margin-top: 0;
+}
+
+/* ── Daily brief (wave 6) ────────────────────────────────────────────────────
+ * Hidden until a brief artifact exists. The section itself is inside the
+ * dropdown, so hidden means the tab shows nothing (greyed out or absent).
+ * The JS hides the section by setting hidden on #brief-section.
+ */
+#brief-section[hidden] {
+    display: none;
+}
+
+/* Prose, unlike every other value on this page — so it gets a reading line
+   height and normal case, and drops the dashboard letter-spacing. */
+.st-brief__narrative {
+    margin: 0 0 10px;
+    font-size: 0.62rem;
+    letter-spacing: 0.2px;
+    line-height: 1.65;
+    color: rgba(225, 245, 255, 0.95);
+    text-transform: none;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+/* Same job as .st-unofficial in the conjunction panel: label the thing before
+   it is read, not after. Cyan rather than amber — this is a provenance note,
+   not a safety warning, and reusing the amber would dilute the one that is. */
+.st-machine {
+    margin: 0 0 8px;
+    padding: 6px 8px;
+    font-size: 0.5rem;
+    letter-spacing: 0.5px;
+    line-height: 1.5;
+    color: rgba(190, 230, 250, 0.92);
+    background: rgba(0, 210, 255, 0.08);
+    border: 1px solid rgba(0, 210, 255, 0.3);
+    border-radius: 4px;
+}
+
+.st-machine strong {
+    color: rgba(120, 235, 255, 0.98);
+}
+
+/* ── Dossier (object data card) ───────────────────────────────────────────────
+ * Centered at the bottom, above the footer. High z-index so it layers above
+ * HUDs. Position relative to viewport center rather than a corner. */
+body[data-page-id="spacetrack-catalog"] #dossier {
+    left: 50%;
+    right: auto;
+    bottom: calc(74px + var(--sa-bottom));
+    transform: translateX(-50%);
+    z-index: 30;
+}
+
+/* ── Focus ────────────────────────────────────────────────────────────────────
+ * The filter inputs had a focus ring already; the buttons only changed colour,
+ * and on the primary button that change is invisible because it is already
+ * filled. A ring is the only reliable "you are here" for keyboard and switch
+ * access. */
+.st-btn:focus-visible,
+.st-result:focus-visible,
+.st-input:focus-visible,
+.st-select:focus-visible {
+    outline: 2px solid rgba(0, 210, 255, 0.95);
+    outline-offset: 2px;
+}
+
+/* ── Multi-page top navigation ───────────────────────────────────────────────
+ * Replaces the old .orbital-topbar + source toggle + hamburger pattern with a
+ * dedicated top nav bar that is consistent across all SpaceTrack pages.
+ * Nav links are hidden (in the hamburger menu); only brand + source + hamburger
+ * are visible in the topbar. */
+
+.spacetrack-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding:
+        calc(10px + var(--sa-top))
+        calc(16px + var(--sa-right))
+        10px
+        calc(16px + var(--sa-left));
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 1.5px;
+    background: linear-gradient(180deg, rgba(0, 8, 16, 0.85) 0%, rgba(0, 8, 16, 0.4) 80%, transparent 100%);
+    pointer-events: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.spacetrack-nav::-webkit-scrollbar { display: none; }
+
+.spacetrack-nav__brand {
+    color: rgba(0, 210, 255, 0.9);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s;
+}
+@media (hover: hover) {
+    .spacetrack-nav__brand:hover { color: #00d2ff; }
+}
+
+.spacetrack-nav__source-link {
+    padding: 4px 9px;
+    color: rgba(160, 210, 240, 0.45);
+    text-decoration: none;
+    font-size: 0.55rem;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s, background 0.15s;
+}
+@media (hover: hover) {
+    .spacetrack-nav__source-link:hover {
+        color: rgba(200, 240, 255, 0.85);
+        background: rgba(0, 210, 255, 0.08);
+    }
+}
+
+/* ── Bars (analytics) ──────────────────────────────────────────────────────── */
+.st-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.st-bar {
+    display: grid;
+    grid-template-columns: 72px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.55rem;
+    line-height: 1.4;
+    padding: 1px 0;
+}
+
+.st-bar__label {
+    color: rgba(200, 230, 250, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-bar__track {
+    height: 8px;
+    border-radius: 3px;
+    background: rgba(0, 210, 255, 0.08);
+    overflow: hidden;
+}
+
+.st-bar__fill {
+    height: 100%;
+    border-radius: 3px;
+    background: rgba(0, 210, 255, 0.55);
+    transition: width 0.3s;
+}
+
+.st-bar__value {
+    color: rgba(150, 200, 230, 0.7);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.5rem;
+}
+
+.st-country-matrix {
+    overflow-x: auto;
+    font-size: 0.5rem;
+    line-height: 1.5;
+}
+
+.st-country-matrix table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.st-country-matrix th,
+.st-country-matrix td {
+    padding: 2px 3px;
+    text-align: right;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.06);
+}
+
+.st-country-matrix th {
+    color: rgba(150, 200, 230, 0.55);
+    font-weight: 400;
+    font-size: 0.46rem;
+    letter-spacing: 0.3px;
+}
+
+.st-country-matrix td:first-child {
+    text-align: left;
+    color: rgba(200, 230, 250, 0.85);
+    padding-right: 6px;
+}
+
+/* ── Mobile bottom navigation bar ──────────────────────────────────────────
+ * Replaces the hamburger menu on mobile (<768px). Fixed to the bottom of the
+ * viewport, always visible, with 44px minimum touch targets. */
+.mobile-bottom-nav {
+    display: none;
+}
+
+/* ── Filter drawer (mobile slide-out) ──────────────────────────────────────
+ * On mobile, the filters panel slides out from the right as a full-height
+ * drawer overlay, replacing the fixed-position top-right HUD. */
+.filter-drawer-overlay {
+    display: none;
+}
+
+/* ── Page grid wrapper ─────────────────────────────────────────────────────
+ * Wraps all HUD panels to enable CSS Grid layout on tablet/mobile.
+ * On desktop (>1024px) this is a no-op — panels remain freely positioned. */
+.st-page-grid {
+    display: contents;
+}
+
+/* ==========================================================================
+   RESPONSIVE LAYOUT — three tiers
+   Desktop (>1024px): Floating panels around the globe (default, no changes)
+   Tablet (768–1024px): Collapsible side panels
+   Mobile (<768px): Globe-first layout with bottom nav and slide-out filters
+   ========================================================================== */
+
+/* ── Tablet (769–1024px) ────────────────────────────────────────────────────
+ * Panels are repositioned as compact side stacks. The globe remains dominant.
+ * Hamburger nav still works; no bottom nav. */
+@media (min-width: 769px) and (max-width: 1024px) {
+    body[data-page-id="spacetrack-catalog"] #catalog-hud,
+    body[data-page-id="spacetrack-signal"] #catalog-hud,
+    body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
+    body[data-page-id="spacetrack-brief"] #catalog-hud,
+    body[data-page-id="spacetrack-analytics"] #catalog-hud {
+        top: calc(56px + var(--sa-top));
+        left: calc(16px + var(--sa-left));
+    }
+
+    body[data-page-id="spacetrack-catalog"] #filters-hud,
+    body[data-page-id="spacetrack-signal"] #analysis-hud,
+    body[data-page-id="spacetrack-conjunctions"] #screening-hud {
+        top: calc(56px + var(--sa-top));
+        right: calc(16px + var(--sa-right));
+        left: auto;
+    }
+
+    body[data-page-id="spacetrack-catalog"] #activity-hud {
+        bottom: calc(72px + var(--sa-bottom));
+        left: calc(16px + var(--sa-left));
+        top: auto;
+    }
+
+    body[data-page-id="spacetrack-catalog"] #results-hud {
+        bottom: calc(72px + var(--sa-bottom));
+        right: calc(16px + var(--sa-right));
+        left: auto;
+        top: auto;
+    }
+
+    body[data-page-id="spacetrack-catalog"] #dossier {
+        left: 50%;
+        right: auto;
+        bottom: calc(72px + var(--sa-bottom));
+        transform: translateX(-50%);
+        z-index: 30;
+    }
+
+    .orbital-hud:not(.key-hud--collapsed) {
+        max-width: min(40vw, 220px);
+    }
+}
+
+/* ── Laptop (1025–1199px) ───────────────────────────────────────────────────
+ * Similar to desktop but with slightly tighter spacing. */
+@media (min-width: 1025px) and (max-width: 1199px) {
+    body[data-page-id="spacetrack-catalog"] #catalog-hud,
+    body[data-page-id="spacetrack-signal"] #catalog-hud,
+    body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
+    body[data-page-id="spacetrack-brief"] #catalog-hud,
+    body[data-page-id="spacetrack-analytics"] #catalog-hud {
+        left: calc(20px + var(--sa-left));
+    }
+
+    body[data-page-id="spacetrack-catalog"] #filters-hud,
+    body[data-page-id="spacetrack-signal"] #analysis-hud,
+    body[data-page-id="spacetrack-conjunctions"] #screening-hud {
+        right: calc(20px + var(--sa-right));
+    }
+
+    body[data-page-id="spacetrack-catalog"] #activity-hud {
+        left: calc(20px + var(--sa-left));
+    }
+
+    body[data-page-id="spacetrack-catalog"] #results-hud {
+        right: calc(20px + var(--sa-right));
+    }
+
+    .orbital-hud:not(.key-hud--collapsed) {
+        max-width: min(35vw, 240px);
+    }
+}
+
+/* ── Mobile (<768px) ────────────────────────────────────────────────────────
+ * Globe-first layout. HUD panels stack vertically on the left edge.
+ * Bottom nav replaces hamburger. Filters open as a right-side drawer.
+ * Time controls sit in a dedicated full-width row above the bottom nav.
+ * Layout order: Header → Globe → Time Controls → Bottom Nav → Footer (hidden) */
+
+@media (max-width: 768px) {
+    body { overflow: hidden; }
+
+    /* ── Mobile bottom navigation bar ──────────────────────────────────────── */
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 26;
+        height: calc(56px + var(--sa-bottom));
+        padding-bottom: var(--sa-bottom);
+        background: linear-gradient(0deg, rgba(0, 8, 16, 0.95) 0%, rgba(0, 8, 16, 0.88) 100%);
+        border-top: 1px solid rgba(0, 210, 255, 0.2);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        align-items: center;
+        justify-content: space-around;
+        pointer-events: auto;
+    }
+
+    .mobile-bottom-nav__item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 6px 4px;
+        background: none;
+        border: none;
+        border-radius: 6px;
+        color: rgba(160, 210, 240, 0.5);
+        font-family: var(--font-mono);
+        font-size: 0.45rem;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: color 0.15s, background 0.15s;
+        -webkit-tap-highlight-color: transparent;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    @media (hover: hover) {
+        .mobile-bottom-nav__item:hover {
+            color: rgba(200, 240, 255, 0.85);
+            background: rgba(0, 210, 255, 0.08);
+        }
+    }
+
+    .mobile-bottom-nav__item--active {
+        color: #00d2ff;
+        background: rgba(0, 210, 255, 0.1);
+    }
+
+    .mobile-bottom-nav__icon {
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+
+    .mobile-bottom-nav__label {
+        white-space: nowrap;
+    }
+
+    /* ── Filter drawer (slides from right) ─────────────────────────────────── */
+    .filter-drawer-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 28;
+        background: rgba(0, 8, 16, 0.6);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+    }
+
+    .filter-drawer-overlay[open] {
+        display: block;
+    }
+
+    .filter-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 29;
+        width: min(85vw, 320px);
+        background: linear-gradient(145deg, rgba(0, 12, 24, 0.97) 0%, rgba(0, 25, 45, 0.95) 100%);
+        border-left: 1px solid rgba(0, 210, 255, 0.35);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: calc(16px + var(--sa-top)) 16px calc(16px + var(--sa-bottom)) 16px;
+        transform: translateX(100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        scrollbar-width: thin;
+    }
+
+    .filter-drawer-overlay[open] .filter-drawer {
+        transform: translateX(0);
+    }
+
+    .filter-drawer__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+    }
+
+    .filter-drawer__title {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: rgba(0, 210, 255, 0.8);
+    }
+
+    .filter-drawer__close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        background: transparent;
+        border: 1px solid rgba(0, 210, 255, 0.25);
+        border-radius: 4px;
+        color: rgba(200, 240, 255, 0.7);
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s;
+    }
+
+    .filter-drawer__close:hover {
+        border-color: rgba(0, 210, 255, 0.6);
+        color: #00d2ff;
+    }
+
+    body.filter-drawer-open { overflow: hidden; }
+
+    /* ── Top nav: hide hamburger on mobile (bottom nav replaces it) ────────── */
+    .hamburger-btn { display: none !important; }
+
+    /* ── Hide top nav links on mobile (bottom nav is primary) ──────────────── */
+    .spacetrack-nav__list { display: none; }
+
+    /* ── Reduce nav height on mobile ───────────────────────────────────────── */
+    .spacetrack-nav {
+        padding:
+            calc(8px + var(--sa-top))
+            calc(12px + var(--sa-right))
+            8px
+            calc(12px + var(--sa-left));
+    }
+
+    /* ── HUD panels: stack on left edge, above bottom nav ────────────────────
+     * Panels are pinned to the left edge. Bottom panels sit above the time
+     * warp row and bottom nav. One-at-a-time accordion: when one is open,
+     * other collapsed chips are hidden. */
+    .orbital-hud {
+        padding: 10px 12px;
+        font-size: 0.6rem;
+        min-width: 0;
+        border-radius: 6px;
+    }
+
+    .orbital-hud:not(.key-hud--collapsed) {
+        max-width: min(55vw, 200px);
+        z-index: 18;
+    }
+
+    body.hud-panel-open .key-hud--collapsed {
+        display: none;
+    }
+
+    /* Top-left: catalog summary / selected object / screen / brief / analytics */
+    body[data-page-id="spacetrack-catalog"] #catalog-hud,
+    body[data-page-id="spacetrack-signal"] #catalog-hud,
+    body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
+    body[data-page-id="spacetrack-brief"] #catalog-hud,
+    body[data-page-id="spacetrack-analytics"] #catalog-hud {
+        top: calc(48px + var(--sa-top));
+        left: calc(8px + var(--sa-left));
+    }
+
+    /* Top-right: filters / analysis / screening → hidden on mobile (drawer) */
+    body[data-page-id="spacetrack-catalog"] #filters-hud,
+    body[data-page-id="spacetrack-signal"] #analysis-hud,
+    body[data-page-id="spacetrack-conjunctions"] #screening-hud {
+        display: none;
+    }
+
+    /* Bottom-left: activity */
+    body[data-page-id="spacetrack-catalog"] #activity-hud {
+        bottom: calc(130px + var(--sa-bottom));
+        left: calc(8px + var(--sa-left));
+        top: auto;
+    }
+
+    /* Bottom-right: results */
+    body[data-page-id="spacetrack-catalog"] #results-hud {
+        bottom: calc(130px + var(--sa-bottom));
+        right: calc(8px + var(--sa-right));
+        left: auto;
+        top: auto;
+    }
+
+    /* Dossier: full-width above time controls */
+    body[data-page-id="spacetrack-catalog"] #dossier,
+    body[data-page-id="spacetrack-signal"] #dossier,
+    body[data-page-id="spacetrack-conjunctions"] #dossier {
+        left: calc(8px + var(--sa-left));
+        right: calc(8px + var(--sa-right));
+        bottom: calc(130px + var(--sa-bottom));
+        transform: none;
+        z-index: 35;
+        max-height: 45vh;
+    }
+
+    /* Time warp: full-width dedicated row above bottom nav */
+    .time-warp {
+        bottom: calc(64px + var(--sa-bottom));
+        left: calc(8px + var(--sa-left));
+        right: calc(8px + var(--sa-right));
+        transform: none;
+        justify-content: center;
+        max-width: none;
+        border-radius: 6px;
+    }
+
+    /* Footer: hidden on mobile (bottom nav replaces it) */
+    .orbital-footer {
+        display: none;
+    }
+
+    /* ── Touch targets ────────────────────────────────────────────────────────
+     * 44px is Apple's HIG minimum. These rows were sized for a mouse. */
+    .st-btn {
+        min-height: 44px;
+        padding: 12px 10px;
+        font-size: max(0.68rem, 11px);
+    }
+
+    .st-result,
+    .st-feed__item,
+    .st-bar {
+        min-height: 44px;
+        padding: 10px 4px;
+    }
+
+    .st-input,
+    .st-select {
+        min-height: 44px;
+        /* ≥16px or iOS Safari zooms the whole page in on focus */
+        font-size: 16px;
+        padding: 10px 9px;
+    }
+
+    /* ── Legibility ───────────────────────────────────────────────────────────
+     * Nothing carrying information stays below ~11px. */
+    .st-field__label,
+    .st-hint,
+    .st-signal-section__title,
+    .st-result__meta,
+    .st-feed__meta,
+    .st-unofficial,
+    .st-dossier__status,
+    .st-dossier__id,
+    .st-dossier__decay,
+    .st-bar__label,
+    .st-bar__value,
+    .st-country-matrix {
+        font-size: max(0.68rem, 11px);
+    }
+
+    .st-result__name,
+    .st-feed__title,
+    .st-feed__item {
+        font-size: max(0.72rem, 12px);
+    }
+
+    .st-derived {
+        font-size: max(0.68rem, 11px);
+    }
+
+    /* Result rows reflow on narrow screens */
+    .st-result {
+        grid-template-columns: 10px 1fr;
+        grid-template-areas: "swatch name" ". meta";
+        row-gap: 2px;
+    }
+
+    .st-result__swatch { grid-area: swatch; }
+    .st-result__name   { grid-area: name; }
+
+    .st-result__meta {
+        grid-area: meta;
+        white-space: normal;
+    }
+
+    /* ── Landscape phones (short viewport height) ───────────────────────────── */
+    @media (max-height: 500px) and (orientation: landscape) {
+        body[data-page-id="spacetrack-catalog"] #catalog-hud {
+            top: calc(48px + var(--sa-top));
+            max-height: calc(100vh - 48px - 56px - var(--sa-top) - var(--sa-bottom));
+        }
+
+        body[data-page-id="spacetrack-catalog"] #results-hud {
+            bottom: calc(130px + var(--sa-bottom));
+        }
+
+        .st-dossier {
+            max-height: 40vh;
+        }
+
+        .st-results {
+            max-height: 25vh;
+        }
+
+        .mobile-bottom-nav {
+            height: calc(48px + var(--sa-bottom));
+        }
+
+        .mobile-bottom-nav__item {
+            font-size: 0.4rem;
+        }
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TIER 2 & 3 — VISUALIZATION ENHANCEMENTS
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Boxscore bar chart HUD ─────────────────────────────────────────────── */
+body[data-page-id="spacetrack-catalog"] #boxscore-hud {
+    bottom: calc(180px + var(--sa-bottom));
+    right: calc(24px + var(--sa-right));
+    left: auto;
+    top: auto;
+    max-height: 200px;
+}
+
+.st-boxscore {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.st-boxscore__row {
+    display: grid;
+    grid-template-columns: 52px 1fr 44px;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.53rem;
+    line-height: 1.3;
+}
+
+.st-boxscore__country {
+    color: rgba(200, 230, 250, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-boxscore__track {
+    height: 10px;
+    border-radius: 3px;
+    background: rgba(0, 210, 255, 0.08);
+    overflow: hidden;
+    position: relative;
+}
+
+.st-boxscore__fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease-out;
+}
+
+.st-boxscore__count {
+    color: rgba(150, 200, 230, 0.7);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.5rem;
+}
+
+/* ── Age legend ─────────────────────────────────────────────────────────── */
+.st-age-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 0.46rem;
+    letter-spacing: 0.5px;
+}
+
+.st-age-legend__bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #00d2ff 0%, rgba(0, 210, 255, 0.15) 100%);
+}
+
+.st-age-legend__label {
+    color: rgba(150, 200, 230, 0.6);
+    white-space: nowrap;
+}
+
+/* ── Launch site marker label (via Cesium entity) ──────────────────────── */
+/* Cesium labels are inline; minimal CSS override for consistency */
+.st-site-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    fill: rgba(0, 210, 255, 0.8);
+}
+
+/* ── Screenshot button ──────────────────────────────────────────────────── */
+.st-screenshot-btn {
+    position: fixed;
+    bottom: calc(74px + var(--sa-bottom));
+    right: calc(24px + var(--sa-right));
+    z-index: 20;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 20, 32, 0.85);
+    border: 1px solid rgba(0, 210, 255, 0.35);
+    border-radius: 6px;
+    color: rgba(160, 210, 240, 0.7);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+}
+
+@media (hover: hover) {
+    .st-screenshot-btn:hover {
+        border-color: rgba(0, 210, 255, 0.7);
+        color: #00d2ff;
+        background: rgba(0, 210, 255, 0.1);
+    }
+}
+
+.st-screenshot-btn:active {
+    transform: scale(0.94);
+}
+
+.st-screenshot-btn--copied {
+    border-color: rgba(0, 210, 255, 0.8);
+    color: #00d2ff;
+}
+
+/* ── Time filter presets ────────────────────────────────────────────────── */
+.st-preset-btns {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.st-preset-btn {
+    flex: 1;
+    padding: 6px 4px;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: rgba(150, 200, 230, 0.65);
+    background: rgba(0, 20, 32, 0.75);
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    text-align: center;
+    white-space: nowrap;
+}
+
+@media (hover: hover) {
+    .st-preset-btn:hover {
+        color: rgba(200, 240, 255, 0.85);
+        border-color: rgba(0, 210, 255, 0.5);
+        background: rgba(0, 210, 255, 0.08);
+    }
+}
+
+.st-preset-btn--active {
+    color: #00d2ff;
+    border-color: rgba(0, 210, 255, 0.7);
+    background: rgba(0, 210, 255, 0.12);
+}
+
+/* ── Debris cloud toggle ────────────────────────────────────────────────── */
+.st-debris-toggle {
+    margin-top: 8px;
+}
+
+/* ── Launch sites toggle ────────────────────────────────────────────────── */
+.st-sites-toggle {
+    margin-top: 4px;
+}
+
+/* ── Mobile overrides for new HUDs and buttons ──────────────────────────── */
+@media (max-width: 768px) {
+    body[data-page-id="spacetrack-catalog"] #boxscore-hud {
+        bottom: calc(180px + var(--sa-bottom));
+        right: calc(8px + var(--sa-right));
+        left: auto;
+        top: auto;
+        max-height: 180px;
+    }
+
+    .st-screenshot-btn {
+        bottom: calc(130px + var(--sa-bottom));
+        right: calc(8px + var(--sa-right));
+        width: 44px;
+        height: 44px;
+    }
+
+    .st-boxscore__row {
+        grid-template-columns: 44px 1fr 40px;
+        gap: 4px;
+        font-size: 0.5rem;
+    }
+
+    .st-preset-btns {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .st-preset-btn {
+        min-height: 44px;
+        font-size: max(0.68rem, 11px);
+    }
+}
+
+/* ── Tablet overrides for new HUDs ──────────────────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+    body[data-page-id="spacetrack-catalog"] #boxscore-hud {
+        bottom: calc(180px + var(--sa-bottom));
+        right: calc(16px + var(--sa-right));
+        left: auto;
+        top: auto;
+    }
+
+    .st-screenshot-btn {
+        bottom: calc(72px + var(--sa-bottom));
+        right: calc(16px + var(--sa-right));
+    }
+}
