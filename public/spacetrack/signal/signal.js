@@ -1,7 +1,9 @@
-import { EARTH_R_KM, orbVel } from '../../orbit-engine/astro.js';
+import { orbVel } from '../../orbit-engine/astro.js';
+import { degToRad, eciToEcf, coverageRadiusDeg, coverageCircleDeg, visibilityWindows, predictPasses, eirpDbm, linkBudget } from './compute.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
-import { $, setText, fmtLat, fmtLon } from '../shared/utils.js';
+import { $, on, setText, fmtLat, fmtLon } from '../shared/utils.js';
+import { exposeDebug } from '../shared/debug.js';
 import { wireHudToggle, initHamburgerMenu, wireTabs, expandHud } from '/shared/hud.js';
 
 const { viewer, engine } = initGlobe();
@@ -103,23 +105,15 @@ if (stationSelect) {
     }
 }
 
-$('gs-elev').addEventListener('input', () => {
+on('gs-elev', 'input', () => {
     setText('gs-elev-val', `${$('gs-elev').value}°`);
 });
 
-$('cov-elev').addEventListener('input', () => {
+on('cov-elev', 'input', () => {
     setText('cov-elev-val', `${$('cov-elev').value}°`);
 });
 
 /* ── Elevation / visibility helpers ───────────────────────────────────────── */
-function degToRad(d) { return d * Math.PI / 180; }
-
-function eciToEcf(pos, gmst) {
-    const x = pos.x * Math.cos(gmst) + pos.y * Math.sin(gmst);
-    const y = -pos.x * Math.sin(gmst) + pos.y * Math.cos(gmst);
-    return { x, y, z: pos.z };
-}
-
 function computeElevation(satrec, date, stationLat, stationLon, stationAltKm) {
     const pv = satellite.propagate(satrec, date);
     if (!pv || !pv.position) return null;
@@ -139,7 +133,7 @@ function computeElevation(satrec, date, stationLat, stationLon, stationAltKm) {
 }
 
 /* ── Visibility tab ───────────────────────────────────────────────────────── */
-$('gs-compute').addEventListener('click', async () => {
+on('gs-compute', 'click', () => {
     const list = $('gs-windows');
     const hint = $('gs-hint');
     if (!list) return;
@@ -155,7 +149,7 @@ $('gs-compute').addEventListener('click', async () => {
         return;
     }
 
-    const [sLat, sLon] = stationVal.split(',').map(Number);
+    const [stationLat, stationLon] = stationVal.split(',').map(Number);
     const elevMask = Number($('gs-elev').value);
     const windowSec = Number($('gs-window').value);
     const stepSec = 30;
@@ -163,32 +157,10 @@ $('gs-compute').addEventListener('click', async () => {
     if (hint) hint.textContent = 'computing visibility windows…';
     list.textContent = '';
 
-    const t0 = Date.now();
-    const steps = Math.ceil(windowSec / stepSec);
-    const windows = [];
-    let inWindow = false;
-    let windowStart = null;
-
-    for (let i = 0; i <= steps; i++) {
-        const date = new Date(t0 + i * stepSec * 1000);
-        const elev = computeElevation(selectedSatrec, date, sLat, sLon, 0);
-        if (elev == null) continue;
-
-        const above = elev >= elevMask;
-        if (above && !inWindow) {
-            inWindow = true;
-            windowStart = date;
-        } else if (!above && inWindow) {
-            inWindow = false;
-            windows.push({ start: windowStart, end: date, maxElev: 0 });
-        }
-        if (above && inWindow && elev > (windows.length ? windows[windows.length - 1].maxElev : 0)) {
-            if (windows.length) windows[windows.length - 1].maxElev = elev;
-        }
-    }
-    if (inWindow) {
-        windows.push({ start: windowStart, end: new Date(t0 + steps * stepSec * 1000), maxElev: 0 });
-    }
+    const windows = visibilityWindows({
+        t0Ms: Date.now(), windowSec, stepSec, elevMask, stationLat, stationLon,
+        elevationAt: (date, lat, lon) => computeElevation(selectedSatrec, date, lat, lon, 0),
+    });
 
     if (!windows.length) {
         if (hint) hint.textContent = `no passes above ${elevMask}° in the selected window`;
@@ -215,14 +187,13 @@ $('gs-compute').addEventListener('click', async () => {
 /* ── Coverage tab ──────────────────────────────────────────────────────────── */
 let coverageEntities = [];
 
-$('cov-compute').addEventListener('click', () => {
+on('cov-compute', 'click', () => {
     const hint = $('cov-hint');
     if (!selectedSatrec) {
         if (hint) hint.textContent = 'no satellite selected';
         return;
     }
 
-    const gridDeg = Number($('cov-grid').value);
     const minElev = Number($('cov-elev').value);
 
     engine.removeEntities(coverageEntities);
@@ -230,30 +201,14 @@ $('cov-compute').addEventListener('click', () => {
 
     if (hint) hint.textContent = 'generating coverage map…';
 
-    const now = new Date();
     const p = engine.geo(selectedSatrec);
     if (!p) {
         if (hint) hint.textContent = 'cannot compute satellite position';
         return;
     }
 
-    const altKm = p.alt;
-    const coverageRadiusRad = Math.acos(EARTH_R_KM / (EARTH_R_KM + altKm) * Math.cos(degToRad(minElev))) - degToRad(minElev);
-    const coverageRadiusDeg = coverageRadiusRad * 180 / Math.PI;
-
-    const satLat = degToRad(p.lat);
-    const satLon = degToRad(p.lon);
-
-    const points = [];
-    const segments = 64;
-    for (let i = 0; i <= segments; i++) {
-        const bearing = (i / segments) * 2 * Math.PI;
-        const lat = Math.asin(Math.sin(satLat) * Math.cos(coverageRadiusRad) +
-                              Math.cos(satLat) * Math.sin(coverageRadiusRad) * Math.cos(bearing));
-        const lon = satLon + Math.atan2(Math.sin(bearing) * Math.sin(coverageRadiusRad) * Math.cos(satLat),
-                                        Math.cos(coverageRadiusRad) - Math.sin(satLat) * Math.sin(lat));
-        points.push(Cesium.Cartesian3.fromRadians(lon, lat, 0));
-    }
+    const radiusDeg = coverageRadiusDeg(p.alt, minElev);
+    const points = coverageCircleDeg(p.lat, p.lon, radiusDeg).map(pt => Cesium.Cartesian3.fromDegrees(pt.lon, pt.lat, 0));
 
     const polygon = viewer.entities.add({
         polygon: {
@@ -267,16 +222,16 @@ $('cov-compute').addEventListener('click', () => {
     coverageEntities.push(polygon);
 
     const centerPoint = viewer.entities.add({
-        position: Cesium.Cartesian3.fromRadians(satLon, satLat, 0),
+        position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, 0),
         point: { pixelSize: 6, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.WHITE, outlineWidth: 1 },
     });
     coverageEntities.push(centerPoint);
 
-    if (hint) hint.textContent = `coverage: ${coverageRadiusDeg.toFixed(1)}° radius at ${minElev}° mask`;
+    if (hint) hint.textContent = `coverage: ${radiusDeg.toFixed(1)}° radius at ${minElev}° mask`;
 });
 
 /* ── Pass predictions tab ─────────────────────────────────────────────────── */
-$('pass-compute').addEventListener('click', async () => {
+on('pass-compute', 'click', () => {
     const list = $('pass-list');
     const hint = $('pass-hint');
     if (!list) return;
@@ -297,7 +252,7 @@ $('pass-compute').addEventListener('click', async () => {
         if (hint) hint.textContent = 'invalid format — use lat,lon (e.g. 37.4,-122.1)';
         return;
     }
-    const [tLat, tLon] = parts;
+    const [targetLat, targetLon] = parts;
     const daysAhead = Math.max(1, Math.min(30, Number($('pass-days').value) || 7));
     const minDurSec = Number($('pass-min-dur').value) || 60;
     const elevMask = 10;
@@ -306,32 +261,10 @@ $('pass-compute').addEventListener('click', async () => {
     if (hint) hint.textContent = 'computing passes…';
     list.textContent = '';
 
-    const t0 = Date.now();
-    const totalMs = daysAhead * 86400000;
-    const steps = Math.ceil(totalMs / (stepSec * 1000));
-    const passes = [];
-    let inPass = false;
-    let passStart = null;
-    let passMaxElev = 0;
-
-    for (let i = 0; i <= steps; i++) {
-        const date = new Date(t0 + i * stepSec * 1000);
-        const elev = computeElevation(selectedSatrec, date, tLat, tLon, 0);
-        if (elev == null) continue;
-
-        if (elev >= elevMask && !inPass) {
-            inPass = true;
-            passStart = date;
-            passMaxElev = elev;
-        } else if (elev < elevMask && inPass) {
-            inPass = false;
-            const durSec = (date - passStart) / 1000;
-            if (durSec >= minDurSec) {
-                passes.push({ start: passStart, end: date, durSec, maxElev: passMaxElev });
-            }
-        }
-        if (inPass && elev > passMaxElev) passMaxElev = elev;
-    }
+    const passes = predictPasses({
+        t0Ms: Date.now(), daysAhead, stepSec, elevMask, minDurSec, targetLat, targetLon,
+        elevationAt: (date, lat, lon) => computeElevation(selectedSatrec, date, lat, lon, 0),
+    });
 
     if (!passes.length) {
         if (hint) hint.textContent = `no passes above ${elevMask}° in ${daysAhead} days`;
@@ -359,41 +292,24 @@ $('pass-compute').addEventListener('click', async () => {
 });
 
 /* ── RF / Link budget tab ──────────────────────────────────────────────────── */
-$('rf-compute').addEventListener('click', () => {
+on('rf-compute', 'click', () => {
     const freqMHz = Number($('rf-freq').value) || 2200;
     const txPowerW = Number($('rf-tx').value) || 10;
     const txGainDbi = Number($('rf-tx-gain').value) || 10;
     const rxGainDbi = Number($('rf-rx-gain').value) || 40;
     const dataRateKbps = Number($('rf-rate').value) || 1000;
 
-    const eirpDbm = 10 * Math.log10(txPowerW * 1000) + txGainDbi;
-    setText('rf-eirp', `${eirpDbm.toFixed(1)} dBm`);
-
-    let pathLossDb = '—';
-    let snrDb = '—';
-    let marginDb = '—';
-    let gtDb = '—';
+    const eirp = eirpDbm(txPowerW, txGainDbi);
+    setText('rf-eirp', `${eirp.toFixed(1)} dBm`);
 
     if (selectedSatrec) {
         const p = engine.geo(selectedSatrec);
         if (p) {
-            const rangeKm = p.alt;
-            const freqHz = freqMHz * 1e6;
-            pathLossDb = 20 * Math.log10(rangeKm * 1000) + 20 * Math.log10(freqHz) + 20 * Math.log10(4 * Math.PI / 299792458);
-            pathLossDb = -pathLossDb;
-            setText('rf-pl', `${pathLossDb.toFixed(1)} dB`);
-
-            const rcvPowerDbm = eirpDbm + pathLossDb + rxGainDbi;
-            const noiseDbm = -174 + 10 * Math.log10(dataRateKbps * 1000);
-            snrDb = rcvPowerDbm - noiseDbm;
-            setText('rf-snr', `${snrDb.toFixed(1)} dB`);
-
-            gtDb = rxGainDbi - 10 * Math.log10(290);
-            setText('rf-gt', `${gtDb.toFixed(1)} dB/K`);
-
-            const requiredSnr = 10;
-            marginDb = snrDb - requiredSnr;
-            setText('rf-margin', `${marginDb.toFixed(1)} dB`);
+            const b = linkBudget({ freqMHz, txPowerW, txGainDbi, rxGainDbi, dataRateKbps, rangeKm: p.alt });
+            setText('rf-pl', `${b.pathLoss.toFixed(1)} dB`);
+            setText('rf-snr', `${b.snr.toFixed(1)} dB`);
+            setText('rf-gt', `${b.gToT.toFixed(1)} dB/K`);
+            setText('rf-margin', `${b.margin.toFixed(1)} dB`);
         }
     } else {
         setText('rf-pl', 'no satellite');
@@ -404,8 +320,8 @@ $('rf-compute').addEventListener('click', () => {
 });
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
-window.__spacetrack = {
+exposeDebug('signal', {
     viewer, engine,
     get booted() { return !!engine; },
     get selected() { return selectedObject; },
-};
+});

@@ -1,4 +1,5 @@
 import { $, setText, num, relTime } from '../shared/utils.js';
+import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
 import { wireHudToggle, initHamburgerMenu } from '/shared/hud.js';
 
@@ -96,8 +97,7 @@ loadBrief();
 setInterval(loadBrief, 30 * 60 * 1000);
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
-window.__spacetrack = {
+exposeDebug('brief', {
     loadBrief,
     renderBrief,
-    get source() { return 'brief'; },
-};
+});

@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Scheduled Space-Track ingest for the Orbital Relay (plan 33). No dependencies and no build step — wrangler bundles src/ directly.",
   "scripts": {
-    "test": "node --no-warnings test/spacetrack.test.mjs && node --no-warnings test/schema.test.mjs && node --no-warnings test/derive.test.mjs && node --no-warnings test/ingest.test.mjs && node --no-warnings test/sqlite.test.mjs && node --no-warnings test/env-node.test.mjs && node --no-warnings test/pages-api.test.mjs && node --no-warnings test/conjunction.test.mjs && node --no-warnings test/brief.test.mjs && node --no-warnings test/admin.test.mjs",
+    "test": "node --no-warnings test/spacetrack.test.mjs && node --no-warnings test/schema.test.mjs && node --no-warnings test/derive.test.mjs && node --no-warnings test/ingest.test.mjs && node --no-warnings test/sqlite.test.mjs && node --no-warnings test/env-node.test.mjs && node --no-warnings test/pages-api.test.mjs && node --no-warnings test/conjunction.test.mjs && node --no-warnings test/signal-compute.test.mjs && node --no-warnings test/catalog-compute.test.mjs && node --no-warnings test/brief.test.mjs && node --no-warnings test/admin.test.mjs",
     "brief:preview": "node scripts/brief-preview.mjs",
     "bootstrap": "node scripts/bootstrap.mjs",
     "ingest": "node scripts/run-ingest.mjs",

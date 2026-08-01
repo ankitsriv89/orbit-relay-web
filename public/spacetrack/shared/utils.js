@@ -88,3 +88,17 @@ export function status(elOrId, msg) {
 }
 
 export const $ = (id) => document.getElementById(id);
+
+/**
+ * Bind a listener by element id, no-oping when the node is missing.
+ *
+ * A bare `$('id').addEventListener(...)` throws at module import if the id is
+ * absent, which silently unregisters every later handler in that module (an
+ * ES module fails wholesale). This keeps the guard in one place — same spirit
+ * as `setText` above.
+ */
+export function on(id, ev, fn) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(ev, fn);
+    return el;
+}

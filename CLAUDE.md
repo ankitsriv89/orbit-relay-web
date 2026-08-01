@@ -270,8 +270,23 @@ object instead of hand-rolled `fetch`; `functions/api/_catalog.js` carries the s
 `clamp`/`safeParse`/`artifactOrDb` helpers; `public/theme/palette.js` unifies the normal
 and colorblind-safe palettes; `public/css/chrome.css` holds the shared nav/hamburger/
 mobile-menu/filter-drawer CSS; and `functions/api/telemetry.js` (unbound `TELEMETRY_DB`,
-unrelated Mars-Sim analytics) is deleted along with `d1/telemetry.sql`. `npm test` is
-green (25/25 + 40/40). Not yet done from 2.1: `catalog.js`'s structural split (2.2) —
-overlays extraction, pure-math extraction, taming the 39 module-level globals — is still
-Phase 2.2, unstarted. Re-verify before trusting this paragraph too, the same way this note
-told you to re-verify Phase 0.
+unrelated Mars-Sim analytics) is deleted along with `d1/telemetry.sql`.
+
+**Phase 2.2 (structural) is done as of 2026-08-02.** `npm test` is green (12 suites,
+346 checks). The pure maths are extracted and Node-tested in `workers/orbit-ingest/test/`
+(`signal-compute.test.mjs`, `catalog-compute.test.mjs`, following the `conjunction.test.mjs`
+import pattern): `signal/compute.js` (visibility windows, passes, coverage circle, link
+budget) and `catalog/compute.js` (`binHeatmap`, `heatmapStyle`, `ageRamp`, `ageColorCss` —
+ramp takes an explicit `nowMs`). `catalog.js`'s five overlay sections (heatmap, debris,
+launch-sites, age, LOD) are split into `public/spacetrack/overlays/{heatmap,debris,launch-sites,age,lod}.js`,
+each constructed via a `create*({ viewer, engine, getRendered, ... })` factory wired from
+catalog.js — overlays no longer reach into catalog.js's module state. `clearRendered()`
+delegates to overlay `reset()`s. Entity lifecycle is centralized in the engine:
+`addManagedEntity`/`removeManagedEntity` + `_managedEntities` in `sat-engine.js`
+(an overlay entity that bypasses it escapes `engine.destroy()` — guarded by a cross-file
+test). All 11 unguarded `addEventListener` calls became the `on(id, ev, fn)` helper in
+`shared/utils.js`. Every page's `window.__spacetrack` handle is built by
+`exposeDebug(page, api)` in `shared/debug.js` (`source` is now the page name). `initGlobe()`
+registers `beforeunload`/`camera.changed` itself. e2e (`tests/e2e`) still to re-run when box
+load drops; the `__spacetrack` member surface was preserved byte-for-byte for the suites
+that read it.

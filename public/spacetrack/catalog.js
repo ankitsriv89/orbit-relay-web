@@ -8,7 +8,13 @@ import { initGlobe, initTimeWarpButtons } from './shared/globe.js';
 import { State } from './shared/state.js';
 import { API } from './shared/api.js';
 import { wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds } from '/shared/hud.js';
-import { regimeSize } from './shared/utils.js';
+import { regimeSize, on } from './shared/utils.js';
+import { exposeDebug } from './shared/debug.js';
+import { createHeatmap } from './overlays/heatmap.js';
+import { createDebris } from './overlays/debris.js';
+import { createLaunchSites } from './overlays/launch-sites.js';
+import { createAge } from './overlays/age.js';
+import { createLOD } from './overlays/lod.js';
 import {
     TYPE_COLORS, COUNTRY_COLORS, CB_TYPE_COLORS, CB_COUNTRY_COLORS,
     colorForRow, colorForCountry,
@@ -207,81 +213,6 @@ hoverHandler.setInputAction(onPointerMove, Cesium.ScreenSpaceEventType.MOUSE_MOV
 hoverHandler.setInputAction(() => {
     if (constLabel) constLabel.classList.remove('st-constellation-label--visible');
 }, Cesium.ScreenSpaceEventType.MOUSE_OUT);
-
-/* ── Tier 1.3: Density heatmap overlay ─────────────────────────────────── */
-const heatmapCanvas = $('density-heatmap');
-const heatCtx = heatmapCanvas?.getContext('2d');
-let heatmapVisible = false;
-const HEAT_BIN = 6; // pixel bin size for density counting
-
-function resizeHeatmap() {
-    if (!heatmapCanvas) return;
-    heatmapCanvas.width = window.innerWidth;
-    heatmapCanvas.height = window.innerHeight;
-}
-
-function renderHeatmap() {
-    if (!heatCtx || !heatmapVisible || !rendered.length) return;
-    const w = heatmapCanvas.width;
-    const h = heatmapCanvas.height;
-    heatCtx.clearRect(0, 0, w, h);
-
-    // Bin points into screen-space cells
-    const bins = new Map();
-    for (const sat of rendered) {
-        if (!sat.primitive.show || !sat.primitive.position) continue;
-        const c2s = Cesium.SceneTransforms.wgs84ToWindowCoordinates(
-            viewer.scene, sat.primitive.position);
-        if (!c2s) continue;
-        const bx = Math.floor(c2s.x / HEAT_BIN);
-        const by = Math.floor(c2s.y / HEAT_BIN);
-        const key = `${bx},${by}`;
-        bins.set(key, (bins.get(key) || 0) + 1);
-    }
-    if (!bins.size) return;
-
-    // Find max for normalisation
-    let maxVal = 0;
-    for (const v of bins.values()) if (v > maxVal) maxVal = v;
-    if (maxVal < 2) return;
-
-    // Draw semi-transparent circles per bin
-    for (const [key, count] of bins) {
-        const [bx, by] = key.split(',').map(Number);
-        const intensity = Math.min(count / maxVal, 1);
-        const radius = HEAT_BIN * (1 + intensity * 3);
-        const alpha = 0.05 + intensity * 0.35;
-        // Cyan for low, yellow for mid, red for high
-        const r = Math.round(intensity < 0.5 ? intensity * 2 * 255 : 255);
-        const g = Math.round(intensity < 0.5 ? 200 + intensity * 110 : 255 * (1 - intensity));
-        const b = Math.round(intensity < 0.5 ? 255 : 255 * (1 - intensity));
-        heatCtx.beginPath();
-        heatCtx.arc(
-            bx * HEAT_BIN + HEAT_BIN / 2,
-            by * HEAT_BIN + HEAT_BIN / 2,
-            radius, 0, Math.PI * 2);
-        heatCtx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-        heatCtx.fill();
-    }
-}
-
-resizeHeatmap();
-window.addEventListener('resize', resizeHeatmap);
-
-const heatmapToggle = $('heatmap-toggle');
-if (heatmapToggle) {
-    heatmapToggle.addEventListener('click', () => {
-        heatmapVisible = !heatmapVisible;
-        heatmapToggle.textContent = heatmapVisible ? 'ON' : 'OFF';
-        heatmapToggle.classList.toggle('st-toggle-btn--on', heatmapVisible);
-        if (heatmapCanvas) heatmapCanvas.classList.toggle('is-visible', heatmapVisible);
-        if (heatmapVisible) renderHeatmap();
-        else if (heatCtx) heatCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
-    });
-}
-// Re-render heatmap on camera move
-viewer.camera.changed.addEventListener(() => { if (heatmapVisible) renderHeatmap(); });
-viewer.camera.moveEnd.addEventListener(() => { if (heatmapVisible) renderHeatmap(); });
 
 /* ── Filter drawer sync ────────────────────────────────────────────────────
  * On mobile, the filter drawer duplicates the filter form. We sync values
@@ -518,28 +449,18 @@ initTimeWarpButtons($('time-warp'));
 let rendered = [];
 let lastQuery = '';
 
+createHeatmap({ viewer, getRendered: () => rendered });
+const debris = createDebris({ viewer, engine, getRendered: () => rendered });
+const launchSites = createLaunchSites({ viewer, engine, getRendered: () => rendered });
+const age = createAge({ engine, getRendered: () => rendered, recolorRendered });
+createLOD({ viewer, engine, getRendered: () => rendered });
+
 function clearRendered() {
     rendered.forEach(s => engine.removeSat(s));
     rendered = [];
-    if (debrisCloudVisible) { removeDebrisCloud(); debrisCloudVisible = false; }
-    if (launchSitesVisible) { removeLaunchSites(); launchSitesVisible = false; }
-    if (debrisCloudToggle) {
-        debrisCloudToggle.textContent = 'OFF';
-        debrisCloudToggle.classList.remove('st-toggle-btn--on');
-        debrisCloudToggle.disabled = true;
-    }
-    if (launchSitesToggle) {
-        launchSitesToggle.textContent = 'OFF';
-        launchSitesToggle.classList.remove('st-toggle-btn--on');
-    }
-    if (ageColorMode) {
-        ageColorMode = false;
-        if (ageColorToggle) {
-            ageColorToggle.textContent = 'OFF';
-            ageColorToggle.classList.remove('st-toggle-btn--on');
-        }
-        if (ageLegend) ageLegend.hidden = true;
-    }
+    debris.reset();
+    launchSites.reset();
+    age.reset();
 }
 
 function currentQuery() {
@@ -583,22 +504,12 @@ async function render() {
     }
 
     clearRendered();
-    if (debrisCloudVisible) removeDebrisCloud();
-    if (launchSitesVisible) removeLaunchSites();
     const noElset = addObjects(data.results);
     renderList(data.results);
     engine.flyToSats(rendered);
 
     const hasDebris = rendered.some(s => (s.meta?.row?.OBJECT_TYPE || '').toUpperCase() === 'DEBRIS');
-    if (debrisCloudToggle) debrisCloudToggle.disabled = !hasDebris;
-    if (!hasDebris && debrisCloudVisible) {
-        debrisCloudVisible = false;
-        if (debrisCloudToggle) {
-            debrisCloudToggle.textContent = 'OFF';
-            debrisCloudToggle.classList.remove('st-toggle-btn--on');
-        }
-    }
-    if (launchSitesVisible) buildLaunchSites();
+    debris.setEnabled(hasDebris);
 
     const shown = rendered.length;
     const total = data.total || 0;
@@ -673,8 +584,8 @@ function renderList(rows) {
 
 function setText(id, v) { const el = $(id); if (el) el.textContent = v; }
 
-$('f-apply').addEventListener('click', render);
-$('f-reset').addEventListener('click', () => {
+on('f-apply', 'click', render);
+on('f-reset', 'click', () => {
     ['f-q', 'f-type', 'f-country', 'f-regime', 'f-era', 'f-operator'].forEach(id => { $(id).value = ''; });
     clearRendered();
     renderList([]);
@@ -682,7 +593,7 @@ $('f-reset').addEventListener('click', () => {
     status('ready');
     document.querySelectorAll('.st-preset-btn').forEach(b => b.classList.remove('st-preset-btn--active'));
 });
-$('f-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') render(); });
+on('f-q', 'keydown', (e) => { if (e.key === 'Enter') render(); });
 
 /* ── Dossier ──────────────────────────────────────────────────────────────── */
 const { open: openDossier, close: closeDossier } =
@@ -708,323 +619,6 @@ loadBoxscore();
 engine.own(setInterval(loadFeed, 5 * 60 * 1000));
 engine.own(setInterval(loadDecayWatch, 5 * 60 * 1000));
 engine.own(setInterval(loadBoxscore, 10 * 60 * 1000));
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   TIER 2.2 — DEBRIS FIELD VISUALIZATION
-   ══════════════════════════════════════════════════════════════════════════════ */
-let debrisCloudEntities = [];
-let debrisCloudVisible = false;
-
-function buildDebrisCloud() {
-    removeDebrisCloud();
-    const debrisObjs = rendered.filter(s => {
-        const t = (s.meta?.row?.OBJECT_TYPE || '').toUpperCase();
-        return t === 'DEBRIS';
-    });
-    if (!debrisObjs.length) return;
-
-    const BAND_WIDTH = 200;
-    const MIN_ALT = 200;
-    const MAX_ALT = 2200;
-    const bands = new Map();
-
-    for (const sat of debrisObjs) {
-        const alt = sat.meta?.row?.apogee_km ?? sat.meta?.row?.perigee_km ?? 400;
-        const band = Math.floor(alt / BAND_WIDTH) * BAND_WIDTH;
-        if (band < MIN_ALT || band >= MAX_ALT) continue;
-        bands.set(band, (bands.get(band) || 0) + 1);
-    }
-
-    if (!bands.size) return;
-
-    let maxCount = 0;
-    for (const v of bands.values()) if (v > maxCount) maxCount = v;
-
-    const SEGMENTS = 180;
-    for (const [alt, count] of bands) {
-        const intensity = Math.min(count / Math.max(maxCount, 1), 1);
-        const alpha = 0.06 + intensity * 0.25;
-        const width = 0.8 + intensity * 2.5;
-        const positions = [];
-        for (let i = 0; i <= SEGMENTS; i++) {
-            const lon = (i / SEGMENTS) * 360 - 180;
-            positions.push(Cesium.Cartesian3.fromDegrees(lon, 0, (alt + BAND_WIDTH / 2) * 1000));
-        }
-        const entity = viewer.entities.add({
-            polyline: {
-                positions,
-                width,
-                material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.12,
-                    color: Cesium.Color.fromCssColorString('#ff5f6d').withAlpha(alpha),
-                }),
-                arcType: Cesium.ArcType.NONE,
-            },
-        });
-        debrisCloudEntities.push(entity);
-    }
-    engine.requestRender();
-}
-
-function removeDebrisCloud() {
-    for (const e of debrisCloudEntities) viewer.entities.remove(e);
-    debrisCloudEntities = [];
-}
-
-const debrisCloudToggle = $('debris-cloud-toggle');
-if (debrisCloudToggle) {
-    debrisCloudToggle.addEventListener('click', () => {
-        debrisCloudVisible = !debrisCloudVisible;
-        debrisCloudToggle.textContent = debrisCloudVisible ? 'ON' : 'OFF';
-        debrisCloudToggle.classList.toggle('st-toggle-btn--on', debrisCloudVisible);
-        if (debrisCloudVisible) buildDebrisCloud();
-        else removeDebrisCloud();
-    });
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   TIER 2.3 — LAUNCH SITE MARKERS
-   ══════════════════════════════════════════════════════════════════════════════ */
-const LAUNCH_SITES = {
-    'CCAFS LC-13':      { lat: 28.488, lon: -80.577 },
-    'CCAFS LC-14':      { lat: 28.491, lon: -80.578 },
-    'CCAFS LC-17A':     { lat: 28.439, lon: -80.569 },
-    'CCAFS LC-17B':     { lat: 28.438, lon: -80.568 },
-    'CCAFS LC-20':      { lat: 28.462, lon: -80.567 },
-    'CCAFS LC-26A':     { lat: 28.442, lon: -80.569 },
-    'CCAFS LC-31':      { lat: 28.493, lon: -80.580 },
-    'CCAFS LC-32':      { lat: 28.493, lon: -80.581 },
-    'CCAFS LC-34':      { lat: 28.496, lon: -80.582 },
-    'CCAFS LC-36':      { lat: 28.487, lon: -80.582 },
-    'CCAFS LC-40':      { lat: 28.562, lon: -80.577 },
-    'CCAFS LC-41':      { lat: 28.583, lon: -80.583 },
-    'CCAFS SLC-40':     { lat: 28.562, lon: -80.577 },
-    'CCAFS SLC-41':     { lat: 28.583, lon: -80.583 },
-    'VAFB SLC-2E':      { lat: 34.742, lon: -120.572 },
-    'VAFB SLC-2W':      { lat: 34.742, lon: -120.574 },
-    'VAFB SLC-3E':      { lat: 34.757, lon: -120.601 },
-    'VAFB SLC-4E':      { lat: 34.723, lon: -120.572 },
-    'VAFB SLC-4W':      { lat: 34.723, lon: -120.574 },
-    'VAFB SLC-6':       { lat: 34.740, lon: -120.585 },
-    'WFF LC-0A':        { lat: 37.830, lon: -75.488 },
-    'WFF LC-15.64E':    { lat: 37.830, lon: -75.488 },
-    'WFF LC-15.64W':    { lat: 37.830, lon: -75.488 },
-    'KSC LC-39A':       { lat: 28.608, lon: -80.604 },
-    'KSC LC-39B':       { lat: 28.624, lon: -80.606 },
-    'KSC LC-39C':       { lat: 28.619, lon: -80.605 },
-    'KSC SPACEX LC-39A': { lat: 28.608, lon: -80.604 },
-    'KSC UPFF':         { lat: 28.608, lon: -80.604 },
-    'MLS':              { lat: 28.410, lon: -80.620 },
-    'KODAK':            { lat: 28.410, lon: -80.620 },
-    'ELA-1':            { lat: 5.232, lon: -52.767 },
-    'ELA-2':            { lat: 5.234, lon: -52.768 },
-    'ELA-3':            { lat: 5.236, lon: -52.769 },
-    'ELA-4':            { lat: 5.238, lon: -52.770 },
-    'SLC-4':            { lat: 5.233, lon: -52.768 },
-    'BAIKONUR LC-1':    { lat: 45.965, lon: 63.305 },
-    'BAIKONUR LC-31':   { lat: 45.996, lon: 63.282 },
-    'BAIKONUR LC-45':   { lat: 46.030, lon: 62.950 },
-    'BAIKONUR LC-81/23': { lat: 46.034, lon: 62.937 },
-    'BAIKONUR LC-81/24': { lat: 46.034, lon: 62.938 },
-    'BAIKONUR LC-90':   { lat: 46.030, lon: 62.950 },
-    'PLESETSK LC-41':   { lat: 62.927, lon: 40.682 },
-    'PLESETSK LC-43':   { lat: 62.880, lon: 40.741 },
-    'PLESETSK LC-133':  { lat: 62.920, lon: 40.575 },
-    'PLESETSK LC-158':  { lat: 62.860, lon: 40.820 },
-    'TANEGASHIMA LA':   { lat: 30.401, lon: 131.019 },
-    'TANEGASHIMA LB':   { lat: 30.397, lon: 130.974 },
-    'UCHINOURA':        { lat: 31.252, lon: 131.076 },
-    'KAGOSHIMA LP-1':   { lat: 31.783, lon: 130.736 },
-    'KAGOSHIMA LP-2':   { lat: 31.774, lon: 130.735 },
-    'KAGOSHIMA LC-1':   { lat: 31.774, lon: 130.735 },
-    'SEMHAE':           { lat: 39.660, lon: 124.705 },
-    'SOHAE':            { lat: 39.660, lon: 124.705 },
-    'TONGHAE':          { lat: 39.660, lon: 124.705 },
-    'JQU':              { lat: -1.483, lon: 110.453 },
-    'XICHANG':          { lat: 28.246, lon: 102.027 },
-    'JIUQUAN LC-1':     { lat: 40.959, lon: 100.291 },
-    'JIUQUAN LC-2':     { lat: 40.959, lon: 100.292 },
-    'TAIYUAN LC-1':     { lat: 38.850, lon: 111.600 },
-    'TANDEM':           { lat: -31.615, lon: 115.953 },
-    'WOOMERA':          { lat: -31.100, lon: 136.830 },
-    'KAPUSTIN YAR LC-3': { lat: 48.567, lon: 45.750 },
-    'KAPUSTIN YAR LC-5': { lat: 48.567, lon: 45.750 },
-    'KAPUSTIN YAR LC-107': { lat: 48.567, lon: 45.750 },
-    'PLESETSK LC-16':   { lat: 62.910, lon: 40.620 },
-    'YASNY':            { lat: 51.093, lon: 59.858 },
-    'SRIHARIKOTA FLP':  { lat: 13.720, lon: 80.230 },
-    'SRIHARIKOTA SLP':  { lat: 13.720, lon: 80.230 },
-    'SAC':              { lat: -15.600, lon: -73.980 },
-    'SEALY':            { lat: 47.590, lon: -122.610 },
-    'MAURITIUS':        { lat: -20.410, lon: 57.680 },
-    'SAO TOME':         { lat: 0.330, lon: 6.620 },
-    'KOUROU ELD':       { lat: 5.150, lon: -52.650 },
-    'KOUROU ELP':       { lat: 5.150, lon: -52.650 },
-    'WALLOPS':          { lat: 37.850, lon: -75.488 },
-    'MARS':             { lat: 39.733, lon: -77.008 },
-    'MARS FLP':         { lat: 39.733, lon: -77.008 },
-    'HAMPTON':          { lat: 37.020, lon: -76.340 },
-    'MURMANSK':         { lat: 68.950, lon: 33.090 },
-    'ASCALON':          { lat: 48.567, lon: 45.750 },
-    'CHINHAE':          { lat: 36.400, lon: 127.100 },
-    'SWAN':             { lat: -32.000, lon: 115.000 },
-    'ALCANTARA':        { lat: -2.300, lon: -44.400 },
-    'THUMBA':           { lat: 8.547, lon: 76.874 },
-    'HAINAN':           { lat: 19.614, lon: 110.951 },
-    'HWANGJU':          { lat: 36.400, lon: 127.100 },
-    'YAVNE':            { lat: 31.830, lon: 34.730 },
-    'PAMELA':           { lat: 32.000, lon: 34.730 },
-    'SVOBODNY':         { lat: 52.040, lon: 128.300 },
-    'SVOBODNY-18':      { lat: 52.040, lon: 128.300 },
-    'DOMBAROVSKY':      { lat: 51.093, lon: 59.858 },
-    'KAPUSTIN YAR':     { lat: 48.567, lon: 45.750 },
-    'NENOKSA':          { lat: 64.420, lon: 39.600 },
-    'KAP YAR':          { lat: 48.567, lon: 45.750 },
-};
-
-let launchSiteEntities = [];
-let launchSitesVisible = false;
-
-function resolveSiteCoords(siteName) {
-    if (!siteName) return null;
-    const normalized = siteName.trim().toUpperCase();
-    if (LAUNCH_SITES[normalized]) return LAUNCH_SITES[normalized];
-    for (const [key, coords] of Object.entries(LAUNCH_SITES)) {
-        if (normalized.includes(key) || key.includes(normalized)) return coords;
-    }
-    return null;
-}
-
-function buildLaunchSites() {
-    removeLaunchSites();
-    const siteNames = new Map();
-    for (const sat of rendered) {
-        const site = sat.meta?.row?.SITE || sat.meta?.row?.satcat_site;
-        if (!site) continue;
-        siteNames.set(site, (siteNames.get(site) || 0) + 1);
-    }
-    for (const [siteName, count] of siteNames) {
-        const coords = resolveSiteCoords(siteName);
-        if (!coords) continue;
-        const entity = viewer.entities.add({
-            position: Cesium.Cartesian3.fromDegrees(coords.lon, coords.lat, 0),
-            point: {
-                pixelSize: 5,
-                color: Cesium.Color.fromCssColorString('#00d2ff').withAlpha(0.7),
-                outlineColor: Cesium.Color.WHITE.withAlpha(0.5),
-                outlineWidth: 1,
-                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            },
-            label: {
-                text: siteName,
-                font: '10px monospace',
-                fillColor: Cesium.Color.fromCssColorString('#00d2ff').withAlpha(0.8),
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                pixelOffset: new Cesium.Cartesian2(0, -8),
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                showBackground: true,
-                backgroundColor: Cesium.Color.fromCssColorString('#000810').withAlpha(0.8),
-                backgroundPadding: new Cesium.Cartesian2(4, 2),
-                scaleByDistance: new Cesium.NearFarScalar(1e5, 1.2, 1e7, 0.4),
-            },
-            _siteData: { name: siteName, count },
-        });
-        launchSiteEntities.push(entity);
-    }
-    engine.requestRender();
-}
-
-function removeLaunchSites() {
-    for (const e of launchSiteEntities) viewer.entities.remove(e);
-    launchSiteEntities = [];
-}
-
-const launchSitesToggle = $('launch-sites-toggle');
-if (launchSitesToggle) {
-    launchSitesToggle.addEventListener('click', () => {
-        launchSitesVisible = !launchSitesVisible;
-        launchSitesToggle.textContent = launchSitesVisible ? 'ON' : 'OFF';
-        launchSitesToggle.classList.toggle('st-toggle-btn--on', launchSitesVisible);
-        if (launchSitesVisible) buildLaunchSites();
-        else removeLaunchSites();
-    });
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   TIER 2.4 — OBJECT AGE COLORING
-   ══════════════════════════════════════════════════════════════════════════════ */
-let ageColorMode = false;
-
-function ageColor(row) {
-    const dateStr = row.EPOCH || row.LAUNCH_DATE;
-    if (!dateStr) return null;
-    const ageDays = (Date.now() - Date.parse(dateStr)) / 86400000;
-    const maxAge = 365 * 3;
-    const t = Math.min(ageDays / maxAge, 1);
-    const r = Math.round(0 + t * 0);
-    const g = Math.round(210 * (1 - t * 0.85));
-    const b = Math.round(255 * (1 - t * 0.7));
-    const a = 0.95 - t * 0.5;
-    return `rgba(${r},${g},${b},${a})`;
-}
-
-function recolorByAge() {
-    for (const sat of rendered) {
-        const row = sat.meta?.row;
-        if (!row) continue;
-        const c = ageColor(row);
-        if (c) sat.primitive.color = Cesium.Color.fromCssColorString(c);
-    }
-    engine.requestRender();
-}
-
-const ageColorToggle = $('age-color-toggle');
-const ageLegend = $('age-legend');
-if (ageColorToggle) {
-    ageColorToggle.addEventListener('click', () => {
-        ageColorMode = !ageColorMode;
-        ageColorToggle.textContent = ageColorMode ? 'ON' : 'OFF';
-        ageColorToggle.classList.toggle('st-toggle-btn--on', ageColorMode);
-        if (ageLegend) ageLegend.hidden = !ageColorMode;
-        if (ageColorMode) recolorByAge();
-        else recolorRendered();
-    });
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   TIER 3.1 — LOD SYSTEM
-   ══════════════════════════════════════════════════════════════════════════════ */
-const LOD_CLOSE_THRESHOLD = 500000;
-const LOD_FAR_THRESHOLD = 5000000;
-const LOD_CLOSE_CAP = 400;
-
-function updateLOD() {
-    const height = viewer.camera.positionCartographic.height;
-    if (height > LOD_FAR_THRESHOLD) {
-        for (const sat of rendered) sat.primitive.show = true;
-    } else if (height < LOD_CLOSE_THRESHOLD) {
-        const camPos = viewer.camera.position;
-        const sorted = rendered.map(sat => {
-            const pos = sat.primitive.position;
-            if (!pos) return { sat, dist: Infinity };
-            const dx = pos.x - camPos.x;
-            const dy = pos.y - camPos.y;
-            const dz = pos.z - camPos.z;
-            return { sat, dist: dx * dx + dy * dy + dz * dz };
-        }).sort((a, b) => a.dist - b.dist);
-        for (let i = 0; i < sorted.length; i++) {
-            sorted[i].sat.primitive.show = i < LOD_CLOSE_CAP;
-        }
-    } else {
-        for (const sat of rendered) sat.primitive.show = true;
-    }
-    engine.requestRender();
-}
-
-viewer.camera.moveEnd.addEventListener(updateLOD);
 
 /* ══════════════════════════════════════════════════════════════════════════════
    TIER 3.2 — TIME-BASED FILTER PRESETS
@@ -1174,7 +768,7 @@ if (screenshotBtn) {
     engine.flyToSats(rendered);
 
     const hasDebris = rendered.some(s => (s.meta?.row?.OBJECT_TYPE || '').toUpperCase() === 'DEBRIS');
-    if (debrisCloudToggle) debrisCloudToggle.disabled = !hasDebris;
+    debris.setEnabled(hasDebris);
 
     const shown = rendered.length;
     const total = data.total || 0;
@@ -1194,7 +788,7 @@ if (screenshotBtn) {
         const lon = (i / SEGMENTS) * 360 - 180;
         positions.push(Cesium.Cartesian3.fromDegrees(lon, 0, GEO_ALT_KM * 1000));
     }
-    viewer.entities.add({
+    engine.addManagedEntity(viewer.entities.add({
         polyline: {
             positions,
             width: 1.2,
@@ -1204,14 +798,14 @@ if (screenshotBtn) {
             }),
             arcType: Cesium.ArcType.NONE,
         },
-    });
+    }));
     // Second ring slightly offset for depth
     const positions2 = [];
     for (let i = 0; i <= SEGMENTS; i++) {
         const lon = (i / SEGMENTS) * 360 - 180;
         positions2.push(Cesium.Cartesian3.fromDegrees(lon, 0, (GEO_ALT_KM + 200) * 1000));
     }
-    viewer.entities.add({
+    engine.addManagedEntity(viewer.entities.add({
         polyline: {
             positions: positions2,
             width: 0.6,
@@ -1221,7 +815,7 @@ if (screenshotBtn) {
             }),
             arcType: Cesium.ArcType.NONE,
         },
-    });
+    }));
 })();
 
 viewer.camera.flyTo({
@@ -1244,7 +838,7 @@ function relTime(iso) {
 }
 
 /* Debug handle */
-window.__spacetrack = {
+exposeDebug('catalog', {
     viewer, engine,
     get satPointCount() { return engine.satPointCount; },
     get rendered() { return rendered.length; },
@@ -1253,14 +847,15 @@ window.__spacetrack = {
     get workerReady() { return engine.workerReady; },
     get tickCount() { return engine.tickCount; },
     get lastQuery() { return lastQuery; },
-    get source() { return 'spacetrack'; },
     get colorMode() { return colorMode; },
-    get ageColorMode() { return ageColorMode; },
-    get debrisCloudVisible() { return debrisCloudVisible; },
-    get launchSitesVisible() { return launchSitesVisible; },
+    get ageColorMode() { return age.visible; },
+    get debrisCloudVisible() { return debris.visible; },
+    get launchSitesVisible() { return launchSites.visible; },
     render, openDossier, closeDossier, clearRendered,
     loadSummary, loadFacets, loadFeed, loadDecayWatch, loadBoxscore,
-    buildDebrisCloud, removeDebrisCloud,
-    buildLaunchSites, removeLaunchSites,
-    recolorByAge,
-};
+    buildDebrisCloud: () => debris.build(),
+    removeDebrisCloud: () => debris.remove(),
+    buildLaunchSites: () => launchSites.build(),
+    removeLaunchSites: () => launchSites.remove(),
+    recolorByAge: () => age.recolor(),
+});

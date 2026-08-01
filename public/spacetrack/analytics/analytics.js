@@ -1,4 +1,5 @@
 import { $, setText, num } from '../shared/utils.js';
+import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
 import { wireHudToggle, initMobileListener } from '/shared/hud.js';
 
@@ -132,8 +133,7 @@ loadAnalytics();
 setInterval(loadAnalytics, 30 * 60 * 1000);
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
-window.__spacetrack = {
+exposeDebug('analytics', {
     loadAnalytics,
     renderAnalytics,
-    get source() { return 'analytics'; },
-};
+});

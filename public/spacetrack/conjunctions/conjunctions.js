@@ -3,7 +3,8 @@ import {
 } from '../../orbit-engine/screen-client.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
-import { $, setText, num, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge } from '../shared/utils.js';
+import { $, on, setText, num, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge } from '../shared/utils.js';
+import { exposeDebug } from '../shared/debug.js';
 import { colorFor } from '/theme/palette.js';
 import { API } from '../shared/api.js';
 import { wireHudToggle, initHamburgerMenu, wireTabs } from '/shared/hud.js';
@@ -272,8 +273,8 @@ function renderConjunctions(rows, stats) {
     }
 }
 
-$('c-run').addEventListener('click', runScreen);
-$('c-cancel').addEventListener('click', () => {
+on('c-run', 'click', runScreen);
+on('c-cancel', 'click', () => {
     screener.cancel();
     conjStatus('cancelling…');
 });
@@ -300,7 +301,7 @@ if (selObj && selObj.norad) {
 }
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
-window.__spacetrack = {
+exposeDebug('conjunctions', {
     viewer, engine,
     get satPointCount() { return engine.satPointCount; },
     get rendered() { return rendered.length; },
@@ -309,8 +310,7 @@ window.__spacetrack = {
     get workerReady() { return engine.workerReady; },
     get tickCount() { return engine.tickCount; },
     get lastQuery() { return lastQuery; },
-    get source() { return 'conjunctions'; },
     render, openDossier, closeDossier, clearRendered,
     screener, runScreen, addObjects,
     get lastScreen() { return lastScreen; },
-};
+});

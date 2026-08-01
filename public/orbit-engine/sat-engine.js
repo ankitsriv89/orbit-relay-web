@@ -215,6 +215,8 @@ export class SatEngine {
         this._pathJobs   = new Map();
         this._nextPathJob = 1;
         this._intervals  = [];
+        /** Entities the page added via addManagedEntity — removed on destroy() */
+        this._managedEntities = [];
         this._posScratch = new Cesium.Cartesian3();
         this._geoScratch = { lat: 0, lon: 0, alt: 0 };
 
@@ -673,6 +675,29 @@ export class SatEngine {
         this.requestRender();
     }
 
+    /**
+     * Track an entity the page added directly so destroy() removes it too.
+     *
+     * Satellites are PointPrimitives in one collection and are not Entities, so
+     * nothing here tracks them. But overlays (debris bands, launch sites, the
+     * GEO belt) are plain `viewer.entities.add(...)` calls; routing them through
+     * here is what keeps them from leaking past engine.destroy(). Returns the
+     * entity so the page can keep its own toggle bookkeeping if it wants.
+     */
+    addManagedEntity(entity) {
+        this._managedEntities.push(entity);
+        this.requestRender();
+        return entity;
+    }
+
+    /** The inverse: stop tracking and remove a managed entity from the scene. */
+    removeManagedEntity(entity) {
+        const i = this._managedEntities.indexOf(entity);
+        if (i >= 0) this._managedEntities.splice(i, 1);
+        this.viewer.entities.remove(entity);
+        this.requestRender();
+    }
+
     /* ── Camera ─────────────────────────────────────────────────────────── */
 
     /** Frame a set of sat points. They are not Entities, so build a
@@ -704,6 +729,8 @@ export class SatEngine {
     destroy() {
         this._intervals.forEach(id => clearInterval(id));
         this._intervals.length = 0;
+        this._managedEntities.forEach(e => this.viewer.entities.remove(e));
+        this._managedEntities.length = 0;
         if (this.worker) { this.worker.terminate(); this.worker = null; }
     }
 

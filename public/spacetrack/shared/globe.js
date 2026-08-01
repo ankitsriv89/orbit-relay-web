@@ -60,6 +60,11 @@ export function initGlobe(containerId = 'cesium-container', viewerOptions = {}) 
         }
     });
 
+    // initGlobe owns its whole lifecycle, including the teardown: the singleton
+    // guard above means this registers exactly once, and a page that never calls
+    // initGlobe (none today, but the boundary is now explicit) leaks nothing.
+    window.addEventListener('beforeunload', destroyGlobe);
+
     return { viewer, engine };
 }
 
@@ -118,5 +123,3 @@ export function setupMobileMQ(onChange) {
     if (onChange) mq.addEventListener('change', () => onChange(isMobile()));
     return { mq, isMobile };
 }
-
-window.addEventListener('beforeunload', destroyGlobe);
