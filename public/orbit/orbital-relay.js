@@ -23,10 +23,27 @@ import {
 import { wireHudToggle, initMobileListener, initHamburgerMenu } from '/shared/hud.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
+// The previous orbit-page token was rejected by api.cesium.com with a 403,
+// and the globe silently rendered with NO imagery — a black ball that read
+// as "globe not rendering". This is the same token /spacetrack/ and /starlink/
+// use, which api.cesium.com accepts.
 Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
-    'eyJqdGkiOiIzYzZiN2NkMi1iNDQ3LTRmODUtOTE3MS00NGU5MTMyYmQwM2YiLCJpZCI6MzkzOTM1LCJzdWIiOiJhbmtpdCBzcml2YXN0YXZhIiwiaXNzIjoiaHR0cHM6Ly9hcGkuY2VzaXVtLmNvbSIsImF1ZCI6Im9yYml0YWwtcmVsYXktcHJvZHVjdGlvbiIsImlhdCI6MTc4NTUwMDU1N30.' +
-    'lwi3qNBYX_GS2119noduOSEGZvHE3W2osCc46_ydD-U';
+    'eyJqdGkiOiI2MjFjZDg5My0zMTRiLTQ3ZjMtOTNlNi1iM2E3ZGNjYWE5ZTQiLCJpZCI6MzkzOTM1LCJpYXQiOjE3NzE5Nzk4NTd9.' +
+    'eAH51ApKzzuBIkgwf-rqo4G2U6cSBOQMTPFAALBb2Hg';
+
+// Ion-first base layer with a tokenless fallback. The 403 above was silent —
+// no exception, just an imagery layer that never became ready — so a second
+// failure of the token (expiry, quota, revocation) must not be able to kill
+// the globe again. If the world-imagery promise rejects, swap in ArcGIS
+// World Imagery, which needs no token.
+const baseLayer = Cesium.ImageryLayer.fromProviderAsync(
+    Cesium.createWorldImageryAsync().catch(() =>
+        Cesium.ArcGisMapServerImageryProvider.fromUrl(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+        )
+    )
+);
 
 /** This page is Celestrak. Space-Track has its own page now — see the SOURCE
  *  row, where the button is a link rather than an in-place switch. */
@@ -125,6 +142,7 @@ loadSatellites();
 /* ── Cesium Viewer ─────────────────────────────────────────────────────── */
 const viewer = new Cesium.Viewer('cesium-container', {
     animation:             false,
+    baseLayer:             baseLayer,
     baseLayerPicker:       false,
     fullscreenButton:      false,
     geocoder:              false,
