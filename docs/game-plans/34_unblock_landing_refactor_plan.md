@@ -332,12 +332,16 @@ land immediately) and structural work.
 Ranked by value ÷ effort. All four tracks requested.
 
 ### 3.1 Cheap client-side wins (data already served)
-- **Past orbit + multi-rev** (spec #3). `sat-engine.js:277-292` and
-  `propagate.worker.js:144-153` sample **forward from now for exactly one period** —
-  the loop is `i = 0..steps`, never negative, and `steps` is hardcoded 90/120
-  (`sat-engine.js:457, :534`). Change the loop bound to `-steps/2 … +steps*revs`. Two files,
-  one bound each. Closes "draw previous and future orbits" and "predict multiple orbital
-  revolutions".
+- **Past orbit + multi-rev** (spec #3). **Planned in detail in
+  [35_trajectory_paths_plan.md](35_trajectory_paths_plan.md) — follow that document.**
+  `sat-engine.js:277-292` and `propagate.worker.js:144-153` sample **forward from now for
+  exactly one period** — the loop is `i = 0..steps`, never negative, and `steps` is hardcoded
+  90/120 (`sat-engine.js:457, :470, :534`). The fix is a signed span in revolutions rather
+  than a bare loop bound: this bullet originally read "two files, one bound each", which
+  undercounts two things — `steps` is also the per-period resolution, so it must scale with
+  the span or 3 revs renders visibly polygonal; and past vs. future only reads if the trailing
+  arc is a second, differently styled polyline. Closes "draw previous and future orbits" and
+  "predict multiple orbital revolutions".
 - **Time rates** (spec #14). Currently 0/1×/60×/600× (`orbit/index.html:372-375`,
   `shared/globe.js:85-88`). Spec asks 1×/10×/100×/1000×. Note this touches the duplicated
   time-warp wiring — do it *after* 2.1 collapses the copies, not before.
