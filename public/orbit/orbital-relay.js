@@ -16,7 +16,7 @@
  */
 
 import { SatEngine, SatPoint, tuneViewerForDevice, mountCameraAltitudeHud } from '../orbit-engine/sat-engine.js';
-import { parseTLE, fetchTLE }  from '../orbit-engine/tle.js';
+import { parseTLE, parseTLEChunked, fetchTLE } from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '../orbit-engine/astro.js';
@@ -105,6 +105,23 @@ function initFilterDrawer() {
 
 initFilterDrawer();
 
+/* ── HUD update ────────────────────────────────────────────────────────── */
+const elLat   = document.getElementById('hud-iss-lat');
+const elLon   = document.getElementById('hud-iss-lon');
+const elAlt   = document.getElementById('hud-iss-alt');
+const elVel   = document.getElementById('hud-iss-vel');
+const elCount = document.getElementById('hud-sat-count');
+const elDate  = document.getElementById('hud-date');
+const elTime  = document.getElementById('hud-time');
+
+let issRec = null;
+
+// Start the STATIONS TLE fetch BEFORE the synchronous Cesium Viewer boot: the
+// request overlaps the ~hundreds of ms of viewer construction + shader compile,
+// so the parse (and first sat dots) land sooner. Everything loadSatellites does
+// after its first await runs post-boot, when `viewer`/`engine` exist.
+loadSatellites();
+
 /* ── Cesium Viewer ─────────────────────────────────────────────────────── */
 const viewer = new Cesium.Viewer('cesium-container', {
     animation:             false,
@@ -173,16 +190,6 @@ initMobileListener(() => {
 });
 
 /* ── HUD update ────────────────────────────────────────────────────────── */
-const elLat   = document.getElementById('hud-iss-lat');
-const elLon   = document.getElementById('hud-iss-lon');
-const elAlt   = document.getElementById('hud-iss-alt');
-const elVel   = document.getElementById('hud-iss-vel');
-const elCount = document.getElementById('hud-sat-count');
-const elDate  = document.getElementById('hud-date');
-const elTime  = document.getElementById('hud-time');
-
-let issRec = null;
-
 function updateISSHud() {
     if (!issRec) return;
     const p = engine.geo(issRec);
@@ -232,7 +239,9 @@ async function loadSatellites() {
     ]);
 
     if (stResult.status === 'fulfilled') {
-        const stations = parseTLE(stResult.value);
+        // Chunked so a cold phone never eats the whole bundle's twoline2satrec
+        // work in one blocking burst — it spreads across idle frames instead.
+        const stations = await parseTLEChunked(stResult.value);
         const issEntry = stations.find(s =>
             s.name.toUpperCase().includes('ISS') || s.name.toUpperCase().includes('ZARYA')
         );
@@ -240,8 +249,11 @@ async function loadSatellites() {
             issRec = issEntry.satrec;
             const issMeta = { satrec: issRec, l1: issEntry.l1, l2: issEntry.l2,
                               name: issEntry.name, group: 'ISS', pulse: true };
-            engine.addSatellite(issRec, Cesium.Color.fromCssColorString('#f5a623'), 11, 'bright',
+            const issSat = engine.addSatellite(issRec, Cesium.Color.fromCssColorString('#f5a623'), 11, 'bright',
                 issMeta);
+            // ISS is always on, so its ring is built at boot — the one ring
+            // that is never deferred to a layer toggle.
+            engine.ensureRing(issSat);
             // ISS gets a persistent ground track + coverage footprint
             engine.addGroundTrack(issMeta, '#f5a623');
             engine.addFootprint(issRec, '#f5a623');
@@ -384,7 +396,7 @@ async function toggleLayer(group, color, cap, checked, live) {
 
     try {
         const text     = await tle(group, live);
-        const records  = parseTLE(text).slice(0, cap);
+        const records  = (await parseTLEChunked(text)).slice(0, cap);
         const cesColor = Cesium.Color.fromCssColorString(color);
         const entities = records.map(r =>
             engine.addSatellite(r.satrec, cesColor, 5, false,
@@ -410,7 +422,13 @@ document.querySelectorAll('.layer-cb').forEach(cb => {
 
         if (builtin) {
             if (group === 'stations-other') {
-                stationEntities.forEach(e => { e.show = cb.checked; });
+                stationEntities.forEach(e => {
+                    e.show = cb.checked;
+                    // Rings are deferred (see ensureRing) — the layer's 150
+                    // rings must not exist, let alone draw, until it is on.
+                    if (cb.checked) engine.ensureRing(e);
+                    else if (e.ring) e.ring.show = false;
+                });
                 if (stStatusEl) stStatusEl.textContent = cb.checked ? stationEntities.length : '';
                 updateSatBar();
             }
@@ -476,5 +494,7 @@ window.__orbit = {
     parseTLE,
 };
 
-/* ── Boot ──────────────────────────────────────────────────────────────── */
-loadSatellites();
+/* ── Boot ────────────────────────────────────────────────────────────────
+ * loadSatellites() is kicked off at the top of the module (see there) so the
+ * STATIONS fetch overlaps the Cesium Viewer construction below.
+ */

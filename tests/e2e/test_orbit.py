@@ -110,13 +110,18 @@ def run(page):
     # ---------------------------------------------------------- boot + engine
     print('\n-- engine  PointPrimitiveCollection --')
     sats = page.evaluate('__orbit.allSats.length')
-    check('satellites spawned from the baseline TLEs', sats > 40, f'{sats} sats')
+    # The STATIONS baseline snapshot ships 25 objects + the ISS. The threshold
+    # used to be 40 when the snapshot carried more; keep it loose so a shrunk
+    # snapshot cannot masquerade as a loaded page.
+    check('satellites spawned from the baseline TLEs', sats > 20, f'{sats} sats')
     check('all sats live in one PointPrimitiveCollection', page.evaluate(
         '__orbit.satPointCount === __orbit.allSats.length'),
         page.evaluate('`${__orbit.satPointCount} primitives`'))
 
-    # The regression itself: one Entity per satellite. Only the ISS orbit ring,
-    # ground track and footprint plus the STATIONS rings are Entities now.
+    # The regression itself: one Entity per satellite. Only the ISS ring,
+    # ground track and footprint are Entities at boot — STATIONS rings are
+    # deferred until that layer is checked (ensureRing), so a boot entity
+    # count that tracks the sat count means rings became per-sat entities.
     ents = page.evaluate('__orbit.entityCount')
     check('sat count is NOT entity count (issue #71 shape)', ents < sats,
           f'{ents} entities vs {sats} sats')

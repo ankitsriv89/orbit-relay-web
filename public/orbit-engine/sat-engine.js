@@ -34,7 +34,11 @@ import {
 } from './astro.js';
 
 const SAT_TICK_MS   = 280;   // position refresh (a sat moves ~metres in this time)
-const PULSE_TICK_MS = 90;    // pulse size animation — no propagation, so cheap
+// The pulse rides the position cadence on purpose. At 90 ms it forced a full
+// render ~11×/s forever while any pulsing layer was visible — a standing GPU
+// bill that quietly defeated requestRenderMode. The sine's period is seconds,
+// so at 280 ms the wobble still reads smooth and each step is a real change.
+const PULSE_TICK_MS = SAT_TICK_MS;
 
 /**
  * Put the Cesium viewer on a mobile power budget. Call once, right after
@@ -143,6 +147,9 @@ export class SatPoint {
         this.baseSize  = baseSize;
         this.pulse     = pulse;
         this.id        = 0;      // worker registration id (0 = not registered)
+        this.ring      = null;   // orbit ring entity, built lazily by ensureRing()
+        this._ringStyle = null;  // the orbitStyle arg passed to addSatellite
+        this._ringColor = null;
     }
     get show()  { return this.primitive.show; }
     set show(v) {
@@ -354,8 +361,6 @@ export class SatEngine {
      * @returns {SatPoint}
      */
     addSatellite(satrec, color, pointSize, orbitStyle, meta) {
-        if (orbitStyle) this.addOrbitRing(satrec, meta, color, orbitStyle);
-
         const safeMeta = meta || { satrec, name: 'SAT', group: '' };
         const geo = this.geo(satrec);
         const pos = geo
@@ -379,6 +384,12 @@ export class SatEngine {
         this.allSats.push(sat);
         if (sat.pulse) this.pulseSats.push(sat);
 
+        // Orbit rings are deferred, not built here: STATIONS adds ~150 of them
+        // for dots that boot hidden, and a hidden ring's per-frame draw cost
+        // has no reason to exist until the layer is turned on. Call
+        // ensureRing() when the sat becomes visible — see addOrbitRing.
+        if (orbitStyle) { sat._ringStyle = orbitStyle; sat._ringColor = color; }
+
         // Hand the raw TLE lines to the worker; it builds its own satrec.
         // Batched and flushed on the next tick so a 600-sat layer toggle is one
         // message rather than 600.
@@ -400,6 +411,7 @@ export class SatEngine {
     removeSat(sat) {
         if (!sat) return;
         if (sat.primitive) this.satCollection.remove(sat.primitive);
+        if (sat.ring) { this.viewer.entities.remove(sat.ring); sat.ring = null; }
         const i = this.allSats.indexOf(sat);
         if (i !== -1) this.allSats.splice(i, 1);
         if (sat.pulse) {
@@ -468,35 +480,68 @@ export class SatEngine {
     }
 
     _pulse() {
+        // rAF is already throttled in background tabs; the gate just stops the
+        // interval from forcing renders no one can see.
+        if (document.hidden) return;
         const t = Date.now() / 1000;
-        let pulsed = 0;
+        let changed = false;
         for (let i = 0; i < this.pulseSats.length; i++) {
             const s = this.pulseSats[i];
             if (!s.primitive.show) continue;
-            s.primitive.pixelSize = s.baseSize + Math.sin(t * 2 + i) * (s.baseSize * 0.35);
-            pulsed++;
+            const next = s.baseSize + Math.sin(t * 2 + i) * (s.baseSize * 0.35);
+            // Skip no-op writes (near the sine's extrema) so the render request
+            // below is only ever for pixels that actually moved.
+            if (Math.abs(next - s.primitive.pixelSize) < 0.02) continue;
+            s.primitive.pixelSize = next;
+            changed = true;
         }
-        if (pulsed) this.requestRender();
+        if (changed) this.requestRender();
     }
 
     /* ── Shared visuals ─────────────────────────────────────────────────── */
 
-    /** Static orbit ring. Built from a worker path so a load-time batch never
-     *  blocks the main thread. */
+    /**
+     * Build (once) the deferred orbit ring for a SatPoint and return it.
+     * Rings are created empty and filled by a worker path job, so calling this
+     * never blocks the main thread — see addOrbitRing.
+     */
+    ensureRing(sat) {
+        if (!sat || sat.ring || !sat._ringStyle) return sat && sat.ring;
+        sat.ring = this.addOrbitRing(sat.satrec, sat.meta, sat._ringColor, sat._ringStyle);
+        return sat.ring;
+    }
+
+    /**
+     * Static orbit ring. The entity is created synchronously with EMPTY
+     * positions — a polyline with fewer than 2 points draws nothing — and its
+     * points arrive from the worker path job afterwards, so the caller gets a
+     * handle whose `.show` works immediately and a load-time batch never
+     * blocks the main thread.
+     *
+     * Glow is reserved for 'bright' rings (the ISS): it is a two-pass,
+     * unbatchable material. Dim rings use the plain, batched color material —
+     * STATIONS used to ship 150 glow rings always in the scene.
+     */
     addOrbitRing(satrec, meta, color, orbitStyle) {
+        const bright = orbitStyle === 'bright';
+        const entity = this.viewer.entities.add({
+            polyline: {
+                positions: [],
+                width:     bright ? 1.4 : 0.7,
+                material:  bright
+                    ? new Cesium.PolylineGlowMaterialProperty({
+                        glowPower: 0.35, color: color.withAlpha(0.6),
+                    })
+                    : new Cesium.ColorMaterialProperty(color.withAlpha(0.2)),
+                arcType: Cesium.ArcType.NONE,
+            },
+        });
         const place = (pts) => {
-            if (!pts || pts.length < 2) return;
-            this.viewer.entities.add({
-                polyline: {
-                    positions: pts,
-                    width:     orbitStyle === 'bright' ? 1.4 : 0.7,
-                    material:  new Cesium.PolylineGlowMaterialProperty({
-                        glowPower: orbitStyle === 'bright' ? 0.35 : 0.12,
-                        color:     color.withAlpha(orbitStyle === 'bright' ? 0.6 : 0.2),
-                    }),
-                    arcType: Cesium.ArcType.NONE,
-                },
-            });
+            if (!pts || pts.length < 2) {
+                this.viewer.entities.remove(entity);
+                return;
+            }
+            entity.polyline.positions = pts;
             // Path jobs come back asynchronously, so this is not inside a tick.
             this.requestRender();
         };
@@ -506,6 +551,7 @@ export class SatEngine {
         } else {
             place(this.computeOrbitPath(satrec));
         }
+        return entity;
     }
 
     addGroundTrack(rec, cssColor, { width = 1.6, alpha = 0.55 } = {}) {
