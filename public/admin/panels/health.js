@@ -4,11 +4,23 @@ export default {
   id: 'health',
   title: 'SYSTEM HEALTH',
   order: 0,
-  open: true,
   refreshMs: 60000,
 
   async load() {
     return apiFetch('/api/admin/health');
+  },
+
+  // Sidebar status dot. A failed ingest or a stale/missing artifact reads as
+  // warn/bad even when the health card itself renders.
+  badge(data) {
+    if (!data) return { state: 'idle', label: 'no data' };
+    if (data.latestIngest && data.latestIngest.ok === false) {
+      return { state: 'bad', label: 'last ingest failed' };
+    }
+    if (data.artifactAge === 'missing' || data.artifactAge === 'no R2' || data.artifactAge === 'error') {
+      return { state: 'warn', label: `artifact ${data.artifactAge}` };
+    }
+    return { state: 'ok', label: `${data.objects?.toLocaleString() ?? '?'} objects` };
   },
 
   render(el, data) {

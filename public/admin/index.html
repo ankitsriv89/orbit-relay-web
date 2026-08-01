@@ -11,31 +11,55 @@
 </head>
 <body data-page-id="admin">
 
-  <nav class="spacetrack-nav" id="main-nav" role="navigation"
-       aria-label="Admin navigation">
-    <a href="/" class="spacetrack-nav__brand">◂ HOME</a>
-    <ul class="spacetrack-nav__list" role="menubar">
-      <li><a href="/admin/" class="spacetrack-nav__link spacetrack-nav__link--active">ADMIN</a></li>
-    </ul>
-    <button id="logout-btn" class="admin-nav-logout" type="button">
-      LOGOUT
-    </button>
-  </nav>
-
-  <!-- Login form (shown when not authenticated) -->
+  <!-- Login screen (shown when not authenticated) -->
   <div id="login-screen" class="admin-login" hidden>
     <form id="login-form" class="admin-login__form">
-      <h1 class="admin-login__title">// ORBITAL RELAY ADMIN</h1>
+      <p class="admin-login__brand">ORBITAL RELAY</p>
+      <h1 class="admin-login__title">// ADMIN CONSOLE</h1>
       <label class="admin-login__label" for="login-password">Password</label>
-      <input id="login-password" class="admin-login__input" type="password"
-             autocomplete="current-password" required>
-      <button type="submit" class="admin-login__btn">AUTHENTICATE</button>
-      <p id="login-error" class="admin-login__error" hidden></p>
+      <div class="admin-login__field">
+        <input id="login-password" class="admin-login__input" type="password"
+               autocomplete="current-password" required>
+        <button id="pw-toggle" class="admin-login__toggle" type="button"
+                aria-label="Show password" aria-pressed="false" title="Show password">◉</button>
+      </div>
+      <button id="login-btn" type="submit" class="admin-login__btn">AUTHENTICATE</button>
+      <p id="login-error" class="admin-login__error" role="alert" hidden></p>
+      <p class="admin-login__hint">Session lasts 12h · protected console</p>
     </form>
   </div>
 
-  <!-- Dashboard (shown after auth) -->
-  <main id="admin-panels" class="admin-panels" hidden></main>
+  <!-- Dashboard shell (shown after auth): sidebar + content -->
+  <div id="admin-shell" class="admin-shell" hidden>
+    <aside id="admin-nav" class="admin-nav" aria-label="Admin navigation">
+      <div class="admin-nav__brand">
+        <span class="admin-nav__logo">ORBITAL RELAY</span>
+        <span class="admin-nav__sub">// ADMIN CONSOLE</span>
+      </div>
+      <ul id="admin-nav-list" class="admin-nav__list" role="listbox"></ul>
+      <div class="admin-nav__foot">
+        <div id="admin-nav-status" class="admin-nav__status" title="Connection status">standby</div>
+        <button id="logout-btn" class="admin-nav__logout" type="button">LOGOUT</button>
+      </div>
+    </aside>
+    <div id="admin-backdrop" class="admin-backdrop" hidden></div>
+
+    <div class="admin-main">
+      <header class="admin-topbar">
+        <button id="nav-toggle" class="admin-topbar__toggle" type="button"
+                aria-label="Toggle navigation" aria-expanded="false" title="Menu">☰</button>
+        <h1 id="admin-panel-title" class="admin-topbar__title">—</h1>
+        <div class="admin-topbar__meta">
+          <span id="admin-last-updated" class="admin-topbar__time"></span>
+          <button id="admin-refresh" class="admin-topbar__refresh" type="button"
+                  aria-label="Refresh panel" title="Refresh (R)">⟳</button>
+        </div>
+      </header>
+      <main id="admin-panels" class="admin-panels"></main>
+    </div>
+  </div>
+
+  <div id="admin-toasts" class="admin-toasts" aria-live="polite"></div>
 
   <footer class="admin-foot">
     Counts are Space-Track-derived. Data source: Space-Track.org (USSPACECOM /

@@ -11,6 +11,14 @@ export default {
     return apiFetch('/api/admin/runs');
   },
 
+  badge(data) {
+    const runs = data?.runs ?? [];
+    if (!runs.length) return { state: 'idle', label: 'no runs yet' };
+    const failed = runs.filter(r => !r.ok).length;
+    if (failed) return { state: 'bad', label: `${failed}/${runs.length} recent runs failed` };
+    return { state: 'ok', label: `${runs.length} recent runs OK` };
+  },
+
   render(el, data) {
     el.replaceChildren();
 
