@@ -649,21 +649,41 @@ export class SatEngine {
     }
 
     /**
-     * Orbit + ground track + footprint for one inspected object.
+     * Orbit + ground track + footprint for one inspected object, plus a dashed
+     * past-orbit arc. `revs` (default 1) extends the glowing future orbit that
+     * many periods; the past arc is fixed at half a revolution, and the ground
+     * track stays at one period (three near-identical sinusoids offset by
+     * nodal regression would be noisier, not more informative).
+     *
+     * A revs change on a live selection must tear down and rebuild via
+     * removeEntities() + addInspectVisuals() — both call requestRender(), and
+     * under requestRenderMode mutating the existing polyline in place skips
+     * that frame and the globe freezes into a still image.
      *
      * Entity visuals are added outside the tick, and on a page with NOTHING
      * rendered the tick asks for no frames at all — /spacetrack/ boots that way,
      * and a dossier opened from a result row whose object had no elset would add
      * its rings into a scene that never redraws.
      */
-    addInspectVisuals(meta, cssColor = '#ffffff') {
+    addInspectVisuals(meta, cssColor = '#ffffff', { revs = 1 } = {}) {
         this.requestRender();
         const accent = Cesium.Color.fromCssColorString(cssColor);
         return {
+            past: this.viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(
+                        this.workerPath(meta, 'orbit', 60, 2000, -0.5, 0), false),
+                    width: 1.2,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: accent.withAlpha(0.25), dashLength: 10,
+                    }),
+                    arcType: Cesium.ArcType.NONE,
+                },
+            }),
             orbit: this.viewer.entities.add({
                 polyline: {
                     positions: new Cesium.CallbackProperty(
-                        this.workerPath(meta, 'orbit', 120, 2000), false),
+                        this.workerPath(meta, 'orbit', 120, 2000, 0, revs), false),
                     width: 1.6,
                     material: new Cesium.PolylineGlowMaterialProperty({
                         glowPower: 0.25, color: accent.withAlpha(0.55),
