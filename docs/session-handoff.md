@@ -35,11 +35,14 @@
       `requestPath`, `workerPath` forward the span to both the worker message
       and the sync fallback. `npm test` green (65/65 syntax, 53 files resolve,
       60/60 orbit-ingest).
-- [ ] **S3 Past orbit + revs**: `addInspectVisuals` (sat-engine.js:527) takes
-      `{revs}` — past-orbit polyline (`clampToGround: true`, faded) + future path
-      extended to `revs` periods; `steps` scales with span so resolution is
-      constant; **do not reuse the TLE `steps` constant for both extent and
-      resolution** (plan 35 correction).
+- [x] **S3 Past orbit + revs** (commit `d0080735`): `addInspectVisuals` takes
+      `{revs}` — fourth bag entity `past` (dashed, at altitude, `-0.5 → 0`
+      revs) + future path `0 → revs`; vertex count scales with span inside
+      the samplers (S2), so resolution is constant. Ground track stays one
+      period. A revs change must rebuild via `removeEntities()` +
+      `addInspectVisuals()` (both `requestRender()`). Verified headless on
+      `/orbit/`: past = 31 pts (60 base × 0.5 + 1), orbit = 121/361/481 at
+      revs 1/3/5 (480 clamp), sync fallback agrees (31 / 241), console clean.
 - [ ] **S4 Revs UI plumbing**: `public/spacetrack/shared/hud.js` — `cycleRevs`,
       `revsLabel`, `syncRevsButtons`, `wireRevsButton`; State-backed under the
       existing `spacetrack_state_v1` preferences (see state.js shape below).
@@ -146,4 +149,40 @@
 
 ## Surprises & decisions
 
-- (none yet)
+- **S1's ground-track guardrail was red from birth** (fixed in `a860c02e`):
+  `e.polyline.clampToGround` on Cesium 1.113's Entity API is a
+  `ConstantProperty` wrapper, not the raw boolean — `!== true` filtered out
+  every entity. The S1 red-run note said only the red-run never executed; the
+  green run hadn't either. Fixed with
+  `Cesium.Property.getValueOrUndefined(clampToGround, t) === true`. A raw
+  comparison must not be reintroduced in S13's new past-orbit assertions —
+  past-orbit's clampToGround is `undefined` (unset), which the unwrap keeps
+  excluded.
+- **The E2E suite is broken by plan-34 drift, not by this batch.** Running
+  `test_orbit.py --no-mobile` exposed stale checks (never green-run since
+  Phase 2.2 — CLAUDE.md said "e2e still to re-run"):
+  - Source-nav checks targeted removed `source-btn[data-source]` markup;
+    re-pointed at the static nav (`.spacetrack-nav__source-link[href="/orbit/"]`,
+    `a.spacetrack-nav__link--active` → `/spacetrack/`) — same commit `a860c02e`.
+  - `signal-hud` → `activity-hud` (catalog page renamed the feed panel;
+    `feed-list`/`decay-list`/`box-list` ids survived).
+  - The whole wave-5 `conjunction_gate` targets ids that moved to
+    `/spacetrack/conjunctions/`: `c-window/c-threshold/c-run/c-cancel/c-status/
+    c-list/c-progress` exist there (no `conj-hud*` on either page), and that
+    page's `__spacetrack` still exposes `runScreen/addObjects/screener/
+    lastScreen/clearRendered/render/openDossier/closeDossier` — the gate needs
+    a `page.goto('/spacetrack/conjunctions/')` + selector updates, plus the
+    slot-mate exclusivity check (`signal-hud-toggle.click()` at
+    `test_orbit.py:609` crashes the suite on null — that crash is why
+    `brief_gate` status is still unknown). **S14's battery repair must include
+    this.**
+- **Handoff's `(clampToGround: true)` for the past arc conflicts with plan 35
+  §2** — the plan's code sketch (kind `'orbit'`, `ArcType.NONE`, no clamp)
+  won; the past arc is a dashed arc at orbital altitude, verified
+  `PolylineDash/clamp=undefined/pts=31`. S13 should discriminate past-orbit
+  from ground track by material type + `clampToGround !== true`, not by
+  clamping.
+- **Headless probes on this box**: `instanceof Cesium.PolylineDashMaterialProperty`
+  reads are unreliable against the CDN build (minified constructor names);
+  `material.getType()` (`'PolylineDash'`/`'PolylineGlow'`) is the reliable
+  discriminator.
