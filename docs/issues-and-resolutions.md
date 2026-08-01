@@ -3,6 +3,17 @@
 Running log of bugs and their resolutions. Newest day on top. One row per issue:
 Issue | Root Cause | Resolution | Commit.
 
+## 2026-08-01 (plan 36 — admin dashboard deploy)
+
+| Issue | Root Cause | Resolution | Commit |
+|---|---|---|---|
+| Every admin endpoint answered **200** in production — wrong password, expired session and misconfiguration were indistinguishable from success, so the login form never appeared and session expiry was invisible | `adminJson(body, {status})` took an options object while all call sites passed the status positionally (`adminJson({error}, 401)`); the ignored options object left every response HTTP 200 | Positional `adminJson(body, status, extraHeaders)`; status semantics guarded in `admin.test.mjs` (default 200, positional 401/400/503). Verified on prod: wrong-pw 401, no-cookie 401, guard 400, login+query 200 | `75d3ee93` |
+| Admin health panel read **0 payloads / 0 debris** against an 18,393-payload / 10,084-debris catalog | `health.js` filtered `OBJECT_TYPE = 'Payload'` (title case); Space-Track stores uppercase (`PAYLOAD`/`DEBRIS`/`ROCKET BODY`) and derive.js's group definitions use uppercase — the admin query had drifted from the ingest's casing and matched nothing | Uppercase literals; guardrail test reads `health.js` source and fails on title case (written red on the real bug first) | `e335604b` |
+| The dev password `orbital-relay-admin-2026` authenticated against production (`{"ok":true}`) on deploy day | The live project's `ADMIN_PASSWORD` had never been updated — earlier `wrangler pages secret put` attempts predated the 2026-08-01 project-name verification (`orbit-relay-web` vs the stale `signal-playground` / inert `orbit-relay`), and the "10 min of propagation lag" was actually the put landing elsewhere | Secrets re-put on `--project-name orbit-relay-web`; propagation verified in ~2 min (old password then 401, `.dev.vars` value 200). **User chose to keep the old dev identity — no reset** | `75d3ee93` |
+| `login`/`logout` responses lacked the `X-Data-Source` citation every other response carries | They built raw `Response` objects instead of going through `adminJson` | `adminJson` gained `extraHeaders`; login/logout pass `Set-Cookie` through it | `75d3ee93` |
+| `/api/admin/runs` would have 500'd ("no such table") and visitors always returned 0 in production | The plan-36 migration (`page_views` + `ingest_runs`) had never been applied remotely | `wrangler d1 execute orbit-catalog --remote --file d1/orbit.sql` (additive `IF NOT EXISTS`); both tables verified present | n/a (ops) |
+| `health.js` read the R2 artifact age from `obj.metadata` (a promise, always `undefined`) | `await obj.metadata` — R2's `metadata` is not a promise; the ingest writes the timestamp as `customMetadata.generated` | `obj.customMetadata?.generated`; `unknown` until the next daily artifact build writes it | `75d3ee93` |
+
 ## 2026-07-28 (plan 33 wave 6 — the daily brief)
 
 | Issue | Root Cause | Resolution | Commit |
