@@ -1,4 +1,4 @@
-import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud } from '../../orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../../orbit-engine/sat-engine.js';
 import { State } from './state.js';
 
 Cesium.Ion.defaultAccessToken =
@@ -87,20 +87,23 @@ export function initTimeWarpButtons(container) {
             <button class="tw-btn" data-rate="60" title="60× speed">60×</button>
             <button class="tw-btn" data-rate="600" title="600× speed">600×</button>
         </div>
+        <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
         <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     `;
     if (viewer) mountCameraAltitudeHud(viewer, container.querySelector('#cam-alt'));
-    document.querySelectorAll('.tw-btn').forEach(btn => {
+    const recenterBtn = container.querySelector('#recenter-btn');
+    if (recenterBtn) recenterBtn.addEventListener('click', () => { if (viewer) flyHome(viewer); });
+    document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
         btn.addEventListener('click', () => {
             const rate = Number(btn.dataset.rate);
             setTimeRate(rate);
-            document.querySelectorAll('.tw-btn').forEach(b => b.classList.toggle('tw-btn--active', b === btn));
+            document.querySelectorAll('.tw-btn[data-rate]').forEach(b => b.classList.toggle('tw-btn--active', b === btn));
         });
     });
     const savedRate = State.get('time.rate');
     if (savedRate != null) {
         setTimeRate(savedRate);
-        document.querySelectorAll('.tw-btn').forEach(b => b.classList.toggle('tw-btn--active', Number(b.dataset.rate) === savedRate));
+        document.querySelectorAll('.tw-btn[data-rate]').forEach(b => b.classList.toggle('tw-btn--active', Number(b.dataset.rate) === savedRate));
     }
 }
 

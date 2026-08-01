@@ -108,6 +108,28 @@ function tuneCameraLimits(viewer) {
     controller.enableInputs = true;
 }
 
+/** The same top-down framing every page boots into — see the `setView` calls
+ *  in orbital-relay.js / globe.js / starlink.js. Kept here too so `flyHome`
+ *  has a default that matches "home" without a caller having to repeat it. */
+const HOME_DESTINATION = Cesium.Cartesian3.fromDegrees(20, 25, 40000000);
+
+/**
+ * Recenter the globe: fly back to a fixed top-down destination with a level
+ * heading/pitch/roll, undoing whatever rotate/tilt/zoom drag left the camera
+ * at. This is the "recenter" button's handler, not a drag gesture — dragging
+ * a 3D perspective camera to *translate* it has no built-in Cesium support
+ * (`translateEventTypes` only applies in 2D/Columbus view), and hand-rolling
+ * one would fight the default rotate-drag every page already relies on to
+ * look at other longitudes.
+ */
+export function flyHome(viewer, { destination = HOME_DESTINATION, duration = 1.2 } = {}) {
+    viewer.camera.flyTo({
+        destination,
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+        duration,
+    });
+}
+
 /**
  * Mounts a live "camera altitude above the surface, in km" readout into
  * `el` and keeps it in sync with `viewer.camera.changed`. Altitude (not

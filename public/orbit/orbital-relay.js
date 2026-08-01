@@ -15,7 +15,7 @@
  * animated orbit trails, constellation pulse FX.
  */
 
-import { SatEngine, SatPoint, tuneViewerForDevice, mountCameraAltitudeHud } from '../orbit-engine/sat-engine.js';
+import { SatEngine, SatPoint, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../orbit-engine/sat-engine.js';
 import { parseTLE, parseTLEChunked, fetchTLE } from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
@@ -352,7 +352,7 @@ clickHandler.setInputAction((movement) => {
 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 /* ── Time-warp controls ────────────────────────────────────────────────── */
-document.querySelectorAll('.tw-btn').forEach(btn => {
+document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
     btn.addEventListener('click', () => {
         const rate = parseInt(btn.dataset.rate, 10);
         if (rate === 0) {
@@ -361,10 +361,13 @@ document.querySelectorAll('.tw-btn').forEach(btn => {
             clock.shouldAnimate = true;
             clock.multiplier    = rate;
         }
-        document.querySelectorAll('.tw-btn').forEach(b =>
+        document.querySelectorAll('.tw-btn[data-rate]').forEach(b =>
             b.classList.toggle('tw-btn--active', b === btn));
     });
 });
+
+/* ── Recenter ───────────────────────────────────────────────────────────── */
+document.getElementById('recenter-btn')?.addEventListener('click', () => flyHome(viewer));
 
 /* ── Fly-to cinematics ─────────────────────────────────────────────────── */
 function introFlyIn() {
