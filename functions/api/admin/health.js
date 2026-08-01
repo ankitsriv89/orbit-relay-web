@@ -13,12 +13,15 @@ export async function onRequest(context) {
   } catch (_) { results.objects = null; }
 
   try {
-    const r = await db.prepare("SELECT COUNT(*) AS n FROM objects WHERE OBJECT_TYPE = 'Payload'").first();
+    // Space-Track stores these uppercase (PAYLOAD / DEBRIS / ROCKET BODY) —
+    // derive.js's group definitions agree. Title case matched nothing and
+    // read 0 against an 18k-payload catalog; admin.test.mjs guards the casing.
+    const r = await db.prepare("SELECT COUNT(*) AS n FROM objects WHERE OBJECT_TYPE = 'PAYLOAD'").first();
     results.payloads = r?.n ?? 0;
   } catch (_) { results.payloads = null; }
 
   try {
-    const r = await db.prepare("SELECT COUNT(*) AS n FROM objects WHERE OBJECT_TYPE = 'Debris'").first();
+    const r = await db.prepare("SELECT COUNT(*) AS n FROM objects WHERE OBJECT_TYPE = 'DEBRIS'").first();
     results.debris = r?.n ?? 0;
   } catch (_) { results.debris = null; }
 

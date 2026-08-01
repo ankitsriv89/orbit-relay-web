@@ -8,6 +8,7 @@
  * Auth round-trip, tampered sig, expired token, wrong secret all tested.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { nextRun, nextDue, ACTIONS_CRONS } from '../../../public/admin/cron.js';
 
 // ── Inline the functions under test (they are pure, no bindings needed) ────
@@ -385,6 +386,18 @@ await testAsync('wrong password fails', async () => {
 });
 
 console.log('\n-- next-due cron (plan 36 §5) --');
+
+test('health.js queries OBJECT_TYPE with canonical uppercase values', () => {
+  // Space-Track stores PAYLOAD / DEBRIS / ROCKET BODY uppercase (derive.js
+  // groups agree). Title case in health.js matched nothing — the panel read
+  // 0 payloads / 0 debris against an 18k-payload catalog.
+  const src = readFileSync(new URL('../../../functions/api/admin/health.js', import.meta.url), 'utf8');
+  for (const lit of ['PAYLOAD', 'DEBRIS']) {
+    assert.ok(src.includes(`OBJECT_TYPE = '${lit}'`), `health.js must query '${lit}' (uppercase)`);
+  }
+  assert.ok(!src.includes("OBJECT_TYPE = 'Payload'"), 'title-case Payload query must not return');
+  assert.ok(!src.includes("OBJECT_TYPE = 'Debris'"), 'title-case Debris query must not return');
+});
 
 test('the Actions crons are the documented schedule', () => {
   assert.deepEqual(ACTIONS_CRONS.map(c => c.cron), ['17 */6 * * *', '35 17 * * *', '40 17 * * 3']);
