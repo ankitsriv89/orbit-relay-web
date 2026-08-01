@@ -27,9 +27,16 @@
 <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
+    <div class="ticker" id="ticker" aria-label="Live catalog updates" role="marquee" hidden>
+        <div class="ticker__track" id="ticker-track"></div>
+    </div>
+
     <header class="site-header">
         <div class="site-header__inner">
-            <span class="wordmark">ORBITAL<span class="wordmark__accent">·</span>RELAY</span>
+            <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                <img src="/icons/logo.png" alt="" width="28" height="28" class="wordmark__logo">
+                ORBITAL<span class="wordmark__accent">·</span>RELAY
+            </a>
             <a class="header-cta" href="/orbit/">LAUNCH →</a>
         </div>
     </header>
@@ -46,8 +53,8 @@
                     of them.
                 </p>
                 <div class="hero__actions">
-                    <a href="/orbit/" class="btn btn--primary">Launch Orbital Relay</a>
-                    <a href="/spacetrack/" class="btn btn--ghost">Browse the catalog</a>
+                    <a href="/orbit/" class="btn btn--primary">Explore CelesTrak →</a>
+                    <a href="/spacetrack/" class="btn btn--ghost">Browse Space-Track →</a>
                 </div>
             </div>
         </section>
@@ -160,12 +167,51 @@
 
     <footer class="site-footer">
         <div class="site-footer__inner">
-            <p>Built on CesiumJS, Space-Track.org and CelesTrak. No build step, no bundler
-               — what ships is what runs.</p>
-            <p class="site-footer__meta">© 2026 Orbital Relay</p>
+            <div class="site-footer__grid">
+                <div class="site-footer__brand">
+                    <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                        <img src="/icons/logo.png" alt="" width="24" height="24" class="wordmark__logo">
+                        ORBITAL<span class="wordmark__accent">·</span>RELAY
+                    </a>
+                    <p class="site-footer__tagline">Every tracked object in orbit, rendered live.</p>
+                </div>
+
+                <nav class="site-footer__col" aria-labelledby="footer-views">
+                    <h3 id="footer-views">Views</h3>
+                    <ul>
+                        <li><a href="/orbit/">Orbital Relay</a></li>
+                        <li><a href="/spacetrack/">Space-Track Catalog</a></li>
+                        <li><a href="/spacetrack/signal/">Signal</a></li>
+                        <li><a href="/starlink/">Starlink Constellation</a></li>
+                    </ul>
+                </nav>
+
+                <nav class="site-footer__col" aria-labelledby="footer-intel">
+                    <h3 id="footer-intel">Intelligence</h3>
+                    <ul>
+                        <li><a href="/spacetrack/conjunctions/">Conjunctions</a></li>
+                        <li><a href="/spacetrack/brief/">Daily Brief</a></li>
+                        <li><a href="/spacetrack/analytics/">Analytics</a></li>
+                    </ul>
+                </nav>
+
+                <div class="site-footer__col">
+                    <h3>Data sources</h3>
+                    <ul>
+                        <li><a href="https://www.space-track.org" target="_blank" rel="noopener">Space-Track.org ↗</a></li>
+                        <li><a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak ↗</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="site-footer__bottom">
+                <p>Built on CesiumJS, Space-Track.org and CelesTrak. No build step, no bundler
+                   — what ships is what runs.</p>
+                <p class="site-footer__meta">© 2026 Orbital Relay · Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron), redistributed under USSPACECOM express blanket approval for basic SSA data, plus CelesTrak GP element sets.</p>
+            </div>
         </div>
     </footer>
 
-    <script src="/js/landing.js"></script>
+    <script type="module" src="/js/landing.js"></script>
 </body>
 </html>

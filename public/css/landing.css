@@ -53,6 +53,81 @@ a {
     top: calc(1rem + var(--sa-top));
 }
 
+/* ── Ticker ────────────────────────────────────────────────────────────── */
+/* Fixed above the sticky header; hides on scroll-down, reveals on
+   scroll-up (handled in landing.js). body padding-top compensates so
+   content never sits under it — see .ticker-space below. */
+.ticker {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 22;
+    overflow: hidden;
+    white-space: nowrap;
+    background: var(--c-void);
+    border-bottom: 1px solid var(--c-line);
+    padding-top: var(--sa-top);
+    transition: transform 0.25s ease;
+}
+
+.ticker[hidden] {
+    display: none;
+}
+
+.ticker.ticker--hidden {
+    transform: translateY(-100%);
+}
+
+body.ticker-space {
+    padding-top: var(--ticker-h, 0px);
+}
+
+.ticker__track {
+    display: inline-flex;
+    align-items: center;
+    gap: 3rem;
+    padding: 0.55rem 1.5rem;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    letter-spacing: 0.03em;
+    color: var(--c-signal);
+    animation: ticker-scroll 38s linear infinite;
+    will-change: transform;
+}
+
+.ticker.ticker--paused .ticker__track {
+    animation-play-state: paused;
+}
+
+.ticker__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--c-text-dim);
+}
+
+.ticker__item strong {
+    color: var(--c-signal);
+    font-weight: 700;
+}
+
+.ticker__dot {
+    color: var(--c-line);
+}
+
+@keyframes ticker-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticker__track {
+        animation: none;
+        overflow-x: auto;
+    }
+}
+
 /* ── Header ────────────────────────────────────────────────────────────── */
 .site-header {
     position: sticky;
@@ -62,6 +137,7 @@ a {
     background: rgba(5, 8, 16, 0.72);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--c-line);
+    transition: transform 0.25s ease;
 }
 
 .site-header__inner {
@@ -74,9 +150,21 @@ a {
 }
 
 .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     font-size: 0.95rem;
+    text-decoration: none;
+    color: var(--c-text);
+}
+
+.wordmark__logo {
+    display: block;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
 }
 
 .wordmark__accent {
@@ -346,16 +434,69 @@ a {
 /* ── Footer ────────────────────────────────────────────────────────────── */
 .site-footer {
     padding-bottom: var(--sa-bottom);
+    border-top: 1px solid var(--c-line);
+    background: var(--c-panel);
 }
 
 .site-footer__inner {
     max-width: 1100px;
     margin: 0 auto;
-    padding: 2rem 1.5rem 3rem;
-    text-align: center;
-    font-size: 0.78rem;
+    padding: 3rem 1.5rem 2rem;
+    font-size: 0.82rem;
     color: var(--c-text-dim);
     line-height: 1.6;
+}
+
+.site-footer__grid {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(3, 1fr);
+    gap: 2rem;
+    text-align: left;
+    padding-bottom: 2.25rem;
+}
+
+.site-footer__brand .wordmark {
+    font-size: 0.95rem;
+}
+
+.site-footer__tagline {
+    margin-top: 0.75rem;
+    max-width: 30ch;
+    color: var(--c-text-dim);
+}
+
+.site-footer__col h3 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-text);
+    margin-bottom: 0.9rem;
+}
+
+.site-footer__col ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.site-footer__col a {
+    text-decoration: none;
+    color: var(--c-text-dim);
+    transition: color 0.15s ease;
+}
+
+.site-footer__col a:hover,
+.site-footer__col a:focus-visible {
+    color: var(--c-signal);
+}
+
+.site-footer__bottom {
+    border-top: 1px solid var(--c-line);
+    padding-top: 1.5rem;
+    text-align: center;
+    font-size: 0.76rem;
 }
 
 .site-footer__meta {
@@ -389,6 +530,15 @@ a {
     .hero {
         padding-top: calc(2.5rem + var(--sa-top));
     }
+
+    .site-footer__grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem 1.5rem;
+    }
+
+    .site-footer__brand {
+        grid-column: 1 / -1;
+    }
 }
 
 @media (max-width: 480px) {
@@ -398,5 +548,15 @@ a {
 
     .btn {
         width: 100%;
+    }
+
+    .ticker__track {
+        animation-duration: 22s;
+        font-size: 0.68rem;
+        gap: 2rem;
+    }
+
+    .site-footer__grid {
+        grid-template-columns: 1fr;
     }
 }

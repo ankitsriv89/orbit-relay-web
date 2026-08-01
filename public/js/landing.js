@@ -1,8 +1,10 @@
-// Landing page: hero starfield + live catalog stat strip.
+// Landing page: hero 3D backdrop + live catalog stat strip + ticker.
+
+import { initHeroScene } from './hero-scene.js';
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ── Hero starfield ────────────────────────────────────────────────────── */
+/* ── Hero 2D starfield (fallback for reduced-motion-off but WebGL2-less browsers) ── */
 function initStarfield() {
     const canvas = document.getElementById('hero-canvas');
     if (!canvas || reduceMotion) return;
@@ -80,8 +82,16 @@ function fmtAge(iso) {
     return `${Math.round(hrs / 24)}d ago`;
 }
 
+const STATIC_FALLBACK = {
+    tracked: '28,000+',
+    payloads: '11,000+',
+    debris: '15,000+',
+    updated: 'daily',
+};
+
 async function loadStats() {
     const noteEl = document.getElementById('stat-strip-note');
+    let showNote = false;
     try {
         const res = await fetch('/api/summary');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -93,25 +103,152 @@ async function loadStats() {
         const debris = data.by_type && data.by_type.DEBRIS;
         const updatedAt = data.last_elset_ingest || data.generated_at;
 
-        document.getElementById('stat-tracked').textContent = fmtCount(tracked);
-        document.getElementById('stat-payloads').textContent = fmtCount(payloads);
-        document.getElementById('stat-debris').textContent = fmtCount(debris);
-        document.getElementById('stat-updated').textContent = fmtAge(updatedAt);
+        document.getElementById('stat-tracked').textContent = fmtCount(tracked) !== '—' ? fmtCount(tracked) : STATIC_FALLBACK.tracked;
+        document.getElementById('stat-payloads').textContent = fmtCount(payloads) !== '—' ? fmtCount(payloads) : STATIC_FALLBACK.payloads;
+        document.getElementById('stat-debris').textContent = fmtCount(debris) !== '—' ? fmtCount(debris) : STATIC_FALLBACK.debris;
+        document.getElementById('stat-updated').textContent = fmtAge(updatedAt) !== '—' ? fmtAge(updatedAt) : STATIC_FALLBACK.updated;
 
-        if (data.stale && noteEl) {
-            noteEl.hidden = false;
-        }
+        showNote = Boolean(data.stale) || !payloads || !debris || !updatedAt;
     } catch (err) {
         console.warn('[landing] /api/summary unavailable, showing static copy:', err);
-        document.getElementById('stat-tracked').textContent = '28,000+';
-        document.getElementById('stat-payloads').textContent = '11,000+';
-        document.getElementById('stat-debris').textContent = '15,000+';
-        document.getElementById('stat-updated').textContent = 'daily';
-        if (noteEl) noteEl.hidden = false;
+        document.getElementById('stat-tracked').textContent = STATIC_FALLBACK.tracked;
+        document.getElementById('stat-payloads').textContent = STATIC_FALLBACK.payloads;
+        document.getElementById('stat-debris').textContent = STATIC_FALLBACK.debris;
+        document.getElementById('stat-updated').textContent = STATIC_FALLBACK.updated;
+        showNote = true;
     }
+    if (noteEl) noteEl.hidden = !showNote;
+}
+
+/* ── Live ticker ───────────────────────────────────────────────────────── */
+// Each item is [prefix, strongText, suffix] — all rendered via textContent,
+// never innerHTML, since strongText/prefix/suffix can carry API-derived
+// strings (satellite names, brief narrative) that must not be parsed as markup.
+function makeTickerItem(parts) {
+    const item = document.createElement('span');
+    item.className = 'ticker__item';
+    for (const part of parts) {
+        if (part.strong) {
+            const strong = document.createElement('strong');
+            strong.textContent = part.strong;
+            item.appendChild(strong);
+        } else {
+            item.appendChild(document.createTextNode(part.text));
+        }
+    }
+    const dot = document.createElement('span');
+    dot.className = 'ticker__dot';
+    dot.textContent = '◆';
+
+    const frag = document.createDocumentFragment();
+    frag.appendChild(item);
+    frag.appendChild(dot);
+    return frag;
+}
+
+async function buildTickerItems() {
+    const items = [];
+
+    try {
+        const res = await fetch('/api/summary');
+        if (res.ok) {
+            const data = await res.json();
+            if (data.tracked) {
+                items.push([{ strong: fmtCount(data.tracked) }, { text: ' objects tracked' }]);
+            }
+            const debris = data.by_type && data.by_type.DEBRIS;
+            if (debris) items.push([{ strong: fmtCount(debris) }, { text: ' tracked debris' }]);
+        }
+    } catch (_) { /* ticker degrades silently — the stat strip already surfaces the failure */ }
+
+    try {
+        const res = await fetch('/api/decay-watch?limit=1');
+        if (res.ok) {
+            const data = await res.json();
+            const next = data.watch && data.watch[0];
+            if (next && next.days_until != null) {
+                const when = next.days_until <= 0 ? 'imminent' : `in ~${next.days_until}d`;
+                items.push([
+                    { text: 'Next predicted reentry: ' },
+                    { strong: next.name },
+                    { text: ` ${when}` },
+                ]);
+            }
+        }
+    } catch (_) { /* optional ticker content */ }
+
+    try {
+        const res = await fetch('/api/brief');
+        if (res.ok) {
+            const data = await res.json();
+            if (data.available && data.narrative) {
+                items.push([{ text: 'Daily brief: ' }, { text: data.narrative }]);
+            }
+        }
+    } catch (_) { /* optional ticker content */ }
+
+    if (items.length === 0) {
+        items.push([{ text: 'Live satellite catalog intelligence — Space-Track.org & CelesTrak' }]);
+    }
+
+    return items;
+}
+
+async function initTicker() {
+    const ticker = document.getElementById('ticker');
+    const track = document.getElementById('ticker-track');
+    if (!ticker || !track) return;
+
+    const items = await buildTickerItems();
+    // Duplicate the sequence so the CSS scroll (translateX -50%) loops seamlessly.
+    track.textContent = '';
+    for (const parts of [...items, ...items]) {
+        track.appendChild(makeTickerItem(parts));
+    }
+    ticker.hidden = false;
+
+    function syncSpace() {
+        document.body.classList.add('ticker-space');
+        document.body.style.setProperty('--ticker-h', `${ticker.offsetHeight}px`);
+    }
+    syncSpace();
+    window.addEventListener('resize', syncSpace, { passive: true });
+
+    if (reduceMotion) return; // static, non-scrolling ticker is enough motion-wise
+
+    let lastY = window.scrollY;
+    let hidden = false;
+    window.addEventListener('scroll', () => {
+        const y = window.scrollY;
+        const goingDown = y > lastY && y > ticker.offsetHeight;
+        if (goingDown && !hidden) {
+            ticker.classList.add('ticker--hidden');
+            document.body.style.setProperty('--ticker-h', '0px');
+            hidden = true;
+        } else if (!goingDown && hidden) {
+            ticker.classList.remove('ticker--hidden');
+            document.body.style.setProperty('--ticker-h', `${ticker.offsetHeight}px`);
+            hidden = false;
+        }
+        lastY = y;
+    }, { passive: true });
+}
+
+function initHero() {
+    if (reduceMotion) return;
+    const canvas = document.getElementById('hero-canvas');
+    if (!canvas) return;
+    let scene = null;
+    try {
+        scene = initHeroScene(canvas);
+    } catch (err) {
+        console.warn('[landing] hero WebGL scene failed, falling back to 2D starfield:', err);
+    }
+    if (!scene) initStarfield();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    initStarfield();
+    initHero();
     loadStats();
+    initTicker();
 });
