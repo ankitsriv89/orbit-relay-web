@@ -27,9 +27,14 @@
       sat-engine.js `addInspectVisuals` and run `python3 tests/e2e/test_orbit.py
       --no-mobile` against `python3 tests/e2e/serve.py 8932` — expect the one
       ground-track check to fail.
-- [ ] **S2 Engine span**: propagate.worker.js `path()` (:144) takes signed
-      `{start, span, steps}`; sat-engine.js `_samplePath()` (:281),
-      `computeOrbitPath`, `requestPath`, `workerPath` propagate span. Inert until S3.
+- [x] **S2 Engine span** (commit `61dca213`): propagate.worker.js `path()`
+      and sat-engine.js `_samplePath()` take signed `spanFrom`/`spanTo` in
+      revolutions (default `0..1` — inert for every existing caller); vertex
+      count scales `Math.round(|span|·steps)` clamped to 480, so multi-rev
+      resolution stays constant; `computeOrbitPath`, `computeGroundTrack`,
+      `requestPath`, `workerPath` forward the span to both the worker message
+      and the sync fallback. `npm test` green (65/65 syntax, 53 files resolve,
+      60/60 orbit-ingest).
 - [ ] **S3 Past orbit + revs**: `addInspectVisuals` (sat-engine.js:527) takes
       `{revs}` — past-orbit polyline (`clampToGround: true`, faded) + future path
       extended to `revs` periods; `steps` scales with span so resolution is
