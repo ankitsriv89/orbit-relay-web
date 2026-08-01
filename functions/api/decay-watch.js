@@ -14,7 +14,7 @@
 // `UNOFFICIAL — NOT FOR COLLISION AVOIDANCE`. This list carries no such badge
 // because it redistributes an upstream prediction rather than deriving one.
 
-import { json, preflight, requireDb, withCitation, parseEpochUTC } from './_catalog.js';
+import { json, preflight, requireDb, withCitation, parseEpochUTC, clamp } from './_catalog.js';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -93,5 +93,3 @@ export async function onRequest(context) {
     watch,
   }), { maxAge: 300 });
 }
-
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));

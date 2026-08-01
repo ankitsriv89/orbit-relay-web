@@ -19,6 +19,3 @@ export const CITATION =
   'Redistributed under USSPACECOM express blanket approval for basic SSA data.';
 
 export const CITATION_HEADER = 'X-Data-Source';
-
-/** Headers every Space-Track-derived response carries. */
-export const citationHeaders = () => ({ [CITATION_HEADER]: CITATION });

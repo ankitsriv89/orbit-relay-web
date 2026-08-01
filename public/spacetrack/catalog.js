@@ -3,14 +3,16 @@
  * 3D Cesium Globe + Filters + Results + Object Dossier
  */
 
-import { orbVel, fmtLat, fmtLon } from '../orbit-engine/astro.js';
+import { createDossier } from '/shared/dossier.js';
 import { initGlobe, initTimeWarpButtons } from './shared/globe.js';
 import { State } from './shared/state.js';
-import { API, getApiBase } from './shared/api.js';
+import { API } from './shared/api.js';
 import { wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds } from '/shared/hud.js';
+import { regimeSize } from './shared/utils.js';
 import {
-    TYPE_COLORS, COUNTRY_COLORS, colorForRow, regimeSize, colorForCountry,
-} from './shared/utils.js';
+    TYPE_COLORS, COUNTRY_COLORS, CB_TYPE_COLORS, CB_COUNTRY_COLORS,
+    colorForRow, colorForCountry,
+} from '/theme/palette.js';
 
 const RENDER_CAP = 500;
 
@@ -43,34 +45,6 @@ initFilterDrawer();
 
 /* ── Color mode (type vs country) ─────────────────────────────────────────── */
 let colorMode = State.get('preferences.colorMode') || 'type';
-
-/* ── Colorblind-safe palette ─────────────────────────────────────────────── */
-const CB_TYPE_COLORS = {
-    'PAYLOAD':     '#56B4E9',  // sky blue
-    'ROCKET BODY': '#E69F00',  // orange
-    'DEBRIS':      '#CC79A7',  // reddish purple
-    'UNKNOWN':     '#999999',  // grey
-};
-const CB_COUNTRY_COLORS = {
-    'US': '#56B4E9',   // sky blue
-    'RU': '#D55E00',   // vermillion
-    'CN': '#E69F00',   // orange
-    'GB': '#0072B2',   // blue
-    'FR': '#009E73',   // bluish green
-    'JP': '#CC79A7',   // reddish purple
-    'IN': '#F0E442',   // yellow
-    'KR': '#56B4E9',   // sky blue
-    'DE': '#999999',   // grey
-    'IT': '#009E73',   // bluish green
-    'CA': '#D55E00',   // vermillion
-    'AU': '#E69F00',   // orange
-    'BR': '#009E73',   // bluish green
-    'ESA': '#0072B2',  // blue
-    'ISRAEL': '#0072B2',
-    'UAE': '#56B4E9',
-    'TS': '#CC79A7',
-    'OR': '#CC79A7',
-};
 
 function effectiveTypeColors() { return colorMode === 'cb' ? CB_TYPE_COLORS : TYPE_COLORS; }
 function effectiveCountryColors() { return colorMode === 'cb' ? CB_COUNTRY_COLORS : COUNTRY_COLORS; }
@@ -435,9 +409,7 @@ async function loadFeed() {
     const list = $('feed-list');
     const hint = $('feed-hint');
     try {
-        const r = await fetch(`${getApiBase()}/feed?limit=30`);
-        if (!r.ok) throw new Error(`feed ${r.status}`);
-        const f = await r.json();
+        const f = await API.feed(30);
         const events = f.events || [];
         if (!list) return;
         list.textContent = '';
@@ -468,9 +440,7 @@ async function loadDecayWatch() {
     const list = $('decay-list');
     const hint = $('decay-hint');
     try {
-        const r = await fetch(`${getApiBase()}/decay-watch?limit=20`);
-        if (!r.ok) throw new Error(`decay-watch ${r.status}`);
-        const d = await r.json();
+        const d = await API.decayWatch(20);
         const watch = d.watch || [];
         if (!list) return;
         list.textContent = '';
@@ -504,9 +474,7 @@ async function loadBoxscore() {
     const bars = $('boxscore-bars');
     const hint = $('boxscore-hint');
     try {
-        const r = await fetch(`${getApiBase()}/boxscore`);
-        if (!r.ok) throw new Error(`boxscore ${r.status}`);
-        const b = await r.json();
+        const b = await API.boxscore();
         const countries = (b.countries || []).slice(0, 10);
         if (!bars) return;
         bars.textContent = '';
@@ -607,9 +575,7 @@ async function render() {
 
     let data;
     try {
-        const r = await fetch(`${getApiBase()}/search?${lastQuery}`);
-        if (!r.ok) throw new Error(`search ${r.status}`);
-        data = await r.json();
+        data = await API.search(Object.fromEntries(params));
     } catch (err) {
         console.warn('[catalog] search failed:', err);
         status('query failed');
@@ -719,167 +685,8 @@ $('f-reset').addEventListener('click', () => {
 $('f-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') render(); });
 
 /* ── Dossier ──────────────────────────────────────────────────────────────── */
-const dossier = $('dossier');
-const dossierClose = $('dossier-close');
-let dossierVisuals = null;
-let dossierTimer = null;
-let dossierSatrec = null;
-
-/* ── Tier 1.4: Orbit trail ───────────────────────────────────────────────── */
-const TRAIL_MAX = 60;            // max positions in the trail
-const TRAIL_STEP_MS = 2000;      // ms between trail samples
-let trailPositions = [];
-let trailEntity = null;
-let trailTimer = null;
-
-function updateTrail() {
-    if (!dossierSatrec) return;
-    const p = engine.geo(dossierSatrec);
-    if (!p) return;
-    trailPositions.push(Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt * 1000));
-    if (trailPositions.length > TRAIL_MAX) trailPositions.shift();
-    if (trailPositions.length < 2) return;
-
-    if (trailEntity) viewer.entities.remove(trailEntity);
-    // Build a polyline with decreasing alpha for older points
-    const alphas = trailPositions.map((_, i) => 0.05 + 0.55 * (i / trailPositions.length));
-    // Draw as a single polyline with a gradient material (Cesium doesn't support per-vertex alpha on polylines,
-    // so we draw a single solid trail with a low alpha for simplicity)
-    trailEntity = viewer.entities.add({
-        polyline: {
-            positions: trailPositions,
-            width: 1.5,
-            material: new Cesium.PolylineGlowMaterialProperty({
-                glowPower: 0.2,
-                color: Cesium.Color.CYAN.withAlpha(0.35),
-            }),
-            arcType: Cesium.ArcType.NONE,
-        },
-    });
-    engine.requestRender();
-}
-
-function startTrail() {
-    trailPositions = [];
-    if (trailTimer) clearInterval(trailTimer);
-    trailTimer = engine.own(setInterval(updateTrail, TRAIL_STEP_MS));
-    updateTrail();
-}
-
-function stopTrail() {
-    if (trailTimer) { clearInterval(trailTimer); trailTimer = null; }
-    if (trailEntity) { viewer.entities.remove(trailEntity); trailEntity = null; }
-    trailPositions = [];
-}
-
-function closeDossier() {
-    engine.removeEntities(dossierVisuals);
-    dossierVisuals = null;
-    dossierSatrec = null;
-    stopTrail();
-    if (dossierTimer) { clearInterval(dossierTimer); dossierTimer = null; }
-    if (dossier) dossier.hidden = true;
-}
-dossierClose?.addEventListener('click', closeDossier);
-
-async function openDossier(norad, meta) {
-    if (!dossier || norad == null) return;
-    dossier.hidden = false;
-    setText('dossier-status', 'loading…');
-
-    if (meta?.satrec) {
-        State.set('selectedObject', {
-            norad: meta.norad,
-            name: meta.name,
-            type: meta.group,
-            regime: meta.row?.regime || '',
-            l1: meta.l1,
-            l2: meta.l2,
-        });
-        dossierSatrec = meta.satrec;
-        engine.removeEntities(dossierVisuals);
-        dossierVisuals = engine.addInspectVisuals(meta, '#ffffff');
-        setText('dossier-name', `// ${meta.name}`);
-        refreshLive();
-        if (dossierTimer) clearInterval(dossierTimer);
-        dossierTimer = engine.own(setInterval(refreshLive, 1000));
-        startTrail();
-    }
-
-    let data;
-    try {
-        const r = await fetch(`${getApiBase()}/object/${encodeURIComponent(norad)}`);
-        if (!r.ok) throw new Error(String(r.status));
-        data = await r.json();
-    } catch (err) {
-        setText('dossier-status', `catalog record unavailable (${err.message})`);
-        return;
-    }
-
-    const o = data.object;
-    setText('dossier-name', `// ${o.OBJECT_NAME || 'UNNAMED'}`);
-    setText('dossier-designator', o.OBJECT_ID || '—');
-    setText('d-norad', o.NORAD_CAT_ID);
-    setText('d-type', o.OBJECT_TYPE || '—');
-    setText('d-country', o.COUNTRY_CODE || '—');
-    setText('d-launch', o.LAUNCH_DATE || '—');
-    setText('d-site', o.SITE || o.satcat_site || '—');
-    setText('d-rcs', o.RCS_SIZE ? `${o.RCS_SIZE}${o.satcat_rcs_m2 ? ` · ${o.satcat_rcs_m2} m²` : ''}` : '—');
-    setText('d-regime', o.regime || '—');
-    setText('d-period', o.PERIOD != null ? `${Number(o.PERIOD).toFixed(1)} min` : '—');
-    setText('d-apogee', o.apogee_km != null ? `${Math.round(o.apogee_km)} km` : '—');
-    setText('d-perigee', o.perigee_km != null ? `${Math.round(o.perigee_km)} km` : '—');
-    setText('d-incl', o.INCLINATION != null ? `${Number(o.INCLINATION).toFixed(2)}°` : '—');
-    setText('d-epoch', relTime(o.EPOCH));
-
-    if (!dossierSatrec && o.TLE_LINE1 && o.TLE_LINE2) {
-        try {
-            const satrec = satellite.twoline2satrec(o.TLE_LINE1, o.TLE_LINE2);
-            dossierSatrec = satrec;
-            dossierVisuals = engine.addInspectVisuals({ satrec, l1: o.TLE_LINE1, l2: o.TLE_LINE2 }, '#ffffff');
-            refreshLive();
-            if (dossierTimer) clearInterval(dossierTimer);
-            dossierTimer = engine.own(setInterval(refreshLive, 1000));
-            startTrail();
-        } catch (_) { }
-    }
-
-    State.set('selectedObject', {
-        norad: o.NORAD_CAT_ID,
-        name: o.OBJECT_NAME,
-        type: o.OBJECT_TYPE,
-        regime: o.regime || '',
-        l1: o.TLE_LINE1,
-        l2: o.TLE_LINE2,
-    });
-
-    const decayEl = $('dossier-decay');
-    if (decayEl) {
-        const next = (data.decay || [])[0];
-        decayEl.hidden = !next && !o.DECAY_DATE;
-        if (o.DECAY_DATE) {
-            decayEl.textContent = `DECAYED ${o.DECAY_DATE}`;
-            decayEl.className = 'st-dossier__decay st-dossier__decay--done';
-        } else if (next) {
-            decayEl.textContent = `REENTRY PREDICTED ${next.DECAY_EPOCH} (${next.SOURCE || 'TIP'})`;
-            decayEl.className = 'st-dossier__decay';
-        }
-    }
-
-    setText('dossier-status', o.operator_derived
-        ? `operator: ${o.operator} — inferred from the name, not a Space-Track field`
-        : '');
-}
-
-function refreshLive() {
-    if (!dossierSatrec) return;
-    const p = engine.geo(dossierSatrec);
-    if (!p) { setText('d-lat', 'no solution'); return; }
-    setText('d-lat', fmtLat(p.lat));
-    setText('d-lon', fmtLon(p.lon));
-    setText('d-alt', `${Math.round(p.alt)} km`);
-    setText('d-vel', `${orbVel(p.alt).toFixed(2)} km/s`);
-}
+const { open: openDossier, close: closeDossier } =
+    createDossier({ viewer, engine, State, trail: true });
 
 /* Click a point → its dossier */
 const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -1249,9 +1056,7 @@ function wirePresetBtns(precentId, decayId) {
             params.set('year_from', String(yearFrom));
             let data;
             try {
-                const r = await fetch(`${getApiBase()}/search?${params}`);
-                if (!r.ok) throw new Error(`search ${r.status}`);
-                data = await r.json();
+                data = await API.search(Object.fromEntries(params));
             } catch (err) {
                 status('query failed');
                 return;
@@ -1279,8 +1084,7 @@ function renderWithEra(yearFrom) {
     params.set('limit', String(RENDER_CAP));
     lastQuery = params.toString();
     status('querying…');
-    fetch(`${getApiBase()}/search?${lastQuery}`)
-        .then(r => { if (!r.ok) throw new Error(`search ${r.status}`); return r.json(); })
+    API.search(Object.fromEntries(params))
         .then(data => {
             clearRendered();
             addObjects(data.results);
@@ -1356,13 +1160,10 @@ if (screenshotBtn) {
 
 /* ── Default data: auto-render recent payloads on first load ────────────── */
 (async function loadDefault() {
-    const params = new URLSearchParams({ type: 'PAYLOAD', limit: '200', tle: '1' });
     status('loading catalog…');
     let data;
     try {
-        const r = await fetch(`${getApiBase()}/search?${params}`);
-        if (!r.ok) throw new Error(`search ${r.status}`);
-        data = await r.json();
+        data = await API.search({ type: 'PAYLOAD', limit: '200', tle: '1' });
     } catch (err) {
         console.warn('[catalog] default load failed:', err);
         status('catalog offline');

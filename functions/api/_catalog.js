@@ -49,6 +49,50 @@ export function requireDb(env) {
 /** Every response body carries the citation, not just the header. */
 export const withCitation = (payload) => ({ citation: CITATION, ...payload });
 
+export const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+export function safeParse(s) {
+  if (s == null) return null;
+  try { return JSON.parse(s); } catch (_) { return s; }
+}
+
+/**
+ * Read-through: an R2 artifact if present and parseable, else a D1 fallback.
+ *
+ * summary.js / feed.js / analytics.js each read a flat R2 object first — one
+ * GET instead of the GROUP BY(s) the artifact was built from — and only fall
+ * back to querying D1 directly when the artifact is missing or corrupt (the
+ * window between applying the schema and the first daily ingest run, or a
+ * write that got interrupted). A corrupt artifact must not take the endpoint
+ * down, so the JSON.parse failure falls through rather than throwing.
+ *
+ * @param {object} env
+ * @param {string} r2Key
+ * @param {number} artifactMaxAge cache seconds for a hit
+ * @param {() => Promise<object>} fallback builds the D1-derived body; the
+ *   caller is responsible for marking it `stale: true` and adding a `note`
+ * @param {(artifact: object) => object} [transform] applied to a parsed
+ *   artifact before `stale: false` is added (e.g. feed.js slicing to `limit`)
+ */
+export async function artifactOrDb(env, r2Key, artifactMaxAge, fallback, transform = (a) => a) {
+  if (env && env.ORBIT_R2) {
+    const object = await env.ORBIT_R2.get(r2Key);
+    if (object) {
+      try {
+        const artifact = JSON.parse(await object.text());
+        return json({ ...transform(artifact), stale: false }, { maxAge: artifactMaxAge });
+      } catch (_) {
+        // A corrupt artifact must not take the endpoint down — fall through to D1.
+      }
+    }
+  }
+
+  const unbound = requireDb(env);
+  if (unbound) return unbound;
+
+  return json(await fallback(), { maxAge: 60 });
+}
+
 /**
  * Parse a Space-Track epoch as UTC.
  *

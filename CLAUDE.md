@@ -129,11 +129,16 @@ Non-negotiables:
   ~5fps; `tests/e2e/test_mobile_dom.py` exists precisely because a full render is too slow
   to be a fast gate.
 
-Two things to know about the current state: `public/css/landing.css` has **zero** custom
-properties and one media query, and `spacetrack.css` has **no `:root`** — it consumes
-`var(--font-mono)` and `var(--sa-*)` 13+ times, inheriting them from `orbit.css` purely by
-hand-written `<link>` order. A shared `public/css/tokens.css` is the fix; until it lands,
-do not reorder those `<link>` tags.
+`public/css/tokens.css` now holds the shared color/font tokens (linked by `landing.css`);
+`orbit.css` and `spacetrack.css` still declare their own `--sa-*`/`--panel-*`/`--hud-blur`
+on purpose — migrating those without behaviour change is unstarted, so `spacetrack.css`
+still has **no `:root`** and inherits those vars from `orbit.css` purely by hand-written
+`<link>` order. Do not reorder those `<link>` tags. The shared nav/hamburger/mobile-menu/
+filter-drawer chrome that used to be duplicated across `orbit.css` and `spacetrack.css`
+now lives in `public/css/chrome.css`, linked root-absolute after both — a handful of
+selectors (`.hamburger-btn`, `.mobile-menu__inner`, `.spacetrack-nav__brand`) are still
+duplicated on purpose because their rule bodies had already drifted between the two pages;
+that drift is documented inline where it lives, not silently merged.
 
 ---
 
@@ -200,9 +205,21 @@ three Phase 3 items are blocked on it — time rates touch the time-warp code th
 three copies, dossier completeness needs the extracted `shared/dossier.js`, and new filters
 need the layer registry or the 15 existing checkboxes get duplicated a second time.
 
-**Phase 0 is partly done already.** Commits `db2584c6`/`dcbb42aa`/`fb66525f` landed after
-the plan was written and fixed the `catalog.js` parse error, the `../orbit-engine/` import
-paths and the TLE baseline path; `public/starlink/` now exists. Re-verify before working a
-Phase 0 item rather than trusting the doc. Still open at time of writing: `../spacetrack.css`
-in the four nested pages, the missing `/icon.svg`, the red badge assertion in
-`conjunction.test.mjs:458`, `npm test` itself, and `_headers`/`_redirects`.
+**Phase 0, 2.1, and 1.1 are done as of 2026-08-01.** HUD unification landed in
+`62f206a3` (`public/shared/hud.js`, with the mobile-only panel-exclusivity gate promoted
+to an explicit `exclusive` option rather than silently dropped). `public/css/tokens.css`
+exists and is linked by `landing.css`. The rest of 2.1's "pure deletion" checklist is also
+done: `shared/navigation.js`/`ui.js` were already gone; `public/shared/dossier.js` now
+holds the `open`/`close`/`refreshLive` logic that was duplicated between `catalog.js` and
+`conjunctions.js` (and fixes a real gap — `conjunctions.js` never synced
+`State.selectedObject` on dossier-open, so Signal never picked up a selection made from
+the Conjunctions page; it does now); every page routes through `shared/api.js`'s `API`
+object instead of hand-rolled `fetch`; `functions/api/_catalog.js` carries the shared
+`clamp`/`safeParse`/`artifactOrDb` helpers; `public/theme/palette.js` unifies the normal
+and colorblind-safe palettes; `public/css/chrome.css` holds the shared nav/hamburger/
+mobile-menu/filter-drawer CSS; and `functions/api/telemetry.js` (unbound `TELEMETRY_DB`,
+unrelated Mars-Sim analytics) is deleted along with `d1/telemetry.sql`. `npm test` is
+green (25/25 + 40/40). Not yet done from 2.1: `catalog.js`'s structural split (2.2) —
+overlays extraction, pure-math extraction, taming the 39 module-level globals — is still
+Phase 2.2, unstarted. Re-verify before trusting this paragraph too, the same way this note
+told you to re-verify Phase 0.

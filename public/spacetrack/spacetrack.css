@@ -21,130 +21,25 @@ body[data-page-id="spacetrack-catalog"] {
 
 /* ── Topbar ──────────────────────────────────────────────────────────────────
  * Desktop: brand + nav links + source link. Mobile: brand + source link + hamburger.
- * Nav links are hidden at ≤768px and replaced by the bottom navigation bar. */
+ * Nav links are hidden at ≤768px and replaced by the bottom navigation bar.
+ * .spacetrack-nav__list/__link* and the .mobile-menu overlay are shared with
+ * orbit.css and now live in css/chrome.css. */
 
-/* Nav links visible on desktop, hidden on mobile (hamburger replaces them) */
-.spacetrack-nav__list {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    pointer-events: auto;
-}
-
-.spacetrack-nav__link {
-    display: block;
-    padding: 5px 10px;
-    font-family: var(--font-mono);
-    font-size: 0.55rem;
-    letter-spacing: 1.5px;
-    font-weight: 700;
-    color: rgba(160, 210, 240, 0.55);
-    text-decoration: none;
-    border-radius: 3px;
-    white-space: nowrap;
-    pointer-events: auto;
-    transition: color 0.15s, background 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
-@media (hover: hover) {
-    .spacetrack-nav__link:hover {
-        color: rgba(200, 240, 255, 0.85);
-        background: rgba(0, 210, 255, 0.08);
-    }
-}
-.spacetrack-nav__link--active {
-    color: #00d2ff;
-    background: rgba(0, 210, 255, 0.1);
-}
-
-/* Hamburger hidden on desktop, shown on mobile */
+/* Hamburger hidden on desktop, shown on mobile. Kept here (not chrome.css):
+ * this page has no hamburger UI, so it's `display:none` unconditionally —
+ * orbit.css's `.hamburger-btn` is a fully styled, visible-on-mobile button. */
 .hamburger-btn {
     display: none;
 }
 
-/* ── Hamburger menu (overlay, mobile only) ──────────────────────────────────── */
-.mobile-menu {
-    position: fixed;
-    inset: 0;
-    z-index: 29;
-    background: rgba(0, 8, 16, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 80px 32px 48px;
-    animation: mobile-menu-fade-in 0.15s ease-out;
-}
-.mobile-menu[hidden] { display: none; }
-
-.mobile-menu__close {
-    position: absolute;
-    top: calc(16px + var(--sa-top));
-    right: calc(16px + var(--sa-right));
-    width: 44px;
-    height: 44px;
-    background: transparent;
-    border: 1px solid rgba(0, 210, 255, 0.25);
-    border-radius: 4px;
-    color: rgba(200, 240, 255, 0.7);
-    font-size: 1.1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.15s, color 0.15s;
-    z-index: 1;
-}
-.mobile-menu__close:hover { border-color: rgba(0, 210, 255, 0.6); color: #00d2ff; }
-
-@keyframes mobile-menu-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
+/* .mobile-menu__inner: kept here — orbit.css adds `align-items: center` that
+ * this file does not. */
 .mobile-menu__inner {
     display: flex;
     flex-direction: column;
     gap: 2px;
     width: 100%;
     max-width: 280px;
-}
-
-.mobile-menu__link {
-    display: block;
-    padding: 16px 12px;
-    font-family: var(--font-mono);
-    font-size: 1rem;
-    letter-spacing: 2.5px;
-    font-weight: 700;
-    color: rgba(160, 210, 240, 0.65);
-    text-decoration: none;
-    text-align: center;
-    border-radius: 6px;
-    transition: background 0.12s, color 0.12s;
-    -webkit-tap-highlight-color: transparent;
-}
-.mobile-menu__link:active {
-    background: rgba(0, 210, 255, 0.12);
-    color: rgba(220, 245, 255, 0.95);
-}
-.mobile-menu__link--active {
-    color: #00d2ff;
-    background: rgba(0, 210, 255, 0.1);
-}
-.mobile-menu__source {
-    font-size: 0.85rem;
-    color: rgba(160, 210, 240, 0.4);
-}
-.mobile-menu__divider {
-    border: none;
-    border-top: 1px solid rgba(0, 210, 255, 0.12);
-    margin: 12px 0;
 }
 
 /* ── HUD corner distribution ──────────────────────────────────────────────────
@@ -660,10 +555,6 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body::-webkit-scr
     color: rgba(150, 200, 230, 0.7);
 }
 
-.st-feed--decay .st-feed__meta--soon {
-    color: rgba(255, 160, 170, 0.9);
-}
-
 .st-feed--box .st-feed__item {
     display: flex;
     justify-content: space-between;
@@ -713,10 +604,6 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body::-webkit-scr
     width: 0;
     background: rgba(0, 210, 255, 0.75);
     transition: width 0.12s linear;
-}
-
-.st-conj {
-    margin-top: 6px;
 }
 
 .st-conj__pair {
@@ -852,30 +739,11 @@ body[data-page-id="spacetrack-catalog"] #dossier {
  * Replaces the old .orbital-topbar + source toggle + hamburger pattern with a
  * dedicated top nav bar that is consistent across all SpaceTrack pages.
  * Nav links are hidden (in the hamburger menu); only brand + source + hamburger
- * are visible in the topbar. */
-
-.spacetrack-nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 25;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding:
-        calc(10px + var(--sa-top))
-        calc(16px + var(--sa-right))
-        10px
-        calc(16px + var(--sa-left));
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 1.5px;
-    background: linear-gradient(180deg, rgba(0, 8, 16, 0.85) 0%, rgba(0, 8, 16, 0.4) 80%, transparent 100%);
-    pointer-events: none;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-}
-.spacetrack-nav::-webkit-scrollbar { display: none; }
+ * are visible in the topbar.
+ * .spacetrack-nav / __source-link and the shared hover states now live in
+ * css/chrome.css. `.spacetrack-nav__brand` (non-hover) stays here — its body
+ * differs from orbit.css's (no `display:flex; align-items:center; gap:6px`,
+ * this page's brand is text-only). */
 
 .spacetrack-nav__brand {
     color: rgba(0, 210, 255, 0.9);
@@ -885,28 +753,6 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     white-space: nowrap;
     pointer-events: auto;
     transition: color 0.15s;
-}
-@media (hover: hover) {
-    .spacetrack-nav__brand:hover { color: #00d2ff; }
-}
-
-.spacetrack-nav__source-link {
-    padding: 4px 9px;
-    color: rgba(160, 210, 240, 0.45);
-    text-decoration: none;
-    font-size: 0.55rem;
-    letter-spacing: 1.5px;
-    font-weight: 600;
-    border-radius: 3px;
-    white-space: nowrap;
-    pointer-events: auto;
-    transition: color 0.15s, background 0.15s;
-}
-@media (hover: hover) {
-    .spacetrack-nav__source-link:hover {
-        color: rgba(200, 240, 255, 0.85);
-        background: rgba(0, 210, 255, 0.08);
-    }
 }
 
 /* ── Bars (analytics) ──────────────────────────────────────────────────────── */
@@ -987,26 +833,8 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     padding-right: 6px;
 }
 
-/* ── Mobile bottom navigation bar ──────────────────────────────────────────
- * Replaces the hamburger menu on mobile (<768px). Fixed to the bottom of the
- * viewport, always visible, with 44px minimum touch targets. */
-.mobile-bottom-nav {
-    display: none;
-}
-
-/* ── Filter drawer (mobile slide-out) ──────────────────────────────────────
- * On mobile, the filters panel slides out from the right as a full-height
- * drawer overlay, replacing the fixed-position top-right HUD. */
-.filter-drawer-overlay {
-    display: none;
-}
-
-/* ── Page grid wrapper ─────────────────────────────────────────────────────
- * Wraps all HUD panels to enable CSS Grid layout on tablet/mobile.
- * On desktop (>1024px) this is a no-op — panels remain freely positioned. */
-.st-page-grid {
-    display: contents;
-}
+/* .mobile-bottom-nav (base rule) and .filter-drawer-overlay (base rule) are
+ * shared with orbit.css and now live in css/chrome.css. */
 
 /* ==========================================================================
    RESPONSIVE LAYOUT — three tiers
@@ -1101,162 +929,20 @@ body[data-page-id="spacetrack-catalog"] #dossier {
 @media (max-width: 768px) {
     body { overflow: hidden; }
 
-    /* ── Mobile bottom navigation bar ──────────────────────────────────────── */
-    .mobile-bottom-nav {
-        display: flex;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        z-index: 26;
-        height: calc(56px + var(--sa-bottom));
-        padding-bottom: var(--sa-bottom);
-        background: linear-gradient(0deg, rgba(0, 8, 16, 0.95) 0%, rgba(0, 8, 16, 0.88) 100%);
-        border-top: 1px solid rgba(0, 210, 255, 0.2);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        align-items: center;
-        justify-content: space-around;
-        pointer-events: auto;
-    }
-
-    .mobile-bottom-nav__item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 2px;
-        min-width: 44px;
-        min-height: 44px;
-        padding: 6px 4px;
-        background: none;
-        border: none;
-        border-radius: 6px;
-        color: rgba(160, 210, 240, 0.5);
-        font-family: var(--font-mono);
-        font-size: 0.45rem;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: color 0.15s, background 0.15s;
-        -webkit-tap-highlight-color: transparent;
-        text-align: center;
-        line-height: 1.2;
-    }
-
-    @media (hover: hover) {
-        .mobile-bottom-nav__item:hover {
-            color: rgba(200, 240, 255, 0.85);
-            background: rgba(0, 210, 255, 0.08);
-        }
-    }
-
-    .mobile-bottom-nav__item--active {
-        color: #00d2ff;
-        background: rgba(0, 210, 255, 0.1);
-    }
-
-    .mobile-bottom-nav__icon {
-        font-size: 1.1rem;
-        line-height: 1;
-    }
-
-    .mobile-bottom-nav__label {
-        white-space: nowrap;
-    }
-
-    /* ── Filter drawer (slides from right) ─────────────────────────────────── */
-    .filter-drawer-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        z-index: 28;
-        background: rgba(0, 8, 16, 0.6);
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
-    }
-
-    .filter-drawer-overlay[open] {
-        display: block;
-    }
-
-    .filter-drawer {
-        position: fixed;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 29;
-        width: min(85vw, 320px);
-        background: linear-gradient(145deg, rgba(0, 12, 24, 0.97) 0%, rgba(0, 25, 45, 0.95) 100%);
-        border-left: 1px solid rgba(0, 210, 255, 0.35);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: calc(16px + var(--sa-top)) 16px calc(16px + var(--sa-bottom)) 16px;
-        transform: translateX(100%);
-        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        scrollbar-width: thin;
-    }
-
-    .filter-drawer-overlay[open] .filter-drawer {
-        transform: translateX(0);
-    }
-
-    .filter-drawer__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(0, 210, 255, 0.2);
-    }
-
-    .filter-drawer__title {
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 2px;
-        color: rgba(0, 210, 255, 0.8);
-    }
-
-    .filter-drawer__close {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        background: transparent;
-        border: 1px solid rgba(0, 210, 255, 0.25);
-        border-radius: 4px;
-        color: rgba(200, 240, 255, 0.7);
-        font-size: 1.1rem;
-        cursor: pointer;
-        transition: border-color 0.15s, color 0.15s;
-    }
-
-    .filter-drawer__close:hover {
-        border-color: rgba(0, 210, 255, 0.6);
-        color: #00d2ff;
-    }
+    /* .mobile-bottom-nav, .mobile-bottom-nav__*, .filter-drawer-overlay,
+     * .filter-drawer, .filter-drawer__* (all at this breakpoint) are shared
+     * with orbit.css and now live in css/chrome.css. */
 
     body.filter-drawer-open { overflow: hidden; }
 
-    /* ── Top nav: hide hamburger on mobile (bottom nav replaces it) ────────── */
+    /* ── Top nav: hide hamburger on mobile (bottom nav replaces it) ──────────
+     * Kept here (not chrome.css): orbit.css's mobile override is
+     * `display:flex` (it reveals the button); this is `!important
+     * display:none` (this page keeps it hidden). Real drift. */
     .hamburger-btn { display: none !important; }
 
-    /* ── Hide top nav links on mobile (bottom nav is primary) ──────────────── */
-    .spacetrack-nav__list { display: none; }
-
-    /* ── Reduce nav height on mobile ───────────────────────────────────────── */
-    .spacetrack-nav {
-        padding:
-            calc(8px + var(--sa-top))
-            calc(12px + var(--sa-right))
-            8px
-            calc(12px + var(--sa-left));
-    }
+    /* .spacetrack-nav__list { display:none } and .spacetrack-nav padding
+     * (identical to orbit.css at this breakpoint) now live in css/chrome.css. */
 
     /* ── HUD panels: stack on left edge, above bottom nav ────────────────────
      * Panels are pinned to the left edge. Bottom panels sit above the time
@@ -1508,15 +1194,6 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud {
 .st-age-legend__label {
     color: rgba(150, 200, 230, 0.6);
     white-space: nowrap;
-}
-
-/* ── Launch site marker label (via Cesium entity) ──────────────────────── */
-/* Cesium labels are inline; minimal CSS override for consistency */
-.st-site-label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.5px;
-    fill: rgba(0, 210, 255, 0.8);
 }
 
 /* ── Screenshot button ──────────────────────────────────────────────────── */

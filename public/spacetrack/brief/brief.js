@@ -1,5 +1,5 @@
 import { $, setText, num, relTime } from '../shared/utils.js';
-import { getApiBase } from '../shared/api.js';
+import { API } from '../shared/api.js';
 import { wireHudToggle, initHamburgerMenu } from '/shared/hud.js';
 
 /* ── HUD toggle ──────────────────────────────────────────────────────────── */
@@ -83,9 +83,7 @@ function expandPanel() {
 
 async function loadBrief() {
     try {
-        const r = await fetch(`${getApiBase()}/brief`);
-        if (!r.ok) throw new Error(`brief ${r.status}`);
-        renderBrief(await r.json());
+        renderBrief(await API.brief());
     } catch (err) {
         console.warn('[brief] failed:', err);
         setText('brief-hint', 'brief unavailable');

@@ -12,7 +12,7 @@
 // names change, and "ISS (NAUKA)" / "ISS DEB" would both match a substring
 // test — audit finding M-19.
 
-import { json, preflight, requireDb, withCitation } from '../_catalog.js';
+import { json, preflight, requireDb, withCitation, safeParse } from '../_catalog.js';
 
 const SQL = `
   SELECT
@@ -97,9 +97,4 @@ export async function onRequest(context) {
       ...e, detail: safeParse(e.detail),
     })),
   }), { maxAge: 300 });
-}
-
-function safeParse(s) {
-  if (s == null) return null;
-  try { return JSON.parse(s); } catch (_) { return s; }
 }

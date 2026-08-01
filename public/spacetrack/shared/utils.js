@@ -50,64 +50,6 @@ function inTime(ms) {
     return m < 60 ? `${m}m` : `${h}h`;
 }
 
-export const TYPE_COLORS = {
-    'PAYLOAD': '#00ccff',
-    'ROCKET BODY': '#f5a623',
-    'DEBRIS': '#ff5f6d',
-    'UNKNOWN': '#9aa7b2',
-};
-
-export const COUNTRY_COLORS = {
-    'US': '#00ccff',   // cyan — United States
-    'RU': '#ff5f6d',   // red — Russia
-    'CN': '#ff9933',   // orange — China
-    'GB': '#4488ff',   // blue — United Kingdom
-    'FR': '#6666ff',   // indigo — France
-    'JP': '#ff66cc',   // pink — Japan
-    'IN': '#ffcc33',   // saffron — India
-    'KR': '#66ddff',   // light cyan — South Korea
-    'DE': '#cccccc',   // silver — Germany
-    'IT': '#44cc88',   // green — Italy
-    'CA': '#ff4444',   // red — Canada
-    'AU': '#ffaa44',   // gold — Australia
-    'BR': '#44cc44',   // green — Brazil
-    'ESA': '#8888ff',  // blue-purple — European Space Agency
-    'ISRAEL': '#4488ff',
-    'UAE': '#00cc88',
-    'TS': '#cc88ff',   // turquoise — Multinational/Commercial
-    'OR': '#cc88ff',   // ORGANIZATION
-};
-const COUNTRY_DEFAULT = '#9aa7b2';
-
-export function colorFor(type) {
-    return TYPE_COLORS[(type || '').toUpperCase()] || TYPE_COLORS.UNKNOWN;
-}
-
-export function colorForCountry(country) {
-    const key = (country || '').toUpperCase().trim();
-    return COUNTRY_COLORS[key] || COUNTRY_DEFAULT;
-}
-
-/**
- * Derive a display color for a satellite row based on the current color mode.
- * @param {object} row  A catalog search result row
- * @param {'type'|'country'|'cb'} mode
- * @param {object} [cbTypeColors]  Colorblind type palette (when mode=cb)
- * @param {object} [cbCountryColors]  Colorblind country palette (when mode=cb)
- */
-export function colorForRow(row, mode = 'type', cbTypeColors, cbCountryColors) {
-    if (mode === 'cb') {
-        const t = (row.OBJECT_TYPE || '').toUpperCase();
-        const c = (row.COUNTRY_CODE || '').toUpperCase().trim();
-        // Prefer country if available in CB palette, else type
-        if (cbCountryColors && cbCountryColors[c]) return cbCountryColors[c];
-        if (cbTypeColors && cbTypeColors[t]) return cbTypeColors[t];
-        return cbTypeColors?.UNKNOWN || COUNTRY_DEFAULT;
-    }
-    if (mode === 'country') return colorForCountry(row.COUNTRY_CODE);
-    return colorFor(row.OBJECT_TYPE);
-}
-
 /**
  * Orbit-regime-based point size.
  * LEO is dense and close → small dots; GEO is sparse and far → larger dots.

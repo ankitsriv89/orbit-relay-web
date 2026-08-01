@@ -13,7 +13,7 @@
 // Space-Track field — and responses say so, because a filter that looks
 // authoritative and is not is worse than one that is absent.
 
-import { json, preflight, requireDb, withCitation } from './_catalog.js';
+import { json, preflight, requireDb, withCitation, clamp } from './_catalog.js';
 
 const MAX_LIMIT     = 500;
 const DEFAULT_LIMIT = 100;
@@ -156,4 +156,3 @@ export async function onRequest(context) {
 }
 
 const rows = (r) => (r.results || []).map((x) => ({ key: x.k, n: x.n }));
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));

@@ -1,12 +1,13 @@
-import { orbVel, fmtLat, fmtLon } from '../../orbit-engine/astro.js';
 import {
     ConjunctionScreener, SCREEN_WINDOWS, SCREEN_THRESHOLDS_KM,
 } from '../../orbit-engine/screen-client.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
-import { $, setText, num, relTime, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge, TYPE_COLORS, colorFor } from '../shared/utils.js';
-import { getApiBase } from '../shared/api.js';
+import { $, setText, num, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge } from '../shared/utils.js';
+import { colorFor } from '/theme/palette.js';
+import { API } from '../shared/api.js';
 import { wireHudToggle, initHamburgerMenu, wireTabs } from '/shared/hud.js';
+import { createDossier } from '/shared/dossier.js';
 
 const RENDER_CAP = 500;
 
@@ -59,9 +60,7 @@ async function render() {
 
     let data;
     try {
-        const r = await fetch(`${getApiBase()}/search?${lastQuery}`);
-        if (!r.ok) throw new Error(`search ${r.status}`);
-        data = await r.json();
+        data = await API.search(Object.fromEntries(params));
     } catch (err) {
         console.warn('[conjunctions] search failed:', err);
         status('query failed');
@@ -280,100 +279,8 @@ $('c-cancel').addEventListener('click', () => {
 });
 
 /* ── Dossier ────────────────────────────────────────────────────────────────── */
-const dossier = $('dossier');
-const dossierClose = $('dossier-close');
-let dossierVisuals = null;
-let dossierTimer = null;
-let dossierSatrec = null;
-
-function closeDossier() {
-    engine.removeEntities(dossierVisuals);
-    dossierVisuals = null;
-    dossierSatrec = null;
-    if (dossierTimer) { clearInterval(dossierTimer); dossierTimer = null; }
-    if (dossier) dossier.hidden = true;
-}
-dossierClose?.addEventListener('click', closeDossier);
-
-async function openDossier(norad, meta) {
-    if (!dossier || norad == null) return;
-    dossier.hidden = false;
-    setText('dossier-status', 'loading…');
-
-    if (meta?.satrec) {
-        dossierSatrec = meta.satrec;
-        engine.removeEntities(dossierVisuals);
-        dossierVisuals = engine.addInspectVisuals(meta, '#ffffff');
-        setText('dossier-name', `// ${meta.name}`);
-        refreshLive();
-        if (dossierTimer) clearInterval(dossierTimer);
-        dossierTimer = engine.own(setInterval(refreshLive, 1000));
-    }
-
-    let data;
-    try {
-        const r = await fetch(`${getApiBase()}/object/${encodeURIComponent(norad)}`);
-        if (!r.ok) throw new Error(String(r.status));
-        data = await r.json();
-    } catch (err) {
-        setText('dossier-status', `catalog record unavailable (${err.message})`);
-        return;
-    }
-
-    const o = data.object;
-    setText('dossier-name', `// ${o.OBJECT_NAME || 'UNNAMED'}`);
-    setText('dossier-designator', o.OBJECT_ID || '—');
-    setText('d-norad', o.NORAD_CAT_ID);
-    setText('d-type', o.OBJECT_TYPE || '—');
-    setText('d-country', o.COUNTRY_CODE || '—');
-    setText('d-launch', o.LAUNCH_DATE || '—');
-    setText('d-site', o.SITE || o.satcat_site || '—');
-    setText('d-rcs', o.RCS_SIZE ? `${o.RCS_SIZE}${o.satcat_rcs_m2 ? ` · ${o.satcat_rcs_m2} m²` : ''}` : '—');
-    setText('d-regime', o.regime || '—');
-    setText('d-period', o.PERIOD != null ? `${Number(o.PERIOD).toFixed(1)} min` : '—');
-    setText('d-apogee', o.apogee_km != null ? `${Math.round(o.apogee_km)} km` : '—');
-    setText('d-perigee', o.perigee_km != null ? `${Math.round(o.perigee_km)} km` : '—');
-    setText('d-incl', o.INCLINATION != null ? `${Number(o.INCLINATION).toFixed(2)}°` : '—');
-    setText('d-epoch', relTime(o.EPOCH));
-
-    if (!dossierSatrec && o.TLE_LINE1 && o.TLE_LINE2) {
-        try {
-            const satrec = satellite.twoline2satrec(o.TLE_LINE1, o.TLE_LINE2);
-            dossierSatrec = satrec;
-            dossierVisuals = engine.addInspectVisuals({ satrec, l1: o.TLE_LINE1, l2: o.TLE_LINE2 }, '#ffffff');
-            refreshLive();
-            if (dossierTimer) clearInterval(dossierTimer);
-            dossierTimer = engine.own(setInterval(refreshLive, 1000));
-        } catch (_) { }
-    }
-
-    const decayEl = $('dossier-decay');
-    if (decayEl) {
-        const next = (data.decay || [])[0];
-        decayEl.hidden = !next && !o.DECAY_DATE;
-        if (o.DECAY_DATE) {
-            decayEl.textContent = `DECAYED ${o.DECAY_DATE}`;
-            decayEl.className = 'st-dossier__decay st-dossier__decay--done';
-        } else if (next) {
-            decayEl.textContent = `REENTRY PREDICTED ${next.DECAY_EPOCH} (${next.SOURCE || 'TIP'})`;
-            decayEl.className = 'st-dossier__decay';
-        }
-    }
-
-    setText('dossier-status', o.operator_derived
-        ? `operator: ${o.operator} — inferred from the name, not a Space-Track field`
-        : '');
-}
-
-function refreshLive() {
-    if (!dossierSatrec) return;
-    const p = engine.geo(dossierSatrec);
-    if (!p) { setText('d-lat', 'no solution'); return; }
-    setText('d-lat', fmtLat(p.lat));
-    setText('d-lon', fmtLon(p.lon));
-    setText('d-alt', `${Math.round(p.alt)} km`);
-    setText('d-vel', `${orbVel(p.alt).toFixed(2)} km/s`);
-}
+const { open: openDossier, close: closeDossier } =
+    createDossier({ viewer, engine, State });
 
 const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 clickHandler.setInputAction((movement) => {

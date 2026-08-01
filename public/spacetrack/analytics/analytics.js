@@ -1,5 +1,5 @@
 import { $, setText, num } from '../shared/utils.js';
-import { getApiBase } from '../shared/api.js';
+import { API } from '../shared/api.js';
 import { wireHudToggle, initMobileListener } from '/shared/hud.js';
 
 /* ── HUD toggle ──────────────────────────────────────────────────────────── */
@@ -15,9 +15,7 @@ initMobileListener();
 
 async function loadAnalytics() {
     try {
-        const r = await fetch(`${getApiBase()}/analytics`);
-        if (!r.ok) throw new Error(`analytics ${r.status}`);
-        renderAnalytics(await r.json());
+        renderAnalytics(await API.analytics());
     } catch (err) {
         console.warn('[analytics] failed:', err);
         setText('an-decade-hint', 'analytics unavailable');

@@ -12,7 +12,7 @@
 // first — a flat object GET, same discipline as summary.js — and falls back
 // to querying `events` directly in D1 when the artifact is missing or corrupt.
 
-import { json, preflight, requireDb, withCitation } from './_catalog.js';
+import { preflight, withCitation, artifactOrDb, clamp, safeParse } from './_catalog.js';
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
@@ -25,45 +25,24 @@ export async function onRequest(context) {
   const limit = clamp(Number.parseInt(url.searchParams.get('limit'), 10) || DEFAULT_LIMIT,
                        1, MAX_LIMIT);
 
-  if (env && env.ORBIT_R2) {
-    const object = await env.ORBIT_R2.get('feed/latest.json');
-    if (object) {
-      try {
-        const artifact = JSON.parse(await object.text());
-        return json({ ...artifact, events: (artifact.events || []).slice(0, limit), stale: false },
-                    { maxAge: 300 });
-      } catch (_) {
-        // A corrupt artifact must not take the feed down — fall through to D1.
-      }
-    }
-  }
+  return artifactOrDb(env, 'feed/latest.json', 300, async () => {
+    const { results } = await env.ORBIT_DB
+      .prepare(`SELECT ts, kind, NORAD_CAT_ID, title, detail
+                FROM events ORDER BY ts DESC, id DESC LIMIT ?`)
+      .bind(limit)
+      .all();
 
-  const unbound = requireDb(env);
-  if (unbound) return unbound;
-
-  const { results } = await env.ORBIT_DB
-    .prepare(`SELECT ts, kind, NORAD_CAT_ID, title, detail
-              FROM events ORDER BY ts DESC, id DESC LIMIT ?`)
-    .bind(limit)
-    .all();
-
-  return json(withCitation({
-    generated_at: new Date().toISOString(),
-    events: (results || []).map((r) => ({
-      ts: r.ts,
-      kind: r.kind,
-      norad: r.NORAD_CAT_ID,
-      title: r.title,
-      detail: safeParse(r.detail),
-    })),
-    stale: true,
-    note: 'Feed artifact not built yet — read live from D1.',
-  }), { maxAge: 60 });
+    return withCitation({
+      generated_at: new Date().toISOString(),
+      events: (results || []).map((r) => ({
+        ts: r.ts,
+        kind: r.kind,
+        norad: r.NORAD_CAT_ID,
+        title: r.title,
+        detail: safeParse(r.detail),
+      })),
+      stale: true,
+      note: 'Feed artifact not built yet — read live from D1.',
+    });
+  }, (artifact) => ({ ...artifact, events: (artifact.events || []).slice(0, limit) }));
 }
-
-function safeParse(s) {
-  if (s == null) return null;
-  try { return JSON.parse(s); } catch (_) { return s; }
-}
-
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
