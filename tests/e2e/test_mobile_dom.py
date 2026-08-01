@@ -33,8 +33,11 @@ def main():
             mobile = mobile_ctx.new_page()
             try:
                 url = BASE + page_path + '?cb=' + str(time.time())
-                # Just wait for DOM, don't wait for Cesium CDN
-                mobile.goto(url, timeout=15000, wait_until='commit')
+                # Wait for the DOM, but NOT for the Cesium CDN — 'load' would block
+                # on the globe. 'commit' is too early: it returns as soon as the
+                # response starts, so document.body is still null a second later and
+                # every getComputedStyle(document.body) below throws.
+                mobile.goto(url, timeout=15000, wait_until='domcontentloaded')
                 time.sleep(1)
 
                 vp_w = mobile.evaluate('window.innerWidth')
@@ -97,7 +100,7 @@ def main():
             )
             tab = tab_ctx.new_page()
             try:
-                tab.goto(BASE + page_path + '?cb=' + str(time.time()), timeout=15000, wait_until='commit')
+                tab.goto(BASE + page_path + '?cb=' + str(time.time()), timeout=15000, wait_until='domcontentloaded')
                 time.sleep(1)
 
                 vp_w = tab.evaluate('window.innerWidth')
@@ -124,11 +127,12 @@ def main():
     passed = sum(1 for _, ok in results if ok)
     total = len(results)
     print(f'\n{passed}/{total} passed')
-    failures = [(n, d) for n, ok, d in results if not ok]
+    # check() records (name, ok) — the detail is already printed inline above.
+    failures = [n for n, ok in results if not ok]
     if failures:
         print(f'\nFAILURES ({len(failures)}):')
-        for n, d in failures:
-            print(f'  FAIL  {n}  {d}')
+        for n in failures:
+            print(f'  FAIL  {n}')
     sys.exit(0 if passed == total else 1)
 
 if __name__ == '__main__':

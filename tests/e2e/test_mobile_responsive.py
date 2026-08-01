@@ -281,13 +281,12 @@ def main():
     print(f'RESULTS: {passed}/{total} passed')
 
     # Print failures
+    # check() records (name, ok) — the detail is already printed inline above.
     failures = [r for r in results if not r[1]]
     if failures:
         print(f'\nFAILURES ({len(failures)}):')
-        for name, _, detail in failures:
+        for name, _ in failures:
             print(f'  FAIL  {name}')
-            if detail:
-                print(f'        {detail}')
 
     sys.exit(0 if passed == total else 1)
 

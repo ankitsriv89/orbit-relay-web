@@ -69,13 +69,21 @@ Deploy is automatic on push to `main` (Cloudflare Pages). For a manual deploy:
 
 ```bash
 source ~/.nvm/nvm.sh          # wrangler needs nvm's node+npm
-wrangler pages deploy public --project-name signal-playground --commit-dirty=true
+wrangler pages deploy public --project-name orbit-relay-web --commit-dirty=true
 ```
 
-**Hostname note:** `wrangler.toml` and `README.md` say `orbitalrelay.space`; `AGENTS.md`
-documents `signal-playground-0uj.pages.dev`. Both are real — the latter is the Pages
-project alias, the former the custom domain. Use `orbitalrelay.space` for canonical/OG
-tags. Confirm with `wrangler pages project list` before hardcoding anything else.
+**Project name — verified 2026-08-01 with `wrangler pages project list`:** the live
+project is **`orbit-relay-web`** (`orbit-relay-web.pages.dev` + `orbitalrelay.space`,
+git-connected). Two names in this repo are wrong and deploying to either is a mistake:
+
+- `signal-playground` (`signal-playground-0uj.pages.dev`) is a **separate, stale** project
+  that does *not* serve `orbitalrelay.space`. It is what this file and `AGENTS.md` used to
+  name; a manual deploy there ships to the wrong site.
+- `wrangler.toml`'s `name = "orbit-relay"` matches **no** project at all. It is inert for
+  Pages (the dashboard's git integration owns the deploy), which is why it went unnoticed.
+
+Use `orbitalrelay.space` for canonical/OG tags. Re-confirm with
+`wrangler pages project list` before hardcoding anything else.
 
 ---
 
