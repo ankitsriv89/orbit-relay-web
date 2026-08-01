@@ -146,6 +146,13 @@ function makeTickerItem(parts) {
     return frag;
 }
 
+const FEED_KIND_LABEL = {
+    new_object: 'New catalog entry',
+    reentry_predicted: 'Reentry predicted',
+    satcat_change: 'Catalog update',
+    decay: 'Decayed',
+};
+
 async function buildTickerItems() {
     const items = [];
 
@@ -187,6 +194,18 @@ async function buildTickerItems() {
         }
     } catch (_) { /* optional ticker content */ }
 
+    try {
+        const res = await fetch('/api/feed?limit=6');
+        if (res.ok) {
+            const data = await res.json();
+            for (const ev of (data.events || []).slice(0, 3)) {
+                const label = FEED_KIND_LABEL[ev.kind];
+                if (!label || !ev.title) continue;
+                items.push([{ text: `${label}: ` }, { strong: ev.title }]);
+            }
+        }
+    } catch (_) { /* optional ticker content */ }
+
     if (items.length === 0) {
         items.push([{ text: 'Live satellite catalog intelligence — Space-Track.org & CelesTrak' }]);
     }
@@ -206,32 +225,16 @@ async function initTicker() {
         track.appendChild(makeTickerItem(parts));
     }
     ticker.hidden = false;
+}
 
-    function syncSpace() {
-        document.body.classList.add('ticker-space');
-        document.body.style.setProperty('--ticker-h', `${ticker.offsetHeight}px`);
-    }
-    syncSpace();
-    window.addEventListener('resize', syncSpace, { passive: true });
-
-    if (reduceMotion) return; // static, non-scrolling ticker is enough motion-wise
-
-    let lastY = window.scrollY;
-    let hidden = false;
-    window.addEventListener('scroll', () => {
-        const y = window.scrollY;
-        const goingDown = y > lastY && y > ticker.offsetHeight;
-        if (goingDown && !hidden) {
-            ticker.classList.add('ticker--hidden');
-            document.body.style.setProperty('--ticker-h', '0px');
-            hidden = true;
-        } else if (!goingDown && hidden) {
-            ticker.classList.remove('ticker--hidden');
-            document.body.style.setProperty('--ticker-h', `${ticker.offsetHeight}px`);
-            hidden = false;
-        }
-        lastY = y;
-    }, { passive: true });
+// Ticker and header both use `position: sticky` and stack (header at top:0,
+// ticker at top: header height) — set the real measured header height so
+// the ticker sits flush under it at any viewport/font-size instead of a
+// hardcoded guess.
+function syncHeaderHeight() {
+    const header = document.querySelector('.site-header');
+    if (!header) return;
+    document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
 }
 
 function initHero() {
@@ -251,4 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initHero();
     loadStats();
     initTicker();
+    syncHeaderHeight();
+    window.addEventListener('resize', syncHeaderHeight, { passive: true });
 });

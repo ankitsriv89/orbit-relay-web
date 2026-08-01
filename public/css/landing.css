@@ -54,33 +54,24 @@ a {
 }
 
 /* ── Ticker ────────────────────────────────────────────────────────────── */
-/* Fixed above the sticky header; hides on scroll-down, reveals on
-   scroll-up (handled in landing.js). body padding-top compensates so
-   content never sits under it — see .ticker-space below. */
+/* Sticky directly below the sticky header (stacked via top: var(--header-h)),
+   set from landing.js once the header's real height is known. It never
+   hides on scroll — it's meant to stay visible as a persistent live strip,
+   unlike the old hide-on-scroll-down behaviour. */
 .ticker {
-    position: fixed;
-    top: 0;
+    position: sticky;
+    top: var(--header-h, 56px);
     left: 0;
     right: 0;
-    z-index: 22;
+    z-index: 19;
     overflow: hidden;
     white-space: nowrap;
     background: var(--c-void);
     border-bottom: 1px solid var(--c-line);
-    padding-top: var(--sa-top);
-    transition: transform 0.25s ease;
 }
 
 .ticker[hidden] {
     display: none;
-}
-
-.ticker.ticker--hidden {
-    transform: translateY(-100%);
-}
-
-body.ticker-space {
-    padding-top: var(--ticker-h, 0px);
 }
 
 .ticker__track {
@@ -193,18 +184,24 @@ body.ticker-space {
 }
 
 /* ── Hero ──────────────────────────────────────────────────────────────── */
+/* #hero-canvas is a direct child of body, fixed full-viewport, z-indexed
+   behind every section — the WebGL backdrop runs the full length of the
+   page, not just the hero section. Sections above it use a translucent
+   background (see .stat-strip, .apps, .provenance, .site-footer) so the
+   starfield/planet reads through everywhere while text stays legible. */
+#hero-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    display: block;
+}
+
 .hero {
     position: relative;
     padding: clamp(3.5rem, 10vh, 7rem) 1.5rem clamp(3rem, 8vh, 5rem);
     overflow: hidden;
-}
-
-#hero-canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
 }
 
 .hero__content {
@@ -289,7 +286,8 @@ body.ticker-space {
 .stat-strip {
     border-top: 1px solid var(--c-line);
     border-bottom: 1px solid var(--c-line);
-    background: var(--c-panel);
+    background: rgba(12, 20, 32, 0.72);
+    backdrop-filter: blur(6px);
 }
 
 .stat-strip__inner {
@@ -356,7 +354,8 @@ body.ticker-space {
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
-    background: var(--c-panel);
+    background: rgba(12, 20, 32, 0.72);
+    backdrop-filter: blur(6px);
     border: 1px solid var(--c-line);
     border-radius: 10px;
     text-decoration: none;
@@ -367,13 +366,20 @@ body.ticker-space {
 .app-card:hover,
 .app-card:focus-visible {
     border-color: var(--c-signal);
-    background: var(--c-panel-alt);
+    background: rgba(14, 26, 42, 0.85);
     transform: translateY(-3px);
 }
 
 .app-card--feature {
     grid-column: 1 / -1;
-    background: linear-gradient(135deg, var(--c-panel-alt) 0%, var(--c-panel) 100%);
+    background: linear-gradient(135deg, rgba(14, 26, 42, 0.8) 0%, rgba(12, 20, 32, 0.72) 100%);
+}
+
+.app-card__icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 0.9rem;
+    color: var(--c-signal);
 }
 
 .app-card__kicker {
@@ -407,7 +413,8 @@ body.ticker-space {
 /* ── Provenance ────────────────────────────────────────────────────────── */
 .provenance {
     border-top: 1px solid var(--c-line);
-    background: var(--c-panel);
+    background: rgba(12, 20, 32, 0.72);
+    backdrop-filter: blur(6px);
 }
 
 .provenance__inner {
@@ -435,7 +442,8 @@ body.ticker-space {
 .site-footer {
     padding-bottom: var(--sa-bottom);
     border-top: 1px solid var(--c-line);
-    background: var(--c-panel);
+    background: rgba(12, 20, 32, 0.85);
+    backdrop-filter: blur(6px);
 }
 
 .site-footer__inner {
@@ -518,6 +526,16 @@ body.ticker-space {
 
 /* ── Mobile ────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+    /* backdrop-filter over a full-page WebGL canvas is expensive on phone
+       GPUs — halve every blur used to let the hero canvas read through. */
+    .site-header,
+    .stat-strip,
+    .app-card,
+    .provenance,
+    .site-footer {
+        backdrop-filter: blur(3px);
+    }
+
     .stat-strip__inner {
         grid-template-columns: repeat(2, 1fr);
         gap: 1.4rem 1rem;
