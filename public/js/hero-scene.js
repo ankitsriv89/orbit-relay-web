@@ -14,6 +14,7 @@ void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
 const FRAG = `#version 300 es
 precision highp float;
 uniform vec2 uRes;
+uniform float uViewportH;
 uniform float uTime;
 out vec4 fragColor;
 
@@ -75,14 +76,18 @@ vec3 planet(vec2 uv, vec3 center, float radius, float t) {
 }
 
 void main() {
-    vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+    // Normalized against the viewport height (not the full-page canvas
+    // height) so the starfield/planet stay a fixed on-screen size — the
+    // canvas covers the whole scrollable page, but the scene itself must
+    // not stretch to match total page length.
+    vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uViewportH;
     vec3 col = vec3(0.02, 0.031, 0.063); // matches --c-void
 
     col += vec3(0.55, 0.85, 1.0) * stars(uv + vec2(uTime * 0.002, 0.0), 40.0, 1.0, uTime);
     col += vec3(0.55, 0.85, 1.0) * stars(uv * 1.6 + vec2(uTime * 0.005, 0.03), 70.0, 1.0, uTime * 1.3) * 0.7;
     col += vec3(0.6, 0.9, 1.0) * stars(uv * 2.4 + vec2(uTime * 0.009, -0.02), 110.0, 1.0, uTime * 0.8) * 0.5;
 
-    vec3 pcol = planet(uv, vec3(0.62, -0.32, 0.0), 0.62, uTime);
+    vec3 pcol = planet(uv, vec3(1.05, -0.55, 0.0), 0.3, uTime);
     col += pcol;
 
     fragColor = vec4(col, 1.0);
@@ -129,6 +134,7 @@ export function initHeroScene(canvas) {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
     const uRes = gl.getUniformLocation(program, 'uRes');
+    const uViewportH = gl.getUniformLocation(program, 'uViewportH');
     const uTime = gl.getUniformLocation(program, 'uTime');
     gl.useProgram(program);
 
@@ -138,10 +144,13 @@ export function initHeroScene(canvas) {
     let raf = 0;
     const start = performance.now();
 
+    // The canvas is position:fixed and covers the whole scrollable page, but
+    // it must only ever be drawn at viewport size — sizing it to the page
+    // (which can be several screens tall) would waste GPU memory rendering
+    // off-screen pixels forever, since a fixed element never actually moves.
     function resize() {
-        const parent = canvas.parentElement;
-        const w = Math.round(parent.offsetWidth * dpr);
-        const h = Math.round(parent.offsetHeight * dpr);
+        const w = Math.round(window.innerWidth * dpr);
+        const h = Math.round(window.innerHeight * dpr);
         if (canvas.width !== w || canvas.height !== h) {
             canvas.width = w;
             canvas.height = h;
@@ -154,6 +163,7 @@ export function initHeroScene(canvas) {
         if (visible) {
             resize();
             gl.uniform2f(uRes, canvas.width, canvas.height);
+            gl.uniform1f(uViewportH, canvas.height);
             gl.uniform1f(uTime, (now - start) / 1000);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
         }

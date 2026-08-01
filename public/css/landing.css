@@ -66,8 +66,9 @@ a {
     z-index: 19;
     overflow: hidden;
     white-space: nowrap;
-    background: var(--c-void);
+    background: rgba(0, 210, 255, 0.06);
     border-bottom: 1px solid var(--c-line);
+    box-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
 
 .ticker[hidden] {
@@ -95,7 +96,7 @@ a {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: var(--c-text-dim);
+    color: var(--c-text);
 }
 
 .ticker__item strong {
