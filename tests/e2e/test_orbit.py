@@ -252,15 +252,23 @@ def run(page):
             .map(cb => cb.dataset.group);
         const gone = [];
         for (const g of groups) {
-            const r = await fetch(`/orbit/data/tle/celestrak/${g.toLowerCase()}.txt`);
+            const r = await fetch(`/data/tle/celestrak/${g.toLowerCase()}.txt`);
             if (!r.ok) gone.push(g);
         }
         return gone;
     }""")
-    # sbas + the three debris groups never shipped a baseline; those fall back
-    # to the API by design. iridium-NEXT must NOT be in this list.
+    # iridium-NEXT must NOT be in this list — the baseline filenames are
+    # lowercase even where the Celestrak group name is not, so a naive
+    # `${g}.txt` would 404 on exactly this group.
+    #
+    # The old note here ("sbas + the three debris groups never shipped a
+    # baseline") was an artifact of this check fetching /orbit/data/tle/...,
+    # a path that has never existed — every group 404'd, so the list was
+    # always full. Against the real /data/tle/ root, `missing` is empty.
     check('iridium-NEXT baseline resolves lowercase',
           'iridium-NEXT' not in missing, f'missing: {missing}')
+    check('every non-builtin layer group ships a baseline snapshot',
+          missing == [], f'missing: {missing}')
 
     # ---------------------------------------------------------------- source
     print('\n-- source  SPACE-TRACK is a link now (wave 3) --')
@@ -439,8 +447,10 @@ def spacetrack_gate(page):
     # module URL the page actually loaded.
     engine_src = page.evaluate("""() => [...document.querySelectorAll('script[type=module]')]
         .map(s => s.src).join(',')""")
+    # The entry module was renamed spacetrack.js -> catalog.js in plan 34's
+    # wave 2.2, when the overlay sections were split into overlays/*.js.
     check('the page is a module that imports the shared engine',
-          'spacetrack.js' in engine_src, engine_src)
+          'catalog.js' in engine_src, engine_src)
     check('the shared engine is running, not a fork', page.evaluate(
         '!!__spacetrack.engine && typeof __spacetrack.engine.propagate === "function"'))
     check('the engine owns one PointPrimitiveCollection', page.evaluate(

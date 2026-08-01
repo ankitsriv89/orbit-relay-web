@@ -3,6 +3,16 @@
 Date: 2026-07-30  
 Deployment: https://da5c9fad.signal-playground-0uj.pages.dev/spacetrack/  
 
+> **HISTORICAL — this design has since been superseded (2026-08-02).** The
+> `#menu-toggle` / `#menu-dropdown` topbar dropdown described below no longer
+> exists: the tabs became separate routes (`/spacetrack/signal/`,
+> `/conjunctions/`, `/brief/`, `/analytics/`) behind the persistent
+> `.spacetrack-nav` + `#hamburger-btn` chrome in `public/css/chrome.css`.
+> `tests/e2e/test_spacetrack_ui.py` was deleted with it — 8 of its 14 sections
+> drove the removed dropdown, and its live concerns are covered by
+> `tests/e2e/test_mobile_dom.py` plus the per-route suites. Kept for the
+> rationale in "Problems Identified", not as a description of the current UI.
+
 ## Problems Identified
 
 The Space-Track catalog page had **five separate floating HUD panels on the right side** (Filters, Signal Feed, Conjunctions, Daily Brief, Analytics), all stacked with hand-measured `bottom: calc()` offsets. This design had fundamental problems:

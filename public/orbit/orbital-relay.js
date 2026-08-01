@@ -21,6 +21,7 @@ import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '../orbit-engine/astro.js';
 import { wireHudToggle, initMobileListener, initHamburgerMenu } from '/shared/hud.js';
+import { syncCheckboxes } from '/shared/sync-checkbox.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 // The previous orbit-page token was rejected by api.cesium.com with a 403,
@@ -102,21 +103,14 @@ function initFilterDrawer() {
         }
     });
 
-    /* Sync drawer checkboxes with main layer checkboxes */
+    /* Sync drawer checkboxes with main layer checkboxes.
+     * The mirroring needs an equality guard or the two handlers re-dispatch
+     * at each other forever — see /shared/sync-checkbox.js. */
     const mainCheckboxes = document.querySelectorAll('#layers-hud .layer-cb');
     const drawerCheckboxes = document.querySelectorAll('#layer-list-drawer .layer-cb');
 
     mainCheckboxes.forEach((mainCb, i) => {
-        const drawerCb = drawerCheckboxes[i];
-        if (!drawerCb) return;
-        mainCb.addEventListener('change', () => {
-            drawerCb.checked = mainCb.checked;
-            drawerCb.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        drawerCb.addEventListener('change', () => {
-            mainCb.checked = drawerCb.checked;
-            mainCb.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        syncCheckboxes(mainCb, drawerCheckboxes[i]);
     });
 }
 

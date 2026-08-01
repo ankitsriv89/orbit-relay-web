@@ -8,7 +8,12 @@ from playwright.sync_api import sync_playwright
 CHROME = '/home/ankit/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome'
 BASE = 'http://127.0.0.1:8931'
 
-PAGES = { '/orbit/': 'modal-orbit', '/spacetrack/': 'modal-spacetrack' }
+# page -> the number of `.key-hud` panels it ships. This is per-page on
+# purpose: /orbit/ has only ever had two (iss-hud, layers-hud), so the old
+# uniform `>= 3` was /spacetrack/'s count applied to both and failed /orbit/
+# for no product reason. An exact count also catches a panel going MISSING,
+# which a `>=` threshold silently tolerates.
+PAGES = { '/orbit/': 2, '/spacetrack/': 5 }
 
 results = []
 def check(name, ok, detail=''):
@@ -22,7 +27,7 @@ def main():
             args=['--enable-unsafe-swiftshader', '--no-sandbox'],
         )
 
-        for page_path, page_id in PAGES.items():
+        for page_path, want_huds in PAGES.items():
             print(f'\n{"="*50}\nPAGE: {page_path}\n{"="*50}')
 
             # Mobile viewport
@@ -55,7 +60,8 @@ def main():
                 # HUD panels exist
                 huds = mobile.evaluate('''[...document.querySelectorAll('[id$="-hud"].key-hud')]
                     .map(e => e.id)''')
-                check(f'[{page_path}] {len(huds)} HUD panels', len(huds) >= 3, str(huds))
+                check(f'[{page_path}] {len(huds)} HUD panels (want {want_huds})',
+                      len(huds) == want_huds, str(huds))
 
                 if len(huds) > 0:
                     # All start collapsed on mobile
@@ -63,14 +69,24 @@ def main():
                         .every(e => e.classList.contains('key-hud--collapsed'))''')
                     check(f'  all panels start collapsed', collapsed)
 
-                    # Panel positions vs viewport
+                    # Panel positions vs viewport.
+                    # A panel that is deliberately `display: none` at this
+                    # breakpoint reports a 0x0 rect at (0,0), which is not an
+                    # out-of-view bug — /orbit/'s #layers-hud is hidden on
+                    # mobile on purpose and replaced by the filter drawer
+                    # (orbit.css: "Layers HUD hidden on mobile"). Report those
+                    # separately instead of failing them on a meaningless rect.
                     panel_pos = mobile.evaluate('''[...document.querySelectorAll('[id$="-hud"].key-hud')]
                         .map(e => {
                             const r = e.getBoundingClientRect();
                             return {id: e.id, top: r.top, left: r.left, w: r.width, h: r.height,
-                                    bottom: r.bottom, right: r.right};
+                                    bottom: r.bottom, right: r.right,
+                                    hidden: getComputedStyle(e).display === 'none'};
                         })''')
                     for p in panel_pos:
+                        if p['hidden']:
+                            print(f'  #{p["id"]} hidden at this breakpoint (by design) — rect not checked')
+                            continue
                         in_view = p['left'] >= 0 and p['right'] <= vp_w and p['top'] >= 0
                         check(f'  #{p["id"]} L:{p["left"]:.0f} T:{p["top"]:.0f} {p["w"]:.0f}x{p["h"]:.0f} in view',
                               in_view)
@@ -109,10 +125,15 @@ def main():
                 huds = tab.evaluate('''[...document.querySelectorAll('[id$="-hud"].key-hud')]
                     .map(e => {
                         const r = e.getBoundingClientRect();
-                        return {id: e.id, top: r.top, left: r.left, w: r.width, h: r.height};
+                        return {id: e.id, top: r.top, left: r.left, w: r.width, h: r.height,
+                                hidden: getComputedStyle(e).display === 'none'};
                     })''')
-                check(f'[{page_path}] tablet {len(huds)} HUD panels', len(huds) >= 3)
+                check(f'[{page_path}] tablet {len(huds)} HUD panels (want {want_huds})',
+                      len(huds) == want_huds)
                 for p in huds[:2]:
+                    if p['hidden']:
+                        print(f'  #{p["id"]} hidden at tablet width (by design) — rect not checked')
+                        continue
                     in_view = p['left'] >= 0 and p['left'] + p['w'] <= tw
                     check(f'  #{p["id"]} in view on tablet', in_view,
                           f'L:{p["left"]:.0f} W:{p["w"]:.0f} vs {tw}px')
