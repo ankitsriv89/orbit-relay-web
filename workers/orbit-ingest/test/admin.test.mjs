@@ -9,7 +9,11 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { nextRun, nextDue, ACTIONS_CRONS } from '../../../public/admin/cron.js';
+import { onRequest as hitOnRequest } from '../../../functions/api/hit.js';
 
 // ── Inline the functions under test (they are pure, no bindings needed) ────
 
@@ -433,6 +437,92 @@ test('nextDue picks the earliest of the three jobs', () => {
 test('nextDue defaults to now and returns within a year', () => {
   const next = nextDue();
   assert.ok(next && next.at > Date.now() && next.at < Date.now() + 366 * 86400000);
+});
+
+console.log('\n-- /api/hit beacon (functions/api/hit.js) --');
+
+// A D1-shaped binding over node:sqlite, same shim as pages-api.test.mjs.
+function localD1(db) {
+  const norm = (a) => a.map((v) => (v === undefined ? null : v));
+  return {
+    prepare(sql) {
+      const stmt = { sql, args: [] };
+      stmt.bind = (...a) => { stmt.args = norm(a); return stmt; };
+      stmt.all = async () => ({ results: db.prepare(sql).all(...stmt.args) });
+      stmt.first = async () => db.prepare(sql).get(...stmt.args) ?? null;
+      stmt.run = async () => {
+        const i = db.prepare(sql).run(...stmt.args);
+        return { meta: { last_row_id: Number(i.lastInsertRowid), changes: Number(i.changes) } };
+      };
+      return stmt;
+    },
+  };
+}
+
+function seededPageViewsDb() {
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const ROOT = path.resolve(HERE, '../../..');
+  const SCHEMA = readFileSync(path.join(ROOT, 'd1/orbit.sql'), 'utf8');
+  const db = new DatabaseSync(':memory:');
+  db.exec(SCHEMA);
+  return db;
+}
+
+// A minimal EventContext stand-in that mirrors the real Pages Functions
+// shape: waitUntil reads `this`, exactly like Cloudflare's actual
+// EventContext class. Destructuring `{ waitUntil }` off an instance and
+// calling it unbound throws "Cannot read properties of undefined (reading
+// '_pending')" — exactly the bug this test catches (object-literal shorthand
+// methods close over the outer scope instead and would hide the bug).
+class FakeEventContext {
+  constructor(request, env) {
+    this.request = request;
+    this.env = env;
+    this._pending = [];
+  }
+  waitUntil(p) { this._pending.push(p); }
+}
+function fakeContext({ request, env }) {
+  return new FakeEventContext(request, env);
+}
+
+await testAsync('POST /api/hit inserts a page_views row (waitUntil bound correctly)', async () => {
+  const db = seededPageViewsDb();
+  const env = { ORBIT_DB: localD1(db), ADMIN_SECRET: 'test-secret' };
+  const ctx = fakeContext({
+    request: new Request('https://x/api/hit', {
+      method: 'POST',
+      body: JSON.stringify({ path: '/orbit/', ref: 'https://example.com/some/page' }),
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh) Safari/605', 'CF-Connecting-IP': '203.0.113.7' },
+    }),
+    env,
+  });
+  const res = await hitOnRequest(ctx);
+  assert.equal(res.status, 204);
+  // The insert is scheduled via ctx.waitUntil — await it before asserting the row landed.
+  await Promise.all(ctx._pending);
+  const row = db.prepare('SELECT path, referrer, ua_class FROM page_views').get();
+  assert.equal(row.path, '/orbit/');
+  assert.equal(row.referrer, 'https://example.com', 'referrer stored as origin only, never the full URL');
+  assert.equal(row.ua_class, 'desktop');
+});
+
+await testAsync('a bot UA is a 204 no-op, no row written', async () => {
+  const db = seededPageViewsDb();
+  const env = { ORBIT_DB: localD1(db), ADMIN_SECRET: 'test-secret' };
+  const ctx = fakeContext({
+    request: new Request('https://x/api/hit', {
+      method: 'POST',
+      body: JSON.stringify({ path: '/' }),
+      headers: { 'User-Agent': 'Googlebot/2.1' },
+    }),
+    env,
+  });
+  const res = await hitOnRequest(ctx);
+  assert.equal(res.status, 204);
+  await Promise.all(ctx._pending);
+  const row = db.prepare('SELECT COUNT(*) AS n FROM page_views').get();
+  assert.equal(row.n, 0);
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────

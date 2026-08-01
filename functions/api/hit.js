@@ -28,7 +28,7 @@ function classifyUA(ua) {
 }
 
 export async function onRequest(context) {
-  const { request, env, waitUntil } = context;
+  const { request, env } = context;
   if (request.method !== 'POST') return new Response(null, { status: 405 });
 
   let body;
@@ -62,7 +62,7 @@ export async function onRequest(context) {
   const ipHash = Array.from(new Uint8Array(hashBuf).slice(0, 8))
     .map(b => b.toString(16).padStart(2, '0')).join('');
 
-  waitUntil(
+  context.waitUntil(
     db.prepare(
       'INSERT INTO page_views (ts, path, referrer, country, ip_hash, ua_class) VALUES (?, ?, ?, ?, ?, ?)',
     ).bind(Date.now(), path, referrer, country, ipHash, ua).run()
