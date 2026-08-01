@@ -310,13 +310,13 @@ export class SatEngine {
      * the worker script finishes loading are queued by the browser, so there is
      * no need to wait on `workerReady`.
      */
-    requestPath(l1, l2, kind, steps, periodMin, done, fallback) {
+    requestPath(l1, l2, kind, steps, periodMin, done, fallback, spanFrom = 0, spanTo = 1) {
         if (!this.worker) { done(fallback()); return; }
         const job = this._nextPathJob++;
         this._pathJobs.set(job, { done, fallback });
         this.worker.postMessage({
             type: 'path', job, l1, l2, kind, steps,
-            t0: this.now().getTime(), periodMin,
+            t0: this.now().getTime(), periodMin, spanFrom, spanTo,
         });
     }
 
@@ -326,11 +326,11 @@ export class SatEngine {
      * a ground-track callback re-runs 120 propagations on the main thread every
      * refresh — audit finding M-18.
      */
-    workerPath(rec, kind, steps, ms) {
+    workerPath(rec, kind, steps, ms, spanFrom = 0, spanTo = 1) {
         let cache = [], last = -Infinity, pending = false;
         const sync = () => (kind === 'track'
-            ? this.computeGroundTrack(rec.satrec, steps)
-            : this.computeOrbitPath(rec.satrec, steps));
+            ? this.computeGroundTrack(rec.satrec, steps, spanFrom, spanTo)
+            : this.computeOrbitPath(rec.satrec, steps, spanFrom, spanTo));
         return () => {
             const now = performance.now();
             if (!pending && now - last > ms) {
@@ -339,7 +339,8 @@ export class SatEngine {
                     pending = true;
                     this.requestPath(rec.l1, rec.l2, kind, steps, orbitalPeriodMin(rec.satrec),
                                      (pts) => { cache = pts; pending = false; },
-                                     () => { pending = false; return sync(); });
+                                     () => { pending = false; return sync(); },
+                                     spanFrom, spanTo);
                 } else {
                     cache = sync();
                 }
@@ -352,12 +353,18 @@ export class SatEngine {
 
     /* ── Synchronous path fallbacks ─────────────────────────────────────── */
 
-    _samplePath(satrec, steps, heightOf) {
+    _samplePath(satrec, steps, heightOf, spanFrom = 0, spanTo = 1) {
         const period = orbitalPeriodMin(satrec);
         const t0 = this.now().getTime();
+        // Same signed-span walk as the worker's path() — the two must land on
+        // the same instants. Vertex count scales with the span so resolution
+        // is constant per revolution (the default 0..1 span is unchanged).
+        const span = spanTo - spanFrom;
+        const n    = Math.min(Math.max(2, Math.round(Math.abs(span) * steps)), 480);
         const pts = [];
-        for (let i = 0; i <= steps; i++) {
-            const t  = new Date(t0 + (i / steps) * period * 60000);
+        for (let i = 0; i <= n; i++) {
+            const rev = spanFrom + (i / n) * span;
+            const t  = new Date(t0 + rev * period * 60000);
             const g  = geoAt(satrec, t);
             if (!g) continue;
             pts.push(Cesium.Cartesian3.fromDegrees(g.lon, g.lat, heightOf(g)));
@@ -365,13 +372,13 @@ export class SatEngine {
         return pts;
     }
 
-    computeOrbitPath(satrec, steps = 90) {
-        return this._samplePath(satrec, steps, (g) => g.alt * 1000);
+    computeOrbitPath(satrec, steps = 90, spanFrom = 0, spanTo = 1) {
+        return this._samplePath(satrec, steps, (g) => g.alt * 1000, spanFrom, spanTo);
     }
 
     /** Sub-satellite path clamped to the surface, one full period. */
-    computeGroundTrack(satrec, steps = 120) {
-        return this._samplePath(satrec, steps, () => 0);
+    computeGroundTrack(satrec, steps = 120, spanFrom = 0, spanTo = 1) {
+        return this._samplePath(satrec, steps, () => 0, spanFrom, spanTo);
     }
 
     /* ── Satellites ─────────────────────────────────────────────────────── */

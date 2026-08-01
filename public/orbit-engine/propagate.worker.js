@@ -129,7 +129,7 @@ function tick(tMs) {
 }
 
 /* ── Paths (orbit ring · ground track) ──────────────────────────────────── */
-function path(job, l1, l2, kind, steps, t0Ms, periodMin) {
+function path(job, l1, l2, kind, steps, t0Ms, periodMin, spanFrom = 0, spanTo = 1) {
     const key = l1 + '\n' + l2;
     let rec = pathRecGet(key);
     if (!rec) {
@@ -139,10 +139,16 @@ function path(job, l1, l2, kind, steps, t0Ms, periodMin) {
     }
 
     const period = periodMin || (2 * Math.PI) / rec.no;
-    const xyz    = new Float32Array((steps + 1) * 3);
+    // Signed span, in revolutions: negative revs propagate before `now`, and
+    // SGP4 is symmetric about the epoch so no guard is needed. The vertex
+    // count scales with the span so resolution stays constant per revolution.
+    const span = spanTo - spanFrom;
+    const n    = Math.min(Math.max(2, Math.round(Math.abs(span) * steps)), 480);
+    const xyz  = new Float32Array((n + 1) * 3);
     let count = 0;
-    for (let i = 0; i <= steps; i++) {
-        const date = new Date(t0Ms + (i / steps) * period * 60000);
+    for (let i = 0; i <= n; i++) {
+        const rev  = spanFrom + (i / n) * span;
+        const date = new Date(t0Ms + rev * period * 60000);
         const pv   = satellite.propagate(rec, date);
         if (!pv || !pv.position) continue;
         const geo = satellite.eciToGeodetic(pv.position, satellite.gstime(date));
@@ -182,7 +188,8 @@ onmessage = (e) => {
             if (m.ids && idPool.length  < 2) idPool.push(new Uint32Array(m.ids));
             break;
         case 'path':
-            path(m.job, m.l1, m.l2, m.kind, m.steps, m.t0, m.periodMin);
+            path(m.job, m.l1, m.l2, m.kind, m.steps, m.t0, m.periodMin,
+                 m.spanFrom, m.spanTo);
             break;
         default:
             break;
