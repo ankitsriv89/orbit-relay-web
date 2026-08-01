@@ -54,6 +54,11 @@ body[data-page-id="spacetrack-catalog"] {
        this the browser also claims the gesture for pull-to-refresh, double-tap
        zoom and edge swipe-back, which fight the globe on every drag. */
     touch-action: none;
+    cursor: grab;
+}
+
+#cesium-container:active {
+    cursor: grabbing;
 }
 
 /* Strip Cesium's default chrome — keep only the globe */
@@ -414,6 +419,17 @@ body[data-page-id="spacetrack-catalog"] {
     font-weight: 700;
 }
 .tw-btns { display: flex; gap: 4px; }
+
+/* ── Camera altitude readout — sits inline with the time-warp control ────── */
+.cam-alt {
+    font-size: 0.58rem;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    color: rgba(160, 210, 240, 0.6);
+    padding-left: 10px;
+    border-left: 1px solid rgba(0, 210, 255, 0.2);
+    white-space: nowrap;
+}
 .tw-btn {
     font-family: var(--font-mono);
     font-size: 0.62rem;
@@ -695,6 +711,18 @@ body[data-page-id="spacetrack-catalog"] {
     .orbital-hud {
         font-size: 0.58rem;
         padding:   8px 10px;
+    }
+
+    .time-warp {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .cam-alt {
+        padding-left: 0;
+        border-left: none;
+        flex-basis: 100%;
+        text-align: center;
     }
 }
 

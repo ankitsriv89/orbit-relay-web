@@ -57,6 +57,15 @@
                     <a href="/orbit/" class="btn btn--primary">Explore CelesTrak →</a>
                     <a href="/spacetrack/" class="btn btn--ghost">Browse Space-Track →</a>
                 </div>
+
+                <div class="mission-horizon" aria-label="Mission tracking horizon, 2026 to 2061">
+                    <span class="mission-horizon__label">MISSION YEAR</span>
+                    <span class="mission-horizon__year" id="mission-horizon-year">2026</span>
+                    <div class="mission-horizon__track">
+                        <div class="mission-horizon__fill" id="mission-horizon-fill"></div>
+                    </div>
+                    <span class="mission-horizon__end">2061</span>
+                </div>
             </div>
         </section>
 
@@ -257,6 +266,7 @@
                 <p>Built on CesiumJS, Space-Track.org and CelesTrak. No build step, no bundler
                    — what ships is what runs.</p>
                 <p class="site-footer__meta">© 2026 Orbital Relay · Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron), redistributed under USSPACECOM express blanket approval for basic SSA data, plus CelesTrak GP element sets.</p>
+                <span id="mission-clock" class="mission-clock" title="Mission year — 2026 to 2061" aria-hidden="true"></span>
             </div>
         </div>
     </footer>

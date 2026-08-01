@@ -80,7 +80,54 @@ export function tuneViewerForDevice(viewer, { mobileMaxWidth = 600 } = {}) {
     const isSmall = window.matchMedia(`(max-width: ${mobileMaxWidth}px)`).matches;
     viewer.resolutionScale = isSmall ? 0.85 : 1.0;
 
+    tuneCameraLimits(viewer);
+
     return viewer;
+}
+
+/**
+ * Clamp how far the camera can pull out.
+ *
+ * Cesium's default `maximumZoomDistance` is unbounded, so a fast trackpad/
+ * scroll-wheel flick (or a pinch on mobile) can push the globe past the far
+ * clipping plane or shrink it to a few pixels off-center — it reads as "the
+ * globe fell out of the screen." GEO altitude is ~35,786 km; 110,000 km is
+ * >3x that, so geostationary shells (and everything below) stay comfortably
+ * in frame at every viewport size while still capping the runaway zoom-out.
+ * `minimumZoomDistance` stops the inverse case — zooming inside the globe
+ * and clipping through the surface.
+ */
+function tuneCameraLimits(viewer) {
+    const controller = viewer.scene.screenSpaceCameraController;
+    controller.minimumZoomDistance = 500;
+    controller.maximumZoomDistance = 1.1e8;
+    controller.enableInputs = true;
+}
+
+/**
+ * Mounts a live "camera altitude above the surface, in km" readout into
+ * `el` and keeps it in sync with `viewer.camera.changed`. Altitude (not
+ * range-to-target) is what the zoom clamp above is expressed in, so this
+ * is the number that tells a user how close they are to the 110,000 km
+ * ceiling — not a range-from-globe-center figure that would read differently.
+ */
+export function mountCameraAltitudeHud(viewer, el) {
+    if (!el) return;
+    el.classList.add('cam-alt');
+
+    function render() {
+        const carto = viewer.camera.positionCartographic;
+        if (!carto) return;
+        const km = carto.height / 1000;
+        el.textContent = km >= 1000
+            ? Math.round(km).toLocaleString() + ' KM'
+            : km.toFixed(1) + ' KM';
+    }
+
+    render();
+    viewer.camera.changed.addEventListener(render);
+    viewer.camera.percentageChanged = 0.005; // fire `changed` on small zoom deltas too
+    return () => viewer.camera.changed.removeEventListener(render);
 }
 
 /**

@@ -38,6 +38,7 @@
         </ul>
         <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
         <a href="/spacetrack/" class="spacetrack-nav__source-link" title="Space-Track catalog">SPACE-TRACK ↗</a>
+        <span id="mission-clock" class="mission-clock" title="Mission year — 2026 to 2061" aria-hidden="true"></span>
         <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
             <span class="hamburger-line"></span>
             <span class="hamburger-line"></span>
@@ -375,6 +376,7 @@
             <button class="tw-btn" data-rate="60"  title="60× speed">60×</button>
             <button class="tw-btn" data-rate="600" title="600× speed">600×</button>
         </div>
+        <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     </div>
 
     <!-- Satellite inspector card — pinned when a satellite is clicked -->
@@ -618,6 +620,10 @@
 
     <script src="../orbit-engine/vendor/satellite.min.js"></script>
     <script type="module" src="orbital-relay.js"></script>
+    <script type="module">
+        import { mountMissionClock } from '/shared/mission-clock.js';
+        mountMissionClock(document.getElementById('mission-clock'));
+    </script>
 </body>
 
 </html>

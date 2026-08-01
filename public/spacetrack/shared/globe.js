@@ -1,4 +1,4 @@
-import { SatEngine, tuneViewerForDevice } from '../../orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud } from '../../orbit-engine/sat-engine.js';
 import { State } from './state.js';
 
 Cesium.Ion.defaultAccessToken =
@@ -87,7 +87,9 @@ export function initTimeWarpButtons(container) {
             <button class="tw-btn" data-rate="60" title="60× speed">60×</button>
             <button class="tw-btn" data-rate="600" title="600× speed">600×</button>
         </div>
+        <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     `;
+    if (viewer) mountCameraAltitudeHud(viewer, container.querySelector('#cam-alt'));
     document.querySelectorAll('.tw-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const rate = Number(btn.dataset.rate);

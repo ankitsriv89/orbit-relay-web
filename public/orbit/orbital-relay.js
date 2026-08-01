@@ -15,7 +15,7 @@
  * animated orbit trails, constellation pulse FX.
  */
 
-import { SatEngine, SatPoint, tuneViewerForDevice } from '../orbit-engine/sat-engine.js';
+import { SatEngine, SatPoint, tuneViewerForDevice, mountCameraAltitudeHud } from '../orbit-engine/sat-engine.js';
 import { parseTLE, fetchTLE }  from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
@@ -126,6 +126,7 @@ window.viewer = viewer;
 // Render on demand and cap resolution on small screens. Must run before the
 // SatEngine exists, because the engine's tick is what asks for frames.
 tuneViewerForDevice(viewer);
+mountCameraAltitudeHud(viewer, document.getElementById('cam-alt'));
 
 // Space atmosphere + day/night terminator (dynamic lighting follows the sun)
 viewer.scene.globe.enableLighting          = true;

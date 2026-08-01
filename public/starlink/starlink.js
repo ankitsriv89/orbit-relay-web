@@ -6,7 +6,7 @@
  * and rendering.
  */
 
-import { SatEngine, SatPoint, tuneViewerForDevice } from '/orbit-engine/sat-engine.js';
+import { SatEngine, SatPoint, tuneViewerForDevice, mountCameraAltitudeHud } from '/orbit-engine/sat-engine.js';
 import { parseTLE, fetchTLE }  from '/orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
@@ -52,6 +52,7 @@ const viewer = new Cesium.Viewer('cesium-container', {
 
 window.viewer = viewer;
 tuneViewerForDevice(viewer);
+mountCameraAltitudeHud(viewer, document.getElementById('cam-alt'));
 
 viewer.scene.globe.enableLighting          = true;
 viewer.scene.globe.dynamicAtmosphereLighting = true;

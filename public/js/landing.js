@@ -1,6 +1,7 @@
 // Landing page: hero 3D backdrop + live catalog stat strip + ticker.
 
 import { initHeroScene } from './hero-scene.js';
+import { missionYearLabel, missionYearFraction, mountMissionClock } from '/shared/mission-clock.js';
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -250,10 +251,25 @@ function initHero() {
     if (!scene) initStarfield();
 }
 
+/* ── Mission horizon (hero) — 2026 → 2061 real-time year readout ─────────── */
+function initMissionHorizon() {
+    const yearEl = document.getElementById('mission-horizon-year');
+    const fillEl = document.getElementById('mission-horizon-fill');
+    if (!yearEl || !fillEl) return;
+    function render() {
+        yearEl.textContent = missionYearLabel();
+        fillEl.style.width = (missionYearFraction() * 100).toFixed(3) + '%';
+    }
+    render();
+    setInterval(render, 60 * 60 * 1000);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initHero();
     loadStats();
     initTicker();
     syncHeaderHeight();
     window.addEventListener('resize', syncHeaderHeight, { passive: true });
+    initMissionHorizon();
+    mountMissionClock(document.getElementById('mission-clock'));
 });

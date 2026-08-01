@@ -21,6 +21,11 @@ body[data-page-id="starlink-constellation"] {
     inset: 0;
     z-index: 0;
     touch-action: none;
+    cursor: grab;
+}
+
+#cesium-container:active {
+    cursor: grabbing;
 }
 
 #cesium-container .cesium-widget-credits { display: none !important; }
@@ -311,6 +316,18 @@ body[data-page-id="starlink-constellation"] {
     font-weight: 700;
 }
 .tw-btns { display: flex; gap: 4px; }
+
+/* ── Camera altitude readout — sits inline with the time-warp control ────── */
+.cam-alt {
+    font-size: 0.58rem;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    color: rgba(160, 200, 230, 0.6);
+    padding-left: 10px;
+    border-left: 1px solid rgba(0, 210, 255, 0.2);
+    white-space: nowrap;
+}
+
 .tw-btn {
     font-family: var(--font-mono);
     font-size: 0.62rem;
@@ -416,6 +433,47 @@ body[data-page-id="starlink-constellation"] {
     color: rgba(160, 200, 230, 0.7);
 }
 
+/* ── Mission clock (matches public/css/chrome.css's shared component) ────── */
+.mission-clock {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: rgba(160, 200, 230, 0.55);
+}
+.mission-clock::before {
+    content: 'YR';
+    color: rgba(160, 200, 230, 0.35);
+    font-weight: 600;
+}
+.mission-clock__year {
+    color: #00d2ff;
+}
+.mission-clock__sep {
+    color: rgba(160, 200, 230, 0.35);
+}
+.mission-clock__end {
+    color: rgba(160, 200, 230, 0.45);
+}
+.mission-clock__bar {
+    position: relative;
+    width: 34px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(160, 200, 230, 0.15);
+    overflow: hidden;
+}
+.mission-clock__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: #00d2ff;
+    border-radius: 2px;
+}
+@media (max-width: 600px) {
+    .mission-clock__bar {
+        display: none;
+    }
+}
+
 /* Focus */
 .orbital-hud button:focus-visible,
 .orbital-hud input:focus-visible,
@@ -511,5 +569,17 @@ body[data-page-id="starlink-constellation"] {
     .orbital-hud {
         font-size: 0.58rem;
         padding: 8px 10px;
+    }
+
+    .time-warp {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .cam-alt {
+        padding-left: 0;
+        border-left: none;
+        flex-basis: 100%;
+        text-align: center;
     }
 }

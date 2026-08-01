@@ -103,6 +103,7 @@
             <button class="tw-btn" data-rate="60"  title="60× speed">60×</button>
             <button class="tw-btn" data-rate="600" title="600× speed">600×</button>
         </div>
+        <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     </div>
 
     <!-- Satellite inspector card -->
@@ -122,10 +123,15 @@
         <span>Live data: Celestrak</span>
         <span class="orbital-footer__cite">Orbital data courtesy of Space-Track.org (USSPACECOM / 18th Space Defense Squadron)</span>
         <span>rendered with CesiumJS</span>
+        <span id="mission-clock" class="mission-clock" title="Mission year — 2026 to 2061" aria-hidden="true"></span>
     </footer>
 
     <script src="/orbit-engine/vendor/satellite.min.js"></script>
     <script type="module" src="starlink.js"></script>
+    <script type="module">
+        import { mountMissionClock } from '/shared/mission-clock.js';
+        mountMissionClock(document.getElementById('mission-clock'));
+    </script>
 </body>
 
 </html>
