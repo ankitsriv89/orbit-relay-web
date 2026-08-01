@@ -213,3 +213,28 @@ CREATE TABLE IF NOT EXISTS api_calls (
 );
 
 CREATE INDEX IF NOT EXISTS idx_api_calls_ts ON api_calls(ts DESC);
+
+-- ── page_views ─────────────────────────────────────────────────────────────
+-- First-party analytics beacon. One row per pageview, written by /api/hit.
+-- IP is hashed with a daily-rotating salt (derived, not stored) so uniques
+-- are countable per day but not correlatable across days.
+CREATE TABLE IF NOT EXISTS page_views (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL, path TEXT NOT NULL, referrer TEXT,
+  country TEXT, ip_hash TEXT, ua_class TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_page_views_ts   ON page_views(ts DESC);
+CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views(path);
+
+-- ── ingest_runs ────────────────────────────────────────────────────────────
+-- Persisted ingest run reports. The scheduled() handler console.log'd these
+-- before; now they land in D1 so the admin dashboard can show history.
+CREATE TABLE IF NOT EXISTS ingest_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  job TEXT NOT NULL, ok INTEGER NOT NULL,
+  total_ms INTEGER, d1_requests INTEGER, r2_puts INTEGER,
+  source TEXT,
+  steps TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ingest_runs_ts ON ingest_runs(ts DESC);

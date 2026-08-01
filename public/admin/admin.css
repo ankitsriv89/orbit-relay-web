@@ -1,0 +1,268 @@
+/* admin.css — Scoped styles for /admin/ dashboard.
+ *
+ * Re-declares the handful of HUD *visual* rules needed here, scoped under
+ * body[data-page-id="admin"], with position: static (scrolling column, not
+ * fixed corners). Values stay shared via tokens.css.
+ *
+ * Trade-off: some CSS is duplicated from orbit.css / spacetrack.css.
+ * Commented inline where the duplication is intentional.
+ */
+:root {
+    --panel-bg: rgba(0, 12, 24, 0.88);
+    --panel-border: rgba(0, 210, 255, 0.2);
+    --hud-blur: 12px;
+}
+
+body[data-page-id="admin"] {
+    font-family: var(--font-mono);
+    background: var(--c-void);
+    color: var(--c-text);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ── Login screen ─────────────────────────────────────────────────────────── */
+.admin-login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+}
+.admin-login[hidden] { display: none; }
+
+.admin-login__form {
+    width: 100%;
+    max-width: 340px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 32px 24px;
+    backdrop-filter: blur(var(--hud-blur));
+}
+.admin-login__title {
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    color: var(--c-signal);
+    margin: 0 0 24px;
+}
+.admin-login__label {
+    display: block;
+    font-size: 0.6rem;
+    letter-spacing: 1.5px;
+    color: var(--c-text-dim);
+    margin-bottom: 6px;
+}
+.admin-login__input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--c-text);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    outline: none;
+    margin-bottom: 16px;
+}
+.admin-login__input:focus {
+    border-color: var(--c-signal);
+}
+.admin-login__btn {
+    width: 100%;
+    padding: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    color: var(--c-void);
+    background: var(--c-signal);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    min-height: 44px;
+}
+.admin-login__error {
+    color: var(--c-warn);
+    font-size: 0.65rem;
+    margin-top: 12px;
+}
+.admin-login__error[hidden] { display: none; }
+
+/* ── Panels container ─────────────────────────────────────────────────────── */
+.admin-panels {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: calc(70px + var(--sa-top)) 16px calc(80px + var(--sa-bottom)) 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.admin-panels[hidden] { display: none; }
+
+/* ── HUD panel visual rules (scoped for admin, position: static) ────────────
+ * Duplicated from orbit.css / spacetrack.css intentionally — admin panels
+ * are a scrolling column, not fixed corners. */
+.orbital-hud.key-hud {
+    position: static;
+    width: 100%;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    backdrop-filter: blur(var(--hud-blur));
+    overflow: hidden;
+}
+
+.key-hud--collapsed .key-hud-body {
+    display: none;
+}
+
+.key-hud-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: var(--c-signal);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+}
+.key-hud-toggle::before {
+    content: '//';
+    color: rgba(0, 210, 255, 0.35);
+    margin-right: 6px;
+}
+.key-hud-toggle::after {
+    content: '▸';
+    color: rgba(0, 210, 255, 0.35);
+    transition: transform 0.15s;
+}
+.key-hud--collapsed .key-hud-toggle::after {
+    transform: rotate(0deg);
+}
+.key-hud:not(.key-hud--collapsed) .key-hud-toggle::after {
+    transform: rotate(90deg);
+}
+
+.key-hud-body {
+    padding: 0 14px 14px;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    color: var(--c-text-dim);
+}
+.key-hud-body[hidden] { display: none; }
+
+/* ── Panel content helpers ─────────────────────────────────────────────────── */
+.admin-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.08);
+}
+.admin-stat:last-child { border-bottom: none; }
+.admin-stat__label { color: var(--c-text-dim); }
+.admin-stat__value { color: var(--c-text); font-weight: 700; }
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.65rem;
+    margin-top: 8px;
+    overflow-x: auto;
+    display: block;
+}
+.admin-table th,
+.admin-table td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.1);
+    white-space: nowrap;
+}
+.admin-table th {
+    color: var(--c-signal);
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-size: 0.55rem;
+}
+
+.admin-hint {
+    color: var(--c-text-dim);
+    font-size: 0.65rem;
+    font-style: italic;
+    padding: 8px 0;
+}
+
+.admin-sql-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 80px;
+    padding: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--c-text);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    resize: vertical;
+    outline: none;
+    margin-bottom: 8px;
+}
+.admin-sql-input:focus { border-color: var(--c-signal); }
+
+.admin-btn {
+    padding: 8px 16px;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: var(--c-void);
+    background: var(--c-signal);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    min-height: 44px;
+    min-width: 44px;
+}
+.admin-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.admin-sql-result {
+    margin-top: 10px;
+    overflow-x: auto;
+}
+
+.admin-refresh-btn {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 1px;
+    color: var(--c-text-dim);
+    background: none;
+    border: 1px solid rgba(0, 210, 255, 0.2);
+    border-radius: 3px;
+    padding: 4px 8px;
+    cursor: pointer;
+    min-height: 44px;
+}
+
+/* ── Mobile ────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .admin-panels {
+        padding-top: calc(56px + var(--sa-top));
+        padding-bottom: calc(56px + var(--sa-bottom));
+    }
+    .key-hud-toggle {
+        min-height: 44px;
+    }
+}

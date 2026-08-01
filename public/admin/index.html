@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Orbital Relay</title>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/chrome.css">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+</head>
+<body data-page-id="admin">
+
+  <nav class="spacetrack-nav" id="main-nav" role="navigation"
+       aria-label="Admin navigation">
+    <a href="/" class="spacetrack-nav__brand">◂ HOME</a>
+    <ul class="spacetrack-nav__list" role="menubar">
+      <li><a href="/admin/" class="spacetrack-nav__link spacetrack-nav__link--active">ADMIN</a></li>
+    </ul>
+    <button id="logout-btn" class="spacetrack-nav__link" style="pointer-events:auto;cursor:pointer;border:none;background:none;">
+      LOGOUT
+    </button>
+  </nav>
+
+  <!-- Login form (shown when not authenticated) -->
+  <div id="login-screen" class="admin-login" hidden>
+    <form id="login-form" class="admin-login__form">
+      <h1 class="admin-login__title">// ORBITAL RELAY ADMIN</h1>
+      <label class="admin-login__label" for="login-password">Password</label>
+      <input id="login-password" class="admin-login__input" type="password"
+             autocomplete="current-password" required>
+      <button type="submit" class="admin-login__btn">AUTHENTICATE</button>
+      <p id="login-error" class="admin-login__error" hidden></p>
+    </form>
+  </div>
+
+  <!-- Dashboard (shown after auth) -->
+  <main id="admin-panels" class="admin-panels" hidden></main>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>

@@ -41,6 +41,15 @@
 /icons/*
   Cache-Control: public, max-age=86400
 
+# Admin pages — no caching, no indexing.
+/admin/*
+  Cache-Control: no-store, no-cache, must-revalidate
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Referrer-Policy: no-referrer
+/api/admin/*
+  Cache-Control: no-store, no-cache, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
 # Security headers. No CSP here on purpose: these pages load Cesium from a CDN
 # and run two Web Workers, so a policy written blind would break the globe.
 # Add one deliberately, with the CDN and worker-src enumerated, and test it.
