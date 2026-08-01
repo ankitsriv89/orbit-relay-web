@@ -33,7 +33,14 @@ export default {
     for (const [label, value] of stats) {
       const row = document.createElement('div');
       row.className = 'admin-stat';
-      row.innerHTML = `<span class="admin-stat__label">${label}</span><span class="admin-stat__value">${value}</span>`;
+      const lbl = document.createElement('span');
+      lbl.className = 'admin-stat__label';
+      lbl.textContent = label;
+      const val = document.createElement('span');
+      val.className = 'admin-stat__value';
+      val.textContent = value;
+      row.appendChild(lbl);
+      row.appendChild(val);
       el.appendChild(row);
     }
   },

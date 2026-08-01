@@ -38,7 +38,14 @@ export default {
     for (const [label, value] of stats) {
       const row = document.createElement('div');
       row.className = 'admin-stat';
-      row.innerHTML = `<span class="admin-stat__label">${label}</span><span class="admin-stat__value">${value}</span>`;
+      const lbl = document.createElement('span');
+      lbl.className = 'admin-stat__label';
+      lbl.textContent = label;
+      const val = document.createElement('span');
+      val.className = 'admin-stat__value';
+      val.textContent = value;
+      row.appendChild(lbl);
+      row.appendChild(val);
       el.appendChild(row);
     }
 
@@ -50,11 +57,25 @@ export default {
 
       const table = document.createElement('table');
       table.className = 'admin-table';
-      table.innerHTML = '<thead><tr><th>PAGE</th><th>VIEWS</th></tr></thead>';
+      const thead = document.createElement('thead');
+      const hr = document.createElement('tr');
+      for (const h of ['PAGE', 'VIEWS']) {
+        const th = document.createElement('th');
+        th.textContent = h;
+        hr.appendChild(th);
+      }
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
       const tbody = document.createElement('tbody');
       for (const row of data.topPages) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${row.path}</td><td>${row.views}</td>`;
+        const td1 = document.createElement('td');
+        td1.textContent = row.path;
+        const td2 = document.createElement('td');
+        td2.textContent = row.views;
+        tr.appendChild(td1);
+        tr.appendChild(td2);
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);

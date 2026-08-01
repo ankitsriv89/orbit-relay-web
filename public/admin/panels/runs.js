@@ -22,28 +22,37 @@ export default {
 
     const table = document.createElement('table');
     table.className = 'admin-table';
-    table.innerHTML = `
-      <thead><tr>
-        <th>TIME</th><th>JOB</th><th>STATUS</th><th>DURATION</th><th>D1</th><th>R2</th><th>SOURCE</th>
-      </tr></thead>
-    `;
-    const tbody = document.createElement('tbody');
 
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    for (const h of ['TIME', 'JOB', 'STATUS', 'DURATION', 'D1', 'R2', 'SOURCE']) {
+      const th = document.createElement('th');
+      th.textContent = h;
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
     for (const run of data.runs) {
       const tr = document.createElement('tr');
-      const time = new Date(run.ts).toLocaleString();
-      tr.innerHTML = `
-        <td>${time}</td>
-        <td>${run.job}</td>
-        <td style="color:${run.ok ? '#0f8' : '#f85'}">${run.ok ? 'OK' : 'FAIL'}</td>
-        <td>${run.total_ms != null ? run.total_ms + 'ms' : '—'}</td>
-        <td>${run.d1_requests ?? '—'}</td>
-        <td>${run.r2_puts ?? '—'}</td>
-        <td>${run.source ?? '—'}</td>
-      `;
+      const cells = [
+        new Date(run.ts).toLocaleString(),
+        run.job,
+        run.ok ? 'OK' : 'FAIL',
+        run.total_ms != null ? run.total_ms + 'ms' : '—',
+        run.d1_requests != null ? String(run.d1_requests) : '—',
+        run.r2_puts != null ? String(run.r2_puts) : '—',
+        run.source ?? '—',
+      ];
+      for (let i = 0; i < cells.length; i++) {
+        const td = document.createElement('td');
+        td.textContent = cells[i];
+        if (i === 2) td.style.color = run.ok ? '#0f8' : '#f85';
+        tr.appendChild(td);
+      }
       tbody.appendChild(tr);
     }
-
     table.appendChild(tbody);
     el.appendChild(table);
   },

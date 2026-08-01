@@ -30,6 +30,24 @@ export const CRON_DAILY   = '20 17 * * *';
 export const CRON_WEEKLY  = '25 17 * * 3';
 
 /**
+ * Persist an ingest run report to D1 for the admin dashboard.
+ * Failure here must NEVER fail the run: losing a log row beats losing an ingest.
+ * steps is JSON.stringify'd explicitly because env-node.mjs's sqlLiteral() throws
+ * on a non-string object — which would fail the Actions path ONLY.
+ */
+export async function recordRun(env, report, source = 'worker-cron') {
+  if (!env?.ORBIT_DB) return;
+  try {
+    await env.ORBIT_DB.prepare(
+      `INSERT INTO ingest_runs (ts, job, ok, total_ms, d1_requests, r2_puts, source, steps)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(Date.now() - (report.total_ms || 0), String(report.job || 'unknown'),
+           report.ok ? 1 : 0, report.total_ms ?? null, report.d1_requests ?? null,
+           report.r2_puts ?? null, source, JSON.stringify(report.steps || [])).run();
+  } catch (err) { console.error('[orbit-ingest] recordRun failed:', err); }
+}
+
+/**
  * Run a step, capture its outcome, and keep going.
  *
  * Steps are deliberately not chained on success. A boxscore outage must not
@@ -105,6 +123,7 @@ export default {
     ctx.waitUntil((async () => {
       const report = await job(env);
       console.log('[orbit-ingest]', JSON.stringify(report));
+      await recordRun(env, report, 'worker-cron');
     })());
   },
 
@@ -127,7 +146,9 @@ export default {
       }
       const job = { gp: runGP, daily: runDaily, weekly: runWeekly }[url.searchParams.get('job')];
       if (!job) return json({ error: 'job must be gp, daily or weekly' }, 400);
-      return json(await job(env));
+      const report = await job(env);
+      await recordRun(env, report, 'manual');
+      return json(report);
     }
 
     if (url.pathname !== '/') return new Response('Not found', { status: 404 });

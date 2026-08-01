@@ -24,7 +24,7 @@ export default {
       const sql = textarea.value.trim();
       if (!sql) return;
       btn.disabled = true;
-      btn.textContent = 'RUNNING…';
+      btn.textContent = 'RUNNING\u2026';
       result.innerHTML = '';
 
       try {

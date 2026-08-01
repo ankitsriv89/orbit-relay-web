@@ -1,3 +1,18 @@
+// Public pageview beacon. Not under /api/admin/ — no auth required.
+//
+// Records: ts, path, referrer (origin only — never the full third-party URL),
+// country (request.cf.country), ip_hash, ua_class (bucketed mobile|tablet|desktop|bot,
+// never the raw UA).
+//
+// IP hashing — daily-rotating salt, derived not stored:
+// SHA-256(dayStamp | ip | ADMIN_SECRET) truncated to 8 bytes. Daily rotation supports
+// "uniques today" while being deliberately not correlatable across days.
+//
+// Write-per-pageview is fine at this traffic level (D1 free tier: 100k writes/day).
+// Batching would need a Durable Object or Queue, neither bound to this Pages project.
+// Mitigation when hitting the ceiling: Math.random() < 1/N sampling.
+// ctx.waitUntil() the insert and return 204 immediately.
+
 const UA_PATTERNS = [
   [/bot\b|crawl|spider|slurp|mediapartners|facebookexternalhit/i, 'bot'],
   [/\bmobile\b|\bandroid\b|\bip(hone|od|ad)\b/i, 'mobile'],

@@ -248,6 +248,35 @@ test('INSERT INTO t SELECT ... rejected', () => {
   assert.equal(r.ok, false, `should reject INSERT, got: ${JSON.stringify(r)}`);
 });
 
+console.log('\n-- SQL guard: stripNoise --');
+
+test('line comment stripped', () => {
+  const s = stripNoise('SELECT 1 -- comment');
+  assert.ok(!s.includes('comment'));
+});
+
+test('block comment stripped', () => {
+  const s = stripNoise('SELECT /* comment */ 1');
+  assert.ok(!s.includes('comment'));
+});
+
+test('single-quoted string stripped', () => {
+  const s = stripNoise("SELECT 'hello' FROM t");
+  assert.ok(s.includes("' ?? '"));
+  assert.ok(!s.includes('hello'));
+});
+
+test('double-quoted string stripped', () => {
+  const s = stripNoise('SELECT "hello" FROM t');
+  assert.ok(s.includes('" ?? "'));
+  assert.ok(!s.includes('hello'));
+});
+
+test('nested block comments stripped', () => {
+  const s = stripNoise('SELECT /* a /* b */ c */ 1');
+  assert.ok(!s.includes('a'));
+});
+
 console.log('\n-- Auth: token round-trip --');
 
 await testAsync('mint + verify round-trip', async () => {

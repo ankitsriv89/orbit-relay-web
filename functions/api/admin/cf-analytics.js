@@ -9,6 +9,7 @@ export async function onRequest(context) {
     return adminJson({ error: 'Cloudflare analytics not configured (missing CLOUDFLARE_ANALYTICS_TOKEN or CLOUDFLARE_ZONE_ID).' });
   }
 
+  // httpRequests1dGroups is the free-plan dataset (httpRequestsAdaptiveGroups needs a paid plan).
   const query = `{
     viewer {
       zone(filter: { zoneTag: "${zoneId}" }) {

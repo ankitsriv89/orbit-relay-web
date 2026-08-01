@@ -17,7 +17,7 @@
  * the workflow, so a quietly-degrading ingest still shows up as a red run.
  */
 
-import { runGP, runDaily, runWeekly } from '../src/index.js';
+import { runGP, runDaily, runWeekly, recordRun } from '../src/index.js';
 import { createEnv } from './env-node.mjs';
 import fs from 'node:fs';
 
@@ -65,6 +65,10 @@ if (process.env.GITHUB_STEP_SUMMARY) {
     `| step | ok | ms | detail |\n|---|---|---|---|\n${rows}\n\n` +
     `${report.total_ms} ms total · ${report.d1_requests} D1 requests · ${report.r2_puts} R2 puts\n\n`);
 }
+
+// Persist the run to D1 for the admin dashboard. Must happen BEFORE process.exit()
+// because exit does not flush pending promises.
+await recordRun(env, report, 'actions');
 
 process.exit(report.ok ? 0 : 1);
 

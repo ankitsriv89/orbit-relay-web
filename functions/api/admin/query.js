@@ -1,9 +1,13 @@
 import { adminJson } from '../_admin.js';
 
+// Whitelist of shape, not a blacklist of keywords. Threats the naive checks miss:
+// SELECT 1; DROP TABLE objects (multi-statement), /*x*/DELETE …,
+// WITH t AS (SELECT 1) DELETE …, PRAGMA writable_schema=ON, ATTACH DATABASE, etc.
 const FORBIDDEN = /\b(insert|update|delete|drop|alter|create|replace|truncate|attach|detach|pragma|vacuum|reindex|analyze|begin|commit|rollback|savepoint|release|grant|revoke|load_extension|writable_schema)\b/i;
 const ROW_CAP = 500;
 
-function stripNoise(sql) {
+/** Strip comments and string literals so keywords cannot hide inside either. */
+export function stripNoise(sql) {
   return sql
     .replace(/--[^\n]*/g, ' ?? ')
     .replace(/\/\*[\s\S]*?\*\//g, ' ?? ')
@@ -14,7 +18,7 @@ function stripNoise(sql) {
 export function guardSelect(raw) {
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: 'empty query' };
   if (raw.length > 4000) return { ok: false, reason: 'query too long (4000 char cap)' };
-  const bare = stripNoise(raw).trim().replace(/;\s*$/, '');
+  const bare = stripNoise(raw).trim().replace(/;\s*$/, '');   // one trailing ; allowed
   if (bare.includes(';')) return { ok: false, reason: 'multiple statements are not allowed' };
   if (!/^\s*(select|with)\b/i.test(bare)) return { ok: false, reason: 'only SELECT (or WITH…SELECT)' };
   const m = FORBIDDEN.exec(bare);
@@ -35,6 +39,9 @@ export async function onRequestPost(context) {
   const check = guardSelect(body?.sql);
   if (!check.ok) return adminJson({ error: check.reason }, 400);
 
+  // There is no timeout, and the code says so — D1 exposes no per-query timeout
+  // and Workers cannot cancel an in-flight D1 call. Mitigation is the row cap +
+  // char cap + the fact that this is behind auth.
   const wrapped = `SELECT * FROM (${check.sql}) LIMIT ${ROW_CAP + 1}`;
   const start = Date.now();
   try {

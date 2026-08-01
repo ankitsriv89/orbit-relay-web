@@ -5,6 +5,10 @@
 // Cookie format: v1.<b64url(payload)>.<b64url(hmac)>
 // Payload: { sub, iat, exp } — 12h TTL.
 // HMAC-SHA256 via crypto.subtle with key derived from ADMIN_SECRET.
+//
+// Do NOT reuse json() from _catalog.js — it hardcodes Access-Control-Allow-Origin: *,
+// which is incompatible with credentialed requests. adminJson() has no CORS headers
+// and Cache-Control: no-store. Same-origin only.
 
 const COOKIE_NAME = 'orbit_admin';
 const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
@@ -56,9 +60,12 @@ export async function verifyToken(env, token) {
   if (v !== 'v1' || !p || !s) return null;
   let bytes, sig;
   try { bytes = b64uDecode(p); sig = b64uDecode(s); } catch (_) { return null; }
+  // crypto.subtle.verify IS the constant-time compare.
   if (!await crypto.subtle.verify('HMAC', await getKey(env.ADMIN_SECRET), sig, bytes)) return null;
   let claims;
   try { claims = JSON.parse(new TextDecoder().decode(bytes)); } catch (_) { return null; }
+  // Expiry is checked ONLY after the signature verifies — an unsigned payload's exp
+  // is attacker-controlled and must never influence control flow.
   if (typeof claims?.exp !== 'number' || claims.exp < Date.now()) return null;
   return claims;
 }

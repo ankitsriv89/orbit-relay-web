@@ -31,22 +31,34 @@ export default {
 
     const table = document.createElement('table');
     table.className = 'admin-table';
-    table.innerHTML = '<thead><tr><th>DATE</th><th>REQUESTS</th><th>PAGE VIEWS</th><th>BYTES</th><th>THREATS</th><th>UNIQUES</th></tr></thead>';
-    const tbody = document.createElement('tbody');
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    for (const h of ['DATE', 'REQUESTS', 'PAGE VIEWS', 'BYTES', 'THREATS', 'UNIQUES']) {
+      const th = document.createElement('th');
+      th.textContent = h;
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr);
+    table.appendChild(thead);
 
+    const tbody = document.createElement('tbody');
     for (const d of data.days) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${d.date}</td>
-        <td>${(d.requests ?? 0).toLocaleString()}</td>
-        <td>${(d.pageViews ?? 0).toLocaleString()}</td>
-        <td>${formatBytes(d.bytes)}</td>
-        <td>${(d.threats ?? 0).toLocaleString()}</td>
-        <td>${(d.uniques ?? 0).toLocaleString()}</td>
-      `;
+      const cells = [
+        d.date,
+        (d.requests ?? 0).toLocaleString(),
+        (d.pageViews ?? 0).toLocaleString(),
+        formatBytes(d.bytes),
+        (d.threats ?? 0).toLocaleString(),
+        (d.uniques ?? 0).toLocaleString(),
+      ];
+      for (const c of cells) {
+        const td = document.createElement('td');
+        td.textContent = c;
+        tr.appendChild(td);
+      }
       tbody.appendChild(tr);
     }
-
     table.appendChild(tbody);
     el.appendChild(table);
   },
