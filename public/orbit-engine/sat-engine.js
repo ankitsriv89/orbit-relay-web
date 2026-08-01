@@ -506,7 +506,15 @@ export class SatEngine {
      * never blocks the main thread — see addOrbitRing.
      */
     ensureRing(sat) {
-        if (!sat || sat.ring || !sat._ringStyle) return sat && sat.ring;
+        if (!sat) return null;
+        if (sat.ring) {
+            // Re-showing after a layer toggle-off: addOrbitRing/place() never
+            // touch .show, only .polyline.positions, so a hidden ring stays
+            // hidden forever unless this setter restores it.
+            sat.ring.show = true;
+            return sat.ring;
+        }
+        if (!sat._ringStyle) return null;
         sat.ring = this.addOrbitRing(sat.satrec, sat.meta, sat._ringColor, sat._ringStyle);
         return sat.ring;
     }
