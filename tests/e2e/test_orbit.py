@@ -191,7 +191,9 @@ def run(page):
         const t = viewer.clock.currentTime;
         return viewer.entities.values.some(e => {
             if (!e.polyline || !e.polyline.positions) return false;
-            if (e.polyline.clampToGround !== true) return false;
+            // The Entity API wraps the set value in a ConstantProperty — unwrap
+            // it, or no entity ever passes the comparison (Cesium 1.113).
+            if (Cesium.Property.getValueOrUndefined(e.polyline.clampToGround, t) !== true) return false;
             const p = e.polyline.positions.getValue(t);
             return !!p && p.length > 50;
         });
@@ -502,14 +504,13 @@ def spacetrack_gate(page):
     # The source row is navigation now, not a switch.
     check('CELESTRAK links back to /orbit/', page.evaluate(
         """() => {
-            const a = document.querySelector('a.source-btn[data-source="celestrak"]');
+            const a = document.querySelector('.spacetrack-nav__source-link[href="/orbit/"]');
             return !!a && new URL(a.href).pathname === '/orbit/';
         }"""))
     check('SPACE-TRACK marks itself the current page', page.evaluate(
         """() => {
-            const el = document.querySelector('[data-source="spacetrack"]');
-            return el.tagName === 'SPAN' &&
-                   el.classList.contains('source-btn--active');
+            const a = document.querySelector('a.spacetrack-nav__link--active');
+            return !!a && new URL(a.href).pathname === '/spacetrack/';
         }"""))
 
     # Wave 4 — the signal feed panel. The static test server has no Pages
