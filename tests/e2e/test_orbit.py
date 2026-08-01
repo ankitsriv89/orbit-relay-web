@@ -181,10 +181,17 @@ def run(page):
     check('worker positions match the sync fallback', drift < 1.0, f'{drift:.3f} m worst case')
     page.evaluate('viewer.clock.shouldAnimate = true')
 
+    # Plan 35: the old `>50 positions` check was satisfied by ANY polyline —
+    # the ground track, the orbit ring, or a new past-orbit arc — so a broken
+    # ground track would pass as long as some other line had geometry. Assert
+    # on the ground-track entity specifically: it is the only polyline clamped
+    # to the surface (`clampToGround`), which is also the property that tells
+    # one from the other if the orbit ring ever gains one too.
     check('ISS ground track has geometry (worker path job)', page.evaluate("""() => {
         const t = viewer.clock.currentTime;
         return viewer.entities.values.some(e => {
             if (!e.polyline || !e.polyline.positions) return false;
+            if (e.polyline.clampToGround !== true) return false;
             const p = e.polyline.positions.getValue(t);
             return !!p && p.length > 50;
         });
