@@ -23,6 +23,28 @@ body[data-page-id="admin"] {
     overflow-x: hidden;
 }
 
+/* Logout button lives in the fixed nav, whose pointer-events are none; the
+ * button itself must opt back in. */
+.admin-nav-logout {
+    pointer-events: auto;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: rgba(160, 210, 240, 0.55);
+    min-height: 44px;
+}
+@media (hover: hover) {
+    .admin-nav-logout:hover {
+        color: rgba(200, 240, 255, 0.85);
+        background: rgba(0, 210, 255, 0.08);
+    }
+}
+
 /* ── Login screen ─────────────────────────────────────────────────────────── */
 .admin-login {
     display: flex;
@@ -202,6 +224,18 @@ body[data-page-id="admin"] {
     padding: 8px 0;
 }
 
+/* Ingest-run step expander */
+.admin-table summary {
+    cursor: pointer;
+    color: var(--c-signal-dim);
+    font-size: 0.55rem;
+    letter-spacing: 1px;
+    user-select: none;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+}
+
 .admin-sql-input {
     width: 100%;
     box-sizing: border-box;
@@ -254,6 +288,17 @@ body[data-page-id="admin"] {
     padding: 4px 8px;
     cursor: pointer;
     min-height: 44px;
+}
+
+/* ── Citation footer ───────────────────────────────────────────────────────── */
+.admin-foot {
+    max-width: 720px;
+    margin: 24px auto;
+    padding: 0 16px 40px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--c-text-dim);
+    opacity: 0.75;
 }
 
 /* ── Mobile ────────────────────────────────────────────────────────────────── */

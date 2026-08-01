@@ -11,7 +11,7 @@ working tree and fix whichever file is stale.
 
 ## What this repo is
 
-`orbitalrelay.space` — a satellite visualization platform on Cloudflare Pages. Six routes,
+`orbitalrelay.space` — a satellite visualization platform on Cloudflare Pages. Eight routes,
 all static ES modules with **no build step**:
 
 | Route | What |
@@ -206,6 +206,28 @@ See [docs/game-plans/34_unblock_landing_refactor_plan.md](docs/game-plans/34_unb
 for the active plan and
 [docs/game-plans/Orbital_Relay_Feature_Specification.md](docs/game-plans/Orbital_Relay_Feature_Specification.md)
 for the 20-feature target spec.
+
+### Admin dashboard (plan 36) — status 2026-08-01
+
+Built in `0017b156` + `3761cf8c`; `docs/game-plans/36_admin_dashboard_plan.md` is the
+spec. All code is in the working tree on `main`, **npm test 301/301 green offline**. The
+dashboards works end-to-end against `wrangler pages dev` after applying the plan-36
+migration locally (`wrangler d1 execute orbit-catalog --local --file d1/orbit.sql`).
+
+**Deployment is the unfinished part. Nothing since `cdbc468b` (inclusive) has been pushed
+to `main` — production still runs the pre-fix code.** Concretely, still to do:
+
+1. **Commit + push the working tree** (16 modified files + untracked `tests/e2e/test_admin_mobile.py`). Production currently runs the broken `adminJson` (every admin error is HTTP 200, so the login form never shows and session expiry is invisible) plus all the other fixes in the tree.
+2. **Remote D1 migration** — `wrangler d1 execute orbit-catalog --remote --file d1/orbit.sql` has NEVER been run. `page_views`/`ingest_runs` do not exist in production: `/api/admin/runs` 500s ("no such table"), visitors always 0. Apply before/with the push.
+3. **Secrets reset — CRITICAL, in progress.** The dev password `orbital-relay-admin-2026` (from `.dev.vars`) was **live in production** — login with it returned 200 OK on `orbitalrelay.space` (verified 2026-08-01). New strong values were generated (`openssl`-style base64url) and `wrangler pages secret put` reported success, **but ~10 min later production still accepted the old password and rejected the new one** — evidence suggests `ADMIN_SECRET` propagated while `ADMIN_PASSWORD` did not (HMAC compare under the new key still matches the old stored value), or propagation lag. **User is setting `ADMIN_PASSWORD` manually. Verify after: old password must 401, new must 200.** `.dev.vars` locally already has the new values (restart the dev server to pick them up).
+4. **`CLOUDFLARE_ANALYTICS_TOKEN` + `CLOUDFLARE_ZONE_ID` never set on prod** — cf-analytics panel shows "not configured". User opted to skip setting these.
+5. **After deploy: re-verify the curl matrix** (401 no-cookie / 401 wrong pw / 400 SQL guard / 200 login+query) against prod, and run `tests/e2e/test_admin_mobile.py` when the machine can take it (this box is slow — Playwright only when user asks).
+
+Admin-specific invariants (do not regress):
+- **`adminJson(body, status)` takes a positional status** — every call site passes `(body, 401)`. The options-object signature broke all admin error statuses; `admin.test.mjs` guards it.
+- **Next-due comes from `public/admin/cron.js`'s `ACTIONS_CRONS`** (Actions schedule), never `wrangler.toml`'s crons, which are documented as deployable-and-unused.
+- Frontend error fallbacks live in `public/admin/api.js`'s `STATUS_MESSAGES`; server messages win when present.
+- Panel DOM is built with `createElement` (repo rule, no `innerHTML`); `loadPanel` renders per-panel errors without blanking the dashboard; `panelTimers` must be cleared on logout.
 
 Sequencing, and why: **Phase 0 (unblock + test gate) → 2.1 HUD unification → tokens.css →
 Phase 1 landing → rest of Phase 2 → Phase 3 features.** Refactor precedes features because

@@ -12,7 +12,7 @@ export default {
   },
 
   render(el, data) {
-    el.innerHTML = '';
+    el.replaceChildren();
     if (!data) {
       const p = document.createElement('p');
       p.className = 'admin-hint';

@@ -15,7 +15,7 @@ export async function onRequest(context) {
   if (PUBLIC.has(pathname)) return next();
 
   const claims = await verifyToken(env, readCookie(request, 'orbit_admin'));
-  if (!claims) return adminJson({ error: 'unauthorized' }, 401);
+  if (!claims) return adminJson({ error: 'Session expired or missing — log in again.' }, 401);
   context.data.admin = claims;
   return next();
 }

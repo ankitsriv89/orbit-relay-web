@@ -43,6 +43,9 @@ function tableColumns(table) {
     .split('\n')
     .map(l => l.replace(/--.*$/, '').trim())
     .filter(l => l && !/^(PRIMARY KEY|UNIQUE|FOREIGN KEY)/i.test(l))
+    // Some tables pack several columns on one line (plan 36 admin tables),
+    // so split on commas before taking the first token of each.
+    .flatMap(l => l.split(',').map(s => s.trim()))
     .map(l => l.split(/\s+/)[0].replace(/,$/, ''))
     .filter(Boolean);
 }
@@ -152,6 +155,45 @@ test('NORAD_CAT_ID survives as an integer (Alpha-5 would corrupt it)', () => {
 
 test('boxscore fixture is the full table, not a truncated sample', () => {
   assert.ok(fixture('sample_boxscore.json').length > 100);
+});
+
+console.log('\n-- admin tables (plan 36) --');
+
+// page_views and ingest_runs are ours end to end — no upstream modeldef to
+// check against — so the test asserts the columns the admin endpoints read.
+const ADMIN_TABLES = {
+  page_views: ['id', 'ts', 'path', 'referrer', 'country', 'ip_hash', 'ua_class'],
+  ingest_runs: ['id', 'ts', 'job', 'ok', 'total_ms', 'd1_requests', 'r2_puts', 'source', 'steps'],
+};
+
+for (const [table, need] of Object.entries(ADMIN_TABLES)) {
+  test(`${table} declares every column the admin endpoints read`, () => {
+    const have = new Set(tableColumns(table));
+    const missing = need.filter(c => !have.has(c));
+    assert.deepEqual(missing, []);
+  });
+}
+
+test('the admin queries the endpoints run are answerable by the schema', () => {
+  // visitors.js runs these against page_views; runs.js and health.js read
+  // ingest_runs. None of them may reference a column that does not exist.
+  const pv = new Set(tableColumns('page_views'));
+  assert.ok(pv.has('ts'), 'page_views.ts needed for ts >= ? windowing');
+  assert.ok(pv.has('ip_hash'), 'page_views.ip_hash needed for COUNT(DISTINCT)');
+  assert.ok(pv.has('path'), 'page_views.path needed for top-pages GROUP BY');
+  const ir = new Set(tableColumns('ingest_runs'));
+  for (const c of ['ts', 'job', 'ok', 'total_ms', 'd1_requests', 'r2_puts', 'source', 'steps']) {
+    assert.ok(ir.has(c), `ingest_runs.${c} needed by recordRun / runs.js`);
+  }
+});
+
+test('indexes for the admin read patterns exist', () => {
+  const idxs = [...sql.matchAll(/CREATE INDEX IF NOT EXISTS (\S+)\s+ON\s+(\S+?)\s*\(/g)]
+    .map(m => `${m[2]}.${m[1]}`);
+  for (const idx of ['page_views.idx_page_views_ts', 'page_views.idx_page_views_path',
+                     'ingest_runs.idx_ingest_runs_ts']) {
+    assert.ok(idxs.includes(idx), `missing ${idx}`);
+  }
 });
 
 const passed = results.filter(Boolean).length;

@@ -3,7 +3,7 @@ import { adminJson } from '../_admin.js';
 export async function onRequest(context) {
   const { env } = context;
   const db = env.ORBIT_DB;
-  if (!db) return adminJson({ error: 'D1 not bound' }, 503);
+  if (!db) return adminJson({ error: 'Database not bound — ORBIT_DB binding is missing on this deployment.' }, 503);
 
   const results = {};
 
@@ -38,8 +38,9 @@ export async function onRequest(context) {
     if (r2) {
       const obj = await r2.get('catalog/summary.json');
       if (obj) {
-        const meta = await obj.metadata;
-        const uploaded = meta?.uploaded;
+        // customMetadata, not metadata: the ingest writes { citation, generated }
+        // via customMetadata (derive.js) and .metadata is always undefined.
+        const uploaded = obj.customMetadata?.generated;
         if (uploaded) {
           const ageMs = Date.now() - new Date(uploaded).getTime();
           const hours = Math.floor(ageMs / 3600000);

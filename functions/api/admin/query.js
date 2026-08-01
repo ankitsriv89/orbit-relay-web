@@ -29,11 +29,11 @@ export function guardSelect(raw) {
 export async function onRequestPost(context) {
   const { request, env } = context;
   const db = env.ORBIT_DB;
-  if (!db) return adminJson({ error: 'D1 not bound' }, 503);
+  if (!db) return adminJson({ error: 'Database not bound — ORBIT_DB binding is missing on this deployment.' }, 503);
 
   let body;
   try { body = await request.json(); } catch (_) {
-    return adminJson({ error: 'invalid JSON body' }, 400);
+    return adminJson({ error: 'Request body must be valid JSON.' }, 400);
   }
 
   const check = guardSelect(body?.sql);

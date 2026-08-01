@@ -8,6 +8,7 @@
  * Auth round-trip, tampered sig, expired token, wrong secret all tested.
  */
 import assert from 'node:assert/strict';
+import { nextRun, nextDue, ACTIONS_CRONS } from '../../../public/admin/cron.js';
 
 // ── Inline the functions under test (they are pure, no bindings needed) ────
 
@@ -50,6 +51,23 @@ async function verifyToken(secret, token) {
   return claims;
 }
 
+// ── adminJson: positional status codes (regression: all 14 call sites pass
+//    the status positionally — `adminJson({error}, 401)` — so the helper must
+//    honor a bare number, not only an options object. When this broke, every
+//    admin error returned HTTP 200 and the login form never appeared.)
+//    NOTE: inlined copy mirrors functions/api/_admin.js; keep in sync. ────────
+
+function adminJson(body, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      ...extraHeaders,
+    },
+  });
+}
+
 // ── SQL guard (copied from the implementation to test against) ─────────────
 
 const FORBIDDEN = /\b(insert|update|delete|drop|alter|create|replace|truncate|attach|detach|pragma|vacuum|reindex|analyze|begin|commit|rollback|savepoint|release|grant|revoke|load_extension|writable_schema)\b/i;
@@ -85,6 +103,24 @@ async function testAsync(name, fn) {
   try { await fn(); results.push(true); console.log('  PASS  ' + name); }
   catch (e) { results.push(false); console.log('  FAIL  ' + name + '\n        ' + e.message); }
 }
+
+console.log('\n-- adminJson: status codes --');
+
+test('default status is 200', () => {
+  assert.equal(adminJson({ ok: true }).status, 200);
+});
+
+test('positional 401 honored (unauthorized / bad password)', () => {
+  assert.equal(adminJson({ error: 'unauthorized' }, 401).status, 401);
+});
+
+test('positional 400 honored (SQL guard rejections)', () => {
+  assert.equal(adminJson({ error: 'multiple statements are not allowed' }, 400).status, 400);
+});
+
+test('positional 503 honored (misconfiguration)', () => {
+  assert.equal(adminJson({ error: 'Admin is not configured on this deployment.' }, 503).status, 503);
+});
 
 console.log('\n-- SQL guard: basic accepts --');
 
@@ -346,6 +382,44 @@ await testAsync('wrong password fails', async () => {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
   assert.notEqual(diff, 0);
+});
+
+console.log('\n-- next-due cron (plan 36 §5) --');
+
+test('the Actions crons are the documented schedule', () => {
+  assert.deepEqual(ACTIONS_CRONS.map(c => c.cron), ['17 */6 * * *', '35 17 * * *', '40 17 * * 3']);
+});
+
+test('GP: :17 of every 6th hour', () => {
+  const from = Date.UTC(2026, 7, 1, 10, 0, 0); // 10:00Z → next 6h boundary is 12:17Z
+  assert.equal(nextRun('17 */6 * * *', from), Date.UTC(2026, 7, 1, 12, 17, 0));
+});
+
+test('GP: match is strictly after the from timestamp', () => {
+  const at = Date.UTC(2026, 7, 1, 0, 17, 0);
+  assert.equal(nextRun('17 */6 * * *', at), Date.UTC(2026, 7, 1, 6, 17, 0));
+});
+
+test('DAILY: 17:35Z every day', () => {
+  const from = Date.UTC(2026, 7, 1, 10, 0, 0);
+  assert.equal(nextRun('35 17 * * *', from), Date.UTC(2026, 7, 1, 17, 35, 0));
+});
+
+test('WEEKLY: Wednesdays 17:40Z (2026-08-01 is a Saturday)', () => {
+  const from = Date.UTC(2026, 7, 1, 10, 0, 0);
+  assert.equal(nextRun('40 17 * * 3', from), Date.UTC(2026, 7, 5, 17, 40, 0));
+});
+
+test('nextDue picks the earliest of the three jobs', () => {
+  const from = Date.UTC(2026, 7, 1, 10, 0, 0);
+  const next = nextDue(from);
+  assert.equal(next.job, 'GP');
+  assert.equal(next.at, Date.UTC(2026, 7, 1, 12, 17, 0));
+});
+
+test('nextDue defaults to now and returns within a year', () => {
+  const next = nextDue();
+  assert.ok(next && next.at > Date.now() && next.at < Date.now() + 366 * 86400000);
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────

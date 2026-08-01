@@ -3,7 +3,7 @@ import { adminJson } from '../_admin.js';
 export async function onRequest(context) {
   const { env } = context;
   const db = env.ORBIT_DB;
-  if (!db) return adminJson({ error: 'D1 not bound' }, 503);
+  if (!db) return adminJson({ error: 'Database not bound — ORBIT_DB binding is missing on this deployment.' }, 503);
 
   const now = Date.now();
   const dayMs = 86400000;

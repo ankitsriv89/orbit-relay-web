@@ -7,10 +7,13 @@ where, and why*.
 ## Repo identity
 
 - Its own git repo. **Domain: `orbitalrelay.space`.** Cloudflare Pages project
-  `signal-playground`, whose alias is `signal-playground-0uj.pages.dev` — **not**
-  `signal-playground.pages.dev`, a different account's project that claimed the bare name
-  first, so Cloudflare suffixed this one. Confirm with `wrangler pages project list`; don't
-  assume the bare name is this project just because that's what you pass to `--project-name`.
+  `orbit-relay-web` (`orbit-relay-web.pages.dev` + `orbitalrelay.space`), git-connected —
+  verified 2026-08-01 with `wrangler pages project list`. `signal-playground`
+  (`signal-playground-0uj.pages.dev`) is a **separate stale project** that does not serve
+  this domain, and `wrangler.toml`'s `name = "orbit-relay"` matches no project at all
+  (inert — the git integration owns the deploy). Don't assume a name is this project just
+  because that's what you pass to `--project-name`; re-confirm with
+  `wrangler pages project list`.
 - `public/` is the Pages deploy root. `_headers` and `_redirects` must stay at the root of
   `public/` (Pages only reads them there).
 - **No build step.** Frontends are static ES modules / vanilla JS. See CLAUDE.md for the
@@ -33,6 +36,8 @@ where, and why*.
 | `public/spacetrack/{signal,conjunctions,brief,analytics}/` | The four nested pages | Each a separate `index.html` with **static HTML nav** (see below). Depth 2 — cross-package refs must be root-absolute |
 | `public/spacetrack/shared/` | Page-layer helpers | `state.js` (localStorage-persisted selection/filters/time/camera), `api.js` (typed fetch wrappers), `globe.js` (Viewer/SatEngine init), `hud.js` (collapsible panels), `utils.js` (`num`, `relTime`, `fmtLat`, `TYPE_COLORS`, `setText`). **`navigation.js` and `ui.js` have zero importers** — dead since the nav became static HTML |
 | `public/starlink/` | Starlink constellation view | Linked from 13 places across the spacetrack nav and `/orbit/` |
+| `public/admin/` | **Admin dashboard** (plan 36) | Password-protected; login via `POST /api/admin/login` → HttpOnly HMAC cookie. Panels via `registry.js` — one new file + one line each. `cron.js` computes next-due **client-side from the Actions crons**, never `wrangler.toml`'s (deployable-and-unused). Not in the public nav — reached by typing the URL. 401/400/503 status semantics are **load-bearing** (frontend `api.js` maps bare statuses to messages) — do not regress `adminJson()` to options-object style |
+| `public/js/beacon.js` | Pageview beacon, all 8 public pages | Whole body in `try/catch`, no imports — a throwing module here is an 8-page outage. `hit.js` ignores bots, records origin-only referrer, daily-rotating `ip_hash` |
 | `public/orbit-engine/` | **Shared globe engine** | `astro.js` + `tle.js` + `sat-engine.js` + `propagate.worker.js` + vendored `satellite.min.js`. Imported by `/orbit/` AND `/spacetrack/` — it had already been fixed twice in two copies, so do not fork it. The worker URL is **absolute**: a relative one resolves against the page and silently falls back to synchronous SGP4 |
 | `public/orbit-engine/conjunction.js` + `screen.worker.js` + `screen-client.js` | Close-approach screening | The maths takes its propagator by **injection**, so it is unit-tested in Node against analytic orbits with closed-form answers. Screening runs in a SECOND, **module** worker — never the 280ms render tick — and has **no synchronous fallback** on purpose. The coarse gate is derived from the step (`threshold + 22.4·Δt/2`), never tuned: a tuned gate misses conjunctions silently and looks like "there were none" |
 | `public/data/tle/celestrak/` | Shipped TLE baseline | `tle.js` reads `/data/tle`. Refresh with `scripts/snapshot_tle.sh` |
@@ -40,7 +45,7 @@ where, and why*.
 | `functions/api/{search,summary,object/[norad],feed,decay-watch,boxscore,brief,analytics}.js` | Catalog endpoints | Behind `/spacetrack/`. Tested for real in `workers/orbit-ingest/test/pages-api.test.mjs`. `brief.js` deliberately has **no D1 fallback** — rebuilding the card on a read would pair fresh facts with a sentence checked against older ones |
 | `functions/api/_orbit.js` + `_catalog.js` | Shared function helpers | `_orbit.js:17-19` is the `X-Data-Source` citation, legally required on every response. `_catalog.js` also carries `clamp`/`safeParse`/`artifactOrDb` shared by the R2-then-D1 endpoints |
 | `workers/orbit-ingest/src/brief.js` | Daily brief | **Facts in SQL, narrative optional.** A model is asked only to phrase numbers already computed, once a day at ingest, never per request. `checkNarrative()` rejects any sentence containing a numeral absent from the facts — *including a correct one the model derived*, since from the output alone that is indistinguishable from invention. Off unless `ORBIT_AI_CARDS` is set; with it off the panel is still a live digest. Provider swappable (`scripts/ai-node.mjs`), Workers AI default — one call a day makes latency and cost moot, so the tiebreak is operational surface |
-| `workers/orbit-ingest/` | Space-Track ingest | Runs from **GitHub Actions**, not the Worker's crons — the GP job needs ~300ms CPU against Workers Free's 10ms. `scripts/env-node.mjs` is a Workers-shaped `env` over the D1 HTTP API + R2 SigV4. Its `npm test` is 222 checks, no network |
+| `workers/orbit-ingest/` | Space-Track ingest | Runs from **GitHub Actions**, not the Worker's crons — the GP job needs ~300ms CPU against Workers Free's 10ms. `scripts/env-node.mjs` is a Workers-shaped `env` over the D1 HTTP API + R2 SigV4. Its `npm test` is 301 checks, no network |
 | `d1/orbit.sql` | D1 schema | `objects.SITE` is a raw code (`AFETR`) with no human-readable mapping anywhere in the repo, despite `:98-99` implying SATCAT carries one |
 | `tests/e2e/` | Playwright suites | Including `test_mobile_responsive.py` and `test_mobile_dom.py` — the viewport table there is the mobile contract |
 | `scripts/` | Bash helpers | `snapshot_tle.sh` (sleeps between Celestrak group fetches to avoid rate limits), `upload_r2.sh` |

@@ -17,7 +17,7 @@
     <ul class="spacetrack-nav__list" role="menubar">
       <li><a href="/admin/" class="spacetrack-nav__link spacetrack-nav__link--active">ADMIN</a></li>
     </ul>
-    <button id="logout-btn" class="spacetrack-nav__link" style="pointer-events:auto;cursor:pointer;border:none;background:none;">
+    <button id="logout-btn" class="admin-nav-logout" type="button">
       LOGOUT
     </button>
   </nav>
@@ -36,6 +36,12 @@
 
   <!-- Dashboard (shown after auth) -->
   <main id="admin-panels" class="admin-panels" hidden></main>
+
+  <footer class="admin-foot">
+    Counts are Space-Track-derived. Data source: Space-Track.org (USSPACECOM /
+    18th Space Defense Squadron), redistributed under express blanket approval
+    for basic SSA data.
+  </footer>
 
   <script type="module" src="./admin.js"></script>
 </body>

@@ -10,6 +10,8 @@
 // which is incompatible with credentialed requests. adminJson() has no CORS headers
 // and Cache-Control: no-store. Same-origin only.
 
+import { CITATION, CITATION_HEADER } from './_orbit.js';
+
 const COOKIE_NAME = 'orbit_admin';
 const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -101,12 +103,16 @@ export function clearCookie() {
 
 // ── response helper (NO CORS — same-origin only) ───────────────────────────
 
-export function adminJson(body, { status = 200 } = {}) {
+export function adminJson(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
+      // Same licence condition as every other response: the admin pages surface
+      // Space-Track-derived counts and must carry the citation.
+      [CITATION_HEADER]: CITATION,
+      ...extraHeaders,
     },
   });
 }

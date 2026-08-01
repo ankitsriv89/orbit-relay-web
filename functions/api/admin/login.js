@@ -8,25 +8,20 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await request.json(); } catch (_) {
-    return adminJson({ error: 'invalid JSON body' }, 400);
+    return adminJson({ error: 'Request body must be valid JSON.' }, 400);
   }
 
   if (!body?.password || typeof body.password !== 'string') {
-    return adminJson({ error: 'password required' }, 400);
+    return adminJson({ error: 'Password is required.' }, 400);
   }
 
   const valid = await comparePassword(env, body.password);
-  if (!valid) return adminJson({ error: 'invalid password' }, 401);
+  if (!valid) return adminJson({ error: 'Incorrect password.' }, 401);
 
   const now = Date.now();
   const token = await mintToken(env, { sub: 'admin', iat: now, exp: now + 12 * 60 * 60 * 1000 });
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Set-Cookie': setCookie(token),
-      'Cache-Control': 'no-store',
-    },
-  });
+  // adminJson so the success path carries the citation header like every
+  // other API response; the Set-Cookie rides along via extraHeaders.
+  return adminJson({ ok: true }, 200, { 'Set-Cookie': setCookie(token) });
 }

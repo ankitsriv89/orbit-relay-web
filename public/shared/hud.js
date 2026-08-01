@@ -14,6 +14,9 @@
  *    This is /orbit/'s original behavior — desktop has room for several
  *    panels open at once.
  *  - 'always': every panel toggle collapses the rest, regardless of width.
+ *  - 'never': opening a panel never collapses another. Correct for /admin/,
+ *    where panels are a scrolling column and cannot overlap — an accordion
+ *    there would only hide data.
  */
 
 const MOBILE_MQ = window.matchMedia('(max-width: 768px)');

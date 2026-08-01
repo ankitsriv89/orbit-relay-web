@@ -6,7 +6,7 @@ export default {
   order: 4,
 
   render(el) {
-    el.innerHTML = '';
+    el.replaceChildren();
 
     const textarea = document.createElement('textarea');
     textarea.className = 'admin-sql-input';
@@ -25,7 +25,7 @@ export default {
       if (!sql) return;
       btn.disabled = true;
       btn.textContent = 'RUNNING\u2026';
-      result.innerHTML = '';
+      result.replaceChildren();
 
       try {
         const data = await apiFetch('/api/admin/query', {
@@ -45,7 +45,7 @@ export default {
         if (!data.rows?.length) {
           const hint = document.createElement('p');
           hint.className = 'admin-hint';
-          hint.textContent = 'Query returned 0 rows.';
+          hint.textContent = `${data.rowCount ?? 0} row(s) · ${data.ms ?? '?'} ms`;
           result.appendChild(hint);
           return;
         }
@@ -56,6 +56,11 @@ export default {
           hint.textContent = `Results truncated (showing first ${data.rows.length} rows).`;
           result.appendChild(hint);
         }
+
+        const meta = document.createElement('p');
+        meta.className = 'admin-hint';
+        meta.textContent = `${data.rowCount ?? data.rows.length} row(s) · ${data.ms ?? '?'} ms`;
+        result.appendChild(meta);
 
         const table = document.createElement('table');
         table.className = 'admin-table';

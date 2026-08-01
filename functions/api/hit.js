@@ -42,8 +42,13 @@ export async function onRequest(context) {
   const db = env.ORBIT_DB;
   if (!db) return new Response(null, { status: 204 });
 
-  const path = body.path || '/';
-  const referrer = body.ref || '';
+  const path = String(body.path || '/').slice(0, 512);
+  // Origin only, defensively — the beacon already sends just the origin, but a
+  // full third-party URL posted straight here must not land in the DB either.
+  let referrer = '';
+  if (typeof body.ref === 'string' && body.ref) {
+    try { referrer = new URL(body.ref).origin; } catch (_) { referrer = ''; }
+  }
   const country = request.cf?.country || '';
   const ip = request.headers.get('CF-Connecting-IP') || '';
   const dayStamp = new Date().toISOString().slice(0, 10);

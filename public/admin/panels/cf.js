@@ -11,7 +11,7 @@ export default {
   },
 
   render(el, data) {
-    el.innerHTML = '';
+    el.replaceChildren();
 
     if (data?.error) {
       const p = document.createElement('p');

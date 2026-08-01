@@ -38,6 +38,14 @@ export async function onRequest(context) {
     }
 
     const json = await res.json();
+    // GraphQL reports failures as HTTP 200 with an `errors` array (permission
+    // denied, zone not found) — only `!res.ok` misses those.
+    if (json?.errors?.length) {
+      const first = json.errors[0];
+      const msg = first?.message || JSON.stringify(first);
+      return adminJson({ error: `Cloudflare GraphQL error: ${String(msg).slice(0, 200)}` });
+    }
+
     const groups = json?.data?.viewer?.zone?.[0]?.httpRequests1dGroups ?? [];
     const days = groups.map(g => ({
       date: g.dimensions?.date,
