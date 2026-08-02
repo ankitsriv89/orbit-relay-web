@@ -303,6 +303,7 @@ async function loadSatellites() {
 /* ── Click-to-inspect ──────────────────────────────────────────────────── */
 const detailCard   = document.getElementById('sat-detail');
 const dName        = document.getElementById('sat-detail-name');
+const dNorad       = document.getElementById('sat-detail-norad');
 const dGroup       = document.getElementById('sat-detail-group');
 const dLat         = document.getElementById('sat-detail-lat');
 const dLon         = document.getElementById('sat-detail-lon');
@@ -332,6 +333,10 @@ function inspectSatellite(meta) {
 
     // Populate + live-update the card
     if (dName)  dName.textContent  = `// ${meta.name}`;
+    // satrec.satnum is the NORAD catalog id, parsed straight out of TLE line 1 —
+    // no /spacetrack/object/{norad} fetch here (see the markup comment above:
+    // Celestrak-sourced sats aren't guaranteed to resolve against that catalog).
+    if (dNorad) dNorad.textContent = meta.satrec.satnum != null ? `NORAD ${meta.satrec.satnum}` : '—';
     if (dGroup) dGroup.textContent = meta.group || '—';
     function refresh() {
         const p = engine.geo(meta.satrec);

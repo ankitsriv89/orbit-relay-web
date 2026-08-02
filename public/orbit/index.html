@@ -387,17 +387,28 @@
         <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     </div>
 
-    <!-- Satellite inspector card — pinned when a satellite is clicked -->
-    <div id="sat-detail" class="orbital-hud sat-detail" hidden>
+    <!-- Satellite inspector card — pinned when a satellite is clicked.
+         Markup/CSS mirror /spacetrack/'s .st-dossier (plan 34 3.1 S8) for visual
+         parity; unlike the spacetrack dossier this stays TLE-only (no
+         /spacetrack/object/{norad} fetch, no State-backed catalog fields) since
+         /orbit/ is deliberately State-free for anything but trajectory.revs and
+         Celestrak-sourced sats are not guaranteed to resolve against the
+         Space-Track catalog. IDs are unchanged from the pre-S8 markup —
+         tests/e2e/test_orbit.py keys on #sat-detail / #sat-detail-alt /
+         #sat-detail-close directly. -->
+    <div id="sat-detail" class="orbital-hud sat-detail st-dossier" hidden>
         <button id="sat-detail-close" class="sat-detail-close" aria-label="Close">✕</button>
         <div class="hud-title" id="sat-detail-name">// SATELLITE</div>
+        <div class="st-dossier__id" id="sat-detail-norad">—</div>
+
         <div class="hud-row"><span class="hud-label">GROUP</span><span id="sat-detail-group" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">REGIME</span><span id="sat-detail-regime" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PERIOD</span><span id="sat-detail-period" class="hud-val">—</span></div>
+        <hr class="hud-divider">
         <div class="hud-row"><span class="hud-label">LAT</span><span id="sat-detail-lat" class="hud-val">—</span></div>
         <div class="hud-row"><span class="hud-label">LON</span><span id="sat-detail-lon" class="hud-val">—</span></div>
         <div class="hud-row"><span class="hud-label">ALT</span><span id="sat-detail-alt" class="hud-val">—</span></div>
         <div class="hud-row"><span class="hud-label">VEL</span><span id="sat-detail-vel" class="hud-val">—</span></div>
-        <div class="hud-row"><span class="hud-label">PERIOD</span><span id="sat-detail-period" class="hud-val">—</span></div>
-        <div class="hud-row"><span class="hud-label">REGIME</span><span id="sat-detail-regime" class="hud-val">—</span></div>
     </div>
 
     <!--

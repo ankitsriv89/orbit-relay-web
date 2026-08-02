@@ -510,6 +510,21 @@ body[data-page-id="spacetrack-catalog"] {
 }
 .sat-detail .hud-title { color: rgba(0, 210, 255, 0.85); padding-right: 24px; }
 
+/* .st-dossier — mirrors /spacetrack/spacetrack.css's dossier skin (plan 34 3.1
+   S8) so the inspector card reads the same on both pages; positioning stays
+   .sat-detail's (bottom-right docked), this only adds the scroll cap + the
+   small NORAD-id line under the title. */
+.st-dossier {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.st-dossier__id {
+    font-size: 0.58rem;
+    letter-spacing: 1.4px;
+    color: rgba(150, 200, 230, 0.8);
+    margin: -4px 0 8px;
+}
+
 /* ── Mobile / Tablet (<768px) ────────────────────────────────────────────────
  * Shared orbit.css responsive rules for both /orbit/ and /spacetrack/ pages.
  * The 768px breakpoint aligns with spacetrack.css's responsive tiers. */
@@ -567,6 +582,11 @@ body[data-page-id="spacetrack-catalog"] {
         bottom: calc(130px + var(--sa-bottom));
         max-width: none;
         z-index: 35;
+    }
+
+    /* M6 floor — nothing carrying information stays below ~11px. */
+    .st-dossier__id {
+        font-size: max(0.68rem, 11px);
     }
 
     .orbital-hud {

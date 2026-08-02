@@ -90,11 +90,30 @@
       no migration logic. Headless probe on all 4 routes: `.tw-btn[data-rate]`
       values read back as `['0','1','10','100','1000']`, zero console errors.
       `npm test` green.
-- [ ] **S8 Dossier on /orbit/**: replace inline `.sat-detail` markup in
-      `public/orbit/index.html` with `.st-dossier*` (copy spacetrack markup/CSS —
-      `orbit.css` has NO st-dossier rules); `orbital-relay.js` calls
-      `createDossier` and adds `data-norad` metas to SatPoint instances; keep the
-      M1 mobile gate passing (HUD with visible text must exist at mobile width).
+- [x] **S8 Dossier on /orbit/** (commit pending — see below): `#sat-detail`
+      markup in `public/orbit/index.html` restructured with `.st-dossier`/
+      `.st-dossier__id` classes (spacetrack's visual skin) while **keeping every
+      existing id** (`#sat-detail`, `#sat-detail-alt`, `#sat-detail-close`, …) —
+      `tests/e2e/test_orbit.py` keys on those directly. Added
+      `.st-dossier`/`.st-dossier__id` rules to `orbit.css` (mirrors
+      spacetrack.css: `max-height`/`overflow-y` + the small id line, plus an
+      11px mobile font floor for M6). New `#sat-detail-norad` line shows
+      `NORAD <satrec.satnum>` — `satellite.js`'s `twoline2satrec` already parses
+      the NORAD catalog id out of TLE line 1 for free.
+      **Deliberately did NOT wire up shared `createDossier`** (`/shared/dossier.js`):
+      it fetches live data from `/spacetrack/object/{norad}` and requires a
+      `State.set`/`subscribe`-capable object, but /orbit/ is Celestrak-sourced —
+      many tracked objects (new launches, non-US) won't resolve against the
+      Space-Track catalog, and /orbit/ was deliberately kept State-free for
+      everything except `trajectory.revs`. User confirmed this scope
+      (visual-parity-only, keep the existing local `inspectSatellite()` logic)
+      when asked directly — see "Surprises & decisions". Verified headless on
+      `/orbit/` (custom Playwright probe, not the broken shared suite — see
+      below): inspector opens on click, `#sat-detail-norad` reads
+      `NORAD 25544` for ISS, all fields populate, close button works, zero
+      console errors; repeated at 390×844 — card fits on screen, no text
+      under 11px. `npm test` green (65/65 syntax, 53 resolve, 60/60
+      orbit-ingest).
 - [ ] **S9 Regime shells**: extract the GEO shell-ring code from catalog.js into a
       helper; draw LEO/MEO/HEO/GEO rings via the registry (S11).
 - [ ] **S10 VFX CSS**: `.vfx-overlay`/`.noise-layer` exist in 7 HTML files with zero
@@ -183,6 +202,28 @@
 
 ## Surprises & decisions
 
+- **S8's `createDossier` reuse question was put to the user directly** rather
+  than assumed: `/shared/dossier.js` needs a `State` object and fetches
+  `/spacetrack/object/{norad}`, which /orbit/ doesn't have and whose data
+  wouldn't reliably resolve for Celestrak-only objects. User chose
+  visual-parity-only (copy the `.st-dossier` CSS skin, keep the existing local
+  TLE-only `inspectSatellite()` logic) over full `createDossier` wiring with a
+  `State` shim. If a future task wants the full catalog dossier on /orbit/
+  (country, launch site, decay, RCS), that is new scope, not something S8 left
+  half-done.
+- **`test_orbit.py --no-mobile` would not complete even at a 280s timeout**,
+  with zero output written before the timeout killed it (background run,
+  `timeout 280 python3 tests/e2e/test_orbit.py --no-mobile`, exit 124, empty
+  log). Zero stray `chrome-linux64` processes and `uptime` load ~3 beforehand,
+  so this isn't the "stray Chrome" or "box too contended" failure mode
+  documented elsewhere in this file — the suite itself is hanging somewhere
+  before its first `print`. This predates S8 (the suite was already flagged
+  "still to re-run" since Phase 2.2) and S8 was verified instead with a
+  standalone Playwright probe against the same `#sat-detail` ids and
+  `window.__orbit.inspectSatellite` the real suite uses (see S8 above).
+  **S14 needs to root-cause the hang itself**, not just re-run individual
+  assertions — a suite that cannot finish is a bigger problem than any one
+  stale check.
 - **S1's ground-track guardrail was red from birth** (fixed in `a860c02e`):
   `e.polyline.clampToGround` on Cesium 1.113's Entity API is a
   `ConstantProperty` wrapper, not the raw boolean — `!== true` filtered out
