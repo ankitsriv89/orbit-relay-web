@@ -43,7 +43,7 @@
       `addInspectVisuals()` (both `requestRender()`). Verified headless on
       `/orbit/`: past = 31 pts (60 base × 0.5 + 1), orbit = 121/361/481 at
       revs 1/3/5 (480 clamp), sync fallback agrees (31 / 241), console clean.
-- [x] **S4 Revs UI plumbing**: `cycleRevs`, `revsLabel`, `syncRevsButtons`, `setRevs`,
+- [x] **S4 Revs UI plumbing** (commit `d03d532c`): `cycleRevs`, `revsLabel`, `syncRevsButtons`, `setRevs`,
       `wireRevsButton`, `currentRevs`/`normalizeRevsCount`, `REVS_OPTIONS` → added to
       `public/shared/hud.js` (the file moved there in 2.1; the handoff's earlier
       `public/spacetrack/shared/hud.js` path is stale). State-backed: key
