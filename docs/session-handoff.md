@@ -244,7 +244,7 @@
       `OBJECT_TYPE` classification, a Space-Track concept, and stays out of
       scope for this registry. `npm test` green (67/67 syntax, 55/55 resolve,
       13 suites, all group-predicate tests updated and passing).
-- [x] **S13 E2E assertions** (commit `<fill-in>`): four new checks added to
+- [x] **S13 E2E assertions** (commits `7da13758`, `1baa98a8`): four new checks added to
       `tests/e2e/test_orbit.py`'s `run()`, right after the existing "inspector
       shows an altitude" check:
       - **Dossier ids**: `#sat-detail-norad` matches `/NORAD \d+/` for the ISS
