@@ -141,10 +141,36 @@
       renders black in this sandbox (Cesium Ion 403 — pre-existing, unrelated to this
       change, see "Load-bearing details" / env-quirks memory), so ring color/rendering
       was not eyeballed — only DOM/console behavior was verified headless.
-- [ ] **S10 VFX CSS**: `.vfx-overlay`/`.noise-layer` exist in 7 HTML files with zero
-      CSS — add film-grain + vignette to `/css/chrome.css` + `public/starlink/starlink.css`
-      under `prefers-reduced-motion: no-preference` (disable in reduced-motion);
-      reuses the existing 8-page `beacon.js` convention, no new markup.
+- [x] **S10 VFX CSS** (commit TBD): `.vfx-overlay`/`.noise-layer` styled in
+      `/css/chrome.css` (covers /orbit/, /spacetrack/ + its 4 sub-pages, all of
+      which already link chrome.css) and duplicated into
+      `public/starlink/starlink.css` (the one page that doesn't link
+      chrome.css — same duplication pattern the file's own header
+      documents for `.hamburger-btn` etc.). `.vfx-overlay` is `position:
+      fixed; inset:0; z-index:2; pointer-events:none` (canvas sits at z:0,
+      HUD panels start at 15+, so it layers between them without ever
+      intercepting globe drag/click — markup already has `aria-hidden`).
+      `::after` on `.vfx-overlay` draws the vignette (radial-gradient,
+      transparent center → dark edge); `.noise-layer` is a tiled SVG
+      turbulence filter animated via `steps()` keyframes for a film-grain
+      flicker. The SVG data URI is **base64-encoded**, not the usual
+      percent-escaped inline form — the inline form's literal `filter="url(#n)"`
+      substring inside the SVG source gets matched by
+      `scripts/check/resolve.mjs`'s naive `url(...)` regex (it doesn't
+      parse nesting) and 404s as a phantom path `public/css/#n`; base64
+      has no literal `url(` substring so the checker's own `isExternal()`
+      short-circuit on `data:` handles it correctly. `@media
+      (prefers-reduced-motion: reduce)` disables the animation — this is
+      the first use of that query in the repo (CLAUDE.md flagged zero
+      existing reduced-motion handling). `npm test` green (66/66 syntax,
+      54/54 resolve, 13 suites). Headless probe (custom Playwright script,
+      not `tests/e2e/` — see S8/S9's same workaround) across
+      /orbit/, /spacetrack/, /starlink/ at 1400×900 and 390×844: overlay
+      present with correct pointer-events/z-index/vignette/animation on
+      all 6, zero CSS-attributable console errors (the /spacetrack/ 404s
+      seen are `/api/*` calls against the static-file-only dev server —
+      pre-existing, unrelated); `emulate_media(reduced_motion='reduce')`
+      confirmed `animationName` reads `none`.
 - [ ] **S11 Layer registry**: `public/orbit/layers.js` — `LAYERS` array + `renderLayerList`
       (same 15 + new: Active, Military, Rocket Body) + sync/hooks; orbital-relay.js
       consumes it; checkboxes mirrored in the mobile filter drawer; kills the

@@ -393,3 +393,51 @@
         display: none;
     }
 }
+
+/* ==========================================================================
+   VFX overlay — film grain + vignette. `.vfx-overlay`/`.noise-layer` exist
+   in every page's markup (S10, plan 34 3.1) but had no CSS. Purely
+   decorative: aria-hidden in markup, pointer-events: none here so it never
+   intercepts globe drag/click. Disabled under prefers-reduced-motion, per
+   CLAUDE.md's mobile-responsiveness section — this is the first rule to use
+   that media query in this repo.
+   ========================================================================== */
+.vfx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+.vfx-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+.noise-layer {
+    position: absolute;
+    inset: -50%;
+    width: 200%;
+    height: 200%;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSIyIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+");
+    animation: vfx-grain 8s steps(10) infinite;
+}
+@keyframes vfx-grain {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-2%, -3%); }
+    20% { transform: translate(-4%, 2%); }
+    30% { transform: translate(2%, -4%); }
+    40% { transform: translate(-2%, 5%); }
+    50% { transform: translate(-4%, 2%); }
+    60% { transform: translate(3%, 0); }
+    70% { transform: translate(0, 3%); }
+    80% { transform: translate(-3%, 0); }
+    90% { transform: translate(2%, 2%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .noise-layer {
+        animation: none;
+    }
+}
