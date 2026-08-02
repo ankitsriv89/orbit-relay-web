@@ -14,16 +14,21 @@
 import { orbVel, fmtLat, fmtLon } from '/orbit-engine/astro.js';
 import { $, setText, relTime } from '/spacetrack/shared/utils.js';
 import { getApiBase } from '/spacetrack/shared/api.js';
+import { currentRevs } from '/shared/hud.js';
 
 const TRAIL_MAX = 60;            // max positions in the trail
 const TRAIL_STEP_MS = 2000;      // ms between trail samples
 
-export function createDossier({ viewer, engine, State, trail = false } = {}) {
+export function createDossier({ viewer, engine, State, trail = false, revs } = {}) {
     const dossier = $('dossier');
     const dossierClose = $('dossier-close');
     let dossierVisuals = null;
+    let dossierVisualMeta = null;
     let dossierTimer = null;
     let dossierSatrec = null;
+
+    const getRevs = revs == null ? currentRevs
+        : (typeof revs === 'function' ? revs : () => revs);
 
     let trailPositions = [];
     let trailEntity = null;
@@ -70,12 +75,25 @@ export function createDossier({ viewer, engine, State, trail = false } = {}) {
     function close() {
         engine.removeEntities(dossierVisuals);
         dossierVisuals = null;
+        dossierVisualMeta = null;
         dossierSatrec = null;
         stopTrail();
         if (dossierTimer) { clearInterval(dossierTimer); dossierTimer = null; }
         if (dossier) dossier.hidden = true;
     }
     dossierClose?.addEventListener('click', close);
+
+    function rebuildVisuals() {
+        if (!dossierSatrec || !dossierVisualMeta) return;
+        engine.removeEntities(dossierVisuals);
+        dossierVisuals = engine.addInspectVisuals(dossierVisualMeta, '#ffffff',
+                                                  { revs: getRevs() });
+        refreshLive();
+    }
+
+    if (revs == null && State?.subscribe) {
+        State.subscribe('trajectory.revs', () => rebuildVisuals());
+    }
 
     function refreshLive() {
         if (!dossierSatrec) return;
@@ -103,7 +121,8 @@ export function createDossier({ viewer, engine, State, trail = false } = {}) {
             });
             dossierSatrec = meta.satrec;
             engine.removeEntities(dossierVisuals);
-            dossierVisuals = engine.addInspectVisuals(meta, '#ffffff');
+            dossierVisualMeta = meta;
+            dossierVisuals = engine.addInspectVisuals(meta, '#ffffff', { revs: getRevs() });
             setText('dossier-name', `// ${meta.name}`);
             refreshLive();
             if (dossierTimer) clearInterval(dossierTimer);
@@ -141,7 +160,9 @@ export function createDossier({ viewer, engine, State, trail = false } = {}) {
             try {
                 const satrec = satellite.twoline2satrec(o.TLE_LINE1, o.TLE_LINE2);
                 dossierSatrec = satrec;
-                dossierVisuals = engine.addInspectVisuals({ satrec, l1: o.TLE_LINE1, l2: o.TLE_LINE2 }, '#ffffff');
+                dossierVisualMeta = { satrec, l1: o.TLE_LINE1, l2: o.TLE_LINE2 };
+                dossierVisuals = engine.addInspectVisuals(dossierVisualMeta, '#ffffff',
+                                                          { revs: getRevs() });
                 refreshLive();
                 if (dossierTimer) clearInterval(dossierTimer);
                 dossierTimer = engine.own(setInterval(refreshLive, 1000));
