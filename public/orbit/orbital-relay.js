@@ -20,8 +20,12 @@ import { parseTLE, parseTLEChunked, fetchTLE } from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '../orbit-engine/astro.js';
-import { wireHudToggle, initMobileListener, initHamburgerMenu } from '/shared/hud.js';
+import {
+    wireHudToggle, initMobileListener, initHamburgerMenu,
+    wireRevsButton, syncRevsButtons, currentRevs, REVS_STATE_PATH,
+} from '/shared/hud.js';
 import { syncCheckboxes } from '/shared/sync-checkbox.js';
+import { State } from '/spacetrack/shared/state.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 // The previous orbit-page token was rejected by api.cesium.com with a 403,
@@ -64,6 +68,15 @@ wireHudToggle('iss-hud',      'iss-hud-toggle',      'iss-hud-body');
 wireHudToggle('layers-hud',   'layers-hud-toggle',   'layers-hud-body');
 
 initHamburgerMenu();
+
+/* ── Orbit revolution count (plan 35 §3, S6) — authored twice: desktop panel
+ * + mobile drawer, mirroring every other layers-hud control until the S11
+ * registry lands. Must NOT carry class `layer-cb` (reloadAllLayers() would
+ * treat it as a Celestrak layer). syncRevsButtons() queries [data-revs-label]
+ * globally, so both buttons stay in sync without a checkbox-style mirror. */
+syncRevsButtons(currentRevs());
+wireRevsButton(document.getElementById('revs-toggle'));
+wireRevsButton(document.getElementById('revs-toggle-drawer'));
 
 /* ── Filter drawer (mobile layers) ─────────────────────────────────────── */
 function initFilterDrawer() {
@@ -301,18 +314,21 @@ const detailClose  = document.getElementById('sat-detail-close');
 
 let inspectVisuals     = null;
 let inspectUpdateTimer = null;
+let inspectedMeta      = null;
 
 function closeInspector() {
     engine.removeEntities(inspectVisuals);
     inspectVisuals = null;
+    inspectedMeta = null;
     if (inspectUpdateTimer) { clearInterval(inspectUpdateTimer); inspectUpdateTimer = null; }
     if (detailCard) detailCard.hidden = true;
 }
 
 function inspectSatellite(meta) {
     if (!meta || !meta.satrec) return;
+    inspectedMeta = meta;
     engine.removeEntities(inspectVisuals);
-    inspectVisuals = engine.addInspectVisuals(meta, '#ffffff');
+    inspectVisuals = engine.addInspectVisuals(meta, '#ffffff', { revs: currentRevs() });
 
     // Populate + live-update the card
     if (dName)  dName.textContent  = `// ${meta.name}`;
@@ -334,6 +350,12 @@ function inspectSatellite(meta) {
 }
 
 if (detailClose) detailClose.addEventListener('click', closeInspector);
+
+State.subscribe(REVS_STATE_PATH, () => {
+    if (!inspectedMeta) return;
+    engine.removeEntities(inspectVisuals);
+    inspectVisuals = engine.addInspectVisuals(inspectedMeta, '#ffffff', { revs: currentRevs() });
+});
 
 // Pick handler — click a satellite dot to inspect it. Sat points are
 // PointPrimitives whose `.id` is the SatPoint wrapper (carries `.meta`).

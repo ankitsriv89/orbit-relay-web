@@ -11,7 +11,11 @@ import { parseTLE, fetchTLE }  from '/orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
 } from '/orbit-engine/astro.js';
-import { wireHudToggle, initMobileListener } from '/shared/hud.js';
+import {
+    wireHudToggle, initMobileListener,
+    wireRevsButton, syncRevsButtons, currentRevs, REVS_STATE_PATH,
+} from '/shared/hud.js';
+import { State } from '/spacetrack/shared/state.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 Cesium.Ion.defaultAccessToken =
@@ -34,6 +38,10 @@ const tle = (group, live) => fetchTLE(group, { source: SOURCE, live });
 /* ── HUD toggle ──────────────────────────────────────────────────────── */
 wireHudToggle('stats-hud',   'stats-hud-toggle',   'stats-hud-body');
 wireHudToggle('density-hud', 'density-hud-toggle',  'density-hud-body');
+
+/* ── Orbit revolution count (plan 35 §3, S6) ──────────────────────────────── */
+syncRevsButtons(currentRevs());
+wireRevsButton(document.getElementById('revs-toggle'));
 
 /* ── Cesium Viewer ─────────────────────────────────────────────────── */
 const viewer = new Cesium.Viewer('cesium-container', {
@@ -225,18 +233,21 @@ const detailClose  = document.getElementById('sat-detail-close');
 
 let inspectVisuals     = null;
 let inspectUpdateTimer = null;
+let inspectedMeta      = null;
 
 function closeInspector() {
     engine.removeEntities(inspectVisuals);
     inspectVisuals = null;
+    inspectedMeta = null;
     if (inspectUpdateTimer) { clearInterval(inspectUpdateTimer); inspectUpdateTimer = null; }
     if (detailCard) detailCard.hidden = true;
 }
 
 function inspectSatellite(meta) {
     if (!meta || !meta.satrec) return;
+    inspectedMeta = meta;
     engine.removeEntities(inspectVisuals);
-    inspectVisuals = engine.addInspectVisuals(meta, '#ffffff');
+    inspectVisuals = engine.addInspectVisuals(meta, '#ffffff', { revs: currentRevs() });
 
     if (dName)  dName.textContent  = `// ${meta.name}`;
     if (dGroup) dGroup.textContent = meta.group || '—';
@@ -257,6 +268,12 @@ function inspectSatellite(meta) {
 }
 
 if (detailClose) detailClose.addEventListener('click', closeInspector);
+
+State.subscribe(REVS_STATE_PATH, () => {
+    if (!inspectedMeta) return;
+    engine.removeEntities(inspectVisuals);
+    inspectVisuals = engine.addInspectVisuals(inspectedMeta, '#ffffff', { revs: currentRevs() });
+});
 
 const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 clickHandler.setInputAction((movement) => {

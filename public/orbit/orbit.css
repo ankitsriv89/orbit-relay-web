@@ -155,6 +155,36 @@ body[data-page-id="spacetrack-catalog"] {
     text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
+.hud-row--toggle {
+    align-items: center;
+}
+
+.layer-controls-row {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 210, 255, 0.15);
+}
+
+.st-toggle-btn {
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(150, 200, 230, 0.55);
+    background: rgba(0, 20, 32, 0.75);
+    border: 1px solid rgba(0, 210, 255, 0.32);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.st-toggle-btn--on {
+    color: #00d2ff;
+    border-color: rgba(0, 210, 255, 0.6);
+    background: rgba(0, 210, 255, 0.12);
+}
+
 .hud-live {
     margin-top: 12px;
     padding-top: 8px;

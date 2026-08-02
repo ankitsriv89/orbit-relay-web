@@ -4,7 +4,10 @@ import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, on, setText, fmtLat, fmtLon } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
-import { wireHudToggle, initHamburgerMenu, wireTabs, expandHud } from '/shared/hud.js';
+import {
+    wireHudToggle, initHamburgerMenu, wireTabs, expandHud,
+    wireRevsButton, syncRevsButtons, currentRevs, REVS_STATE_PATH,
+} from '/shared/hud.js';
 
 const { viewer, engine } = initGlobe();
 const clock = viewer.clock;
@@ -18,12 +21,33 @@ initHamburgerMenu();
 /* ── Time-warp ────────────────────────────────────────────────────────────── */
 initTimeWarpButtons($('time-warp'));
 
+/* ── Orbit revolution count (plan 35 §3, S6) ──────────────────────────────── */
+const timeWarpEl = $('time-warp');
+let revsToggle = null;
+if (timeWarpEl) {
+    revsToggle = document.createElement('button');
+    revsToggle.type = 'button';
+    revsToggle.id = 'revs-toggle';
+    revsToggle.className = 'tw-btn';
+    revsToggle.dataset.revsLabel = '';
+    revsToggle.setAttribute('aria-label', 'Cycle orbit revolution count');
+    timeWarpEl.appendChild(revsToggle);
+    syncRevsButtons(currentRevs());
+    wireRevsButton(revsToggle);
+}
+
 /* ── Selected object from state ──────────────────────────────────────────── */
 let selectedObject = null;
 let selectedSatrec = null;
 let selectedMeta = null;
 let dossierVisuals = null;
 let dossierTimer = null;
+
+State.subscribe(REVS_STATE_PATH, () => {
+    if (!selectedMeta) return;
+    engine.removeEntities(dossierVisuals);
+    dossierVisuals = engine.addInspectVisuals(selectedMeta, '#00d2ff', { revs: currentRevs() });
+});
 
 function refreshSelectedLive() {
     if (!selectedSatrec) return;
@@ -55,7 +79,7 @@ function loadSelectedObject() {
             selectedSatrec = satrec;
             selectedMeta = { satrec, l1: obj.l1, l2: obj.l2, name: obj.name, norad: obj.norad };
             engine.removeEntities(dossierVisuals);
-            dossierVisuals = engine.addInspectVisuals(selectedMeta, '#00d2ff');
+            dossierVisuals = engine.addInspectVisuals(selectedMeta, '#00d2ff', { revs: currentRevs() });
             refreshSelectedLive();
             if (dossierTimer) clearInterval(dossierTimer);
             dossierTimer = engine.own(setInterval(refreshSelectedLive, 1000));

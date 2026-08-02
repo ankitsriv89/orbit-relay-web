@@ -7,7 +7,10 @@ import { createDossier } from '/shared/dossier.js';
 import { initGlobe, initTimeWarpButtons } from './shared/globe.js';
 import { State } from './shared/state.js';
 import { API } from './shared/api.js';
-import { wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds } from '/shared/hud.js';
+import {
+    wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds,
+    wireRevsButton, syncRevsButtons, currentRevs,
+} from '/shared/hud.js';
 import { regimeSize, on } from './shared/utils.js';
 import { exposeDebug } from './shared/debug.js';
 import { createHeatmap } from './overlays/heatmap.js';
@@ -444,6 +447,10 @@ async function loadBoxscore() {
 
 /* ── Time-warp ─────────────────────────────────────────────────────────────── */
 initTimeWarpButtons($('time-warp'));
+
+/* ── Orbit revolution count (plan 35 §3, S6) ──────────────────────────────── */
+syncRevsButtons(currentRevs());
+wireRevsButton($('revs-toggle'));
 
 /* ── Render / Query ─────────────────────────────────────────────────────────── */
 let rendered = [];
