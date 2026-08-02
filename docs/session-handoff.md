@@ -301,7 +301,7 @@
       SwiftShader/2-core contention) rather than treat one red run as a
       regression. `npm test` still green (67/67 syntax, 55/55 resolve, 13
       suites) — this task only touched the Python E2E suite.
-- [x] **S14 Verify** (commit `<fill-in>`): full battery run.
+- [x] **S14 Verify** (commit `db5bd162`): full battery run.
       - **`npm test`**: green (67/67 syntax, 55/55 resolve, 13 suites).
       - **Console check** (static server, not `npm run dev` — see below): all
         8 routes (`/`, `/orbit/`, `/spacetrack/` + its 4 sub-pages,
