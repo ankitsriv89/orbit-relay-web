@@ -23,12 +23,16 @@
 export const ISS_LAYER = { name: 'ISS', flag: '🛸', color: '#f5a623' };
 
 /**
- * Same 15 groups the pre-registry markup carried, grouped exactly as before
- * (USA / RUSSIA / EU-ESA / CHINA / INDIA / INTERNATIONAL). Backend support
- * for further groups (active, military, rocket body — plan 34 3.1 S12) lands
- * with their `ALLOWED_GROUPS` + baseline-file counterpart; adding them here
- * first would fail test_orbit.py's "every non-builtin layer ships a baseline
- * snapshot" check.
+ * The original 15 groups are grouped exactly as before (USA / RUSSIA /
+ * EU-ESA / CHINA / INDIA / INTERNATIONAL). `active` and `military` (plan 34
+ * 3.1 S12) land here in the same commit as their `ALLOWED_GROUPS` +
+ * baseline-file counterpart — adding a group here without backend/baseline
+ * support behind it fails test_orbit.py's "every non-builtin layer ships a
+ * baseline snapshot" check. Celestrak has no plain "rocket bodies" GP group
+ * (verified against the live API — GROUP=rocket-bodies and GROUP=rb both
+ * 400), so that spec filter stays out of scope for this registry; it would
+ * need OBJECT_TYPE classification, which is a Space-Track/spacetrack.js
+ * concept, not a Celestrak group fetch.
  */
 export const LAYERS = [
     {
@@ -74,6 +78,18 @@ export const LAYERS = [
             { group: 'resource', name: 'EARTH-OBS', flag: '🌍', color: '#66ff99', cap: 150 },
             { group: 'last-30-days', name: 'NEWEST', flag: '🚀', color: '#ff66cc', cap: 150 },
             { group: 'cosmos-2251-debris', name: 'DEBRIS', flag: '💥', color: '#ff5555', cap: 150 },
+        ],
+    },
+    {
+        section: '🎖 OTHER',
+        layers: [
+            // "active" is Celestrak's entire active-payload catalog (~9-10k
+            // objects) — same order of magnitude as the full Starlink group,
+            // which is why the baseline snapshot trims it the same way
+            // starlink.txt is trimmed (see scripts/snapshot_tle.sh) and the
+            // render cap here matches the other high-volume groups.
+            { group: 'active', name: 'ACTIVE', flag: '🛰', color: '#00ffaa', cap: 150 },
+            { group: 'military', name: 'MILITARY', flag: '🎖', color: '#aaaaaa', cap: 150 },
         ],
     },
 ];

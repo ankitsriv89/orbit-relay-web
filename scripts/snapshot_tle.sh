@@ -23,7 +23,8 @@ SLEEP="${SLEEP:-4}"   # seconds between groups, to dodge the 403 cooldown
 # Must match ALLOWED_GROUPS in the Pages Function (functions/api/tle.js) and the
 # data-group values in public/orbit/index.html.
 GROUPS="stations starlink gps-ops glo-ops galileo beidou qianfan hulianwang \
-irnss iridium-NEXT weather geo resource last-30-days oneweb cosmos-2251-debris"
+irnss iridium-NEXT weather geo resource last-30-days oneweb cosmos-2251-debris \
+active military"
 
 mkdir -p "$OUT"
 echo "==> Writing baseline TLE snapshot to: $OUT"

@@ -27,7 +27,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   sqlLiteral, inlineParams, signV4, D1Http, R2S3, memoryKV, createEnv,
 } from '../scripts/env-node.mjs';
-import { CITATION, OBJECT_UPSERT_SQL, deriveObjectRow, buildGroupArtifacts } from '../src/derive.js';
+import { CITATION, OBJECT_UPSERT_SQL, deriveObjectRow, buildGroupArtifacts, GROUPS } from '../src/derive.js';
 import { runGP } from '../src/index.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -425,13 +425,13 @@ await test('a GP run lands rows, writes bundles and logs the call', async () => 
   assert.equal(call.status, 200);
   assert.equal(call.rows, ingest.rows);
 
-  // All 20 group predicates ran against the shim without erroring. The fixture
+  // All group predicates ran against the shim without erroring. The fixture
   // is the twenty oldest catalog objects — Vanguards and Echo debris — so every
   // count is legitimately zero, and buildGroupArtifacts deliberately writes no
   // bundle for an empty group rather than blanking a good one. The bundle write
   // itself is covered below, where a matching row exists.
   const artifacts = report.steps.find((s) => s.name === 'artifacts');
-  assert.equal(Object.keys(artifacts.groups).length, 20);
+  assert.equal(Object.keys(artifacts.groups).length, Object.keys(GROUPS).length);
 
   const keys = env.ORBIT_R2.sent.map((s) => s.url);
   assert.ok(keys.some((k) => k.includes('/feed/latest.json')), 'the feed must be written');

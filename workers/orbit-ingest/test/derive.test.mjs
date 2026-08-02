@@ -217,9 +217,9 @@ await test('group predicates are all single-quoted SQL with no bind holes', () =
   }
 });
 
-await test('the two approximate groups are flagged so the UI can label them', () => {
+await test('the three approximate groups are flagged so the UI can label them', () => {
   const approx = Object.entries(GROUPS).filter(([, g]) => g.approximate).map(([k]) => k);
-  assert.deepEqual(approx.sort(), ['glo-ops', 'sbas']);
+  assert.deepEqual(approx.sort(), ['glo-ops', 'military', 'sbas']);
 });
 
 await test('R2 keys match the path the Pages Function reads', () => {

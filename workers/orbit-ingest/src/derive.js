@@ -299,6 +299,33 @@ export const GROUPS = {
   'cosmos-1408-debris': { label: 'Cosmos 1408 debris', where: `OBJECT_TYPE = 'DEBRIS' AND OBJECT_ID LIKE '1982-092%'` },
   'fengyun-1c-debris':  { label: 'Fengyun-1C debris',  where: `OBJECT_TYPE = 'DEBRIS' AND OBJECT_ID LIKE '1999-025%'` },
   'iridium-33-debris':  { label: 'Iridium 33 debris',  where: `OBJECT_TYPE = 'DEBRIS' AND OBJECT_ID LIKE '1997-051%'` },
+
+  // plan 34 3.1 S12 — every currently-operating payload. The wrapper query in
+  // buildGroupArtifacts() already ANDs in `DECAY_DATE IS NULL`, which is
+  // Space-Track's own definition of "active", so no extra predicate narrows
+  // this further — it is Celestrak's `active` group, just derived rather than
+  // curated.
+  active: { label: 'Active payloads', where: `OBJECT_TYPE = 'PAYLOAD'` },
+  // Celestrak's `military` group is a small hand-curated list of named
+  // programs (SDA/SSC "PRAETORIAN", SAR-Lupe, Sapphire, etc.) with no shared
+  // orbit signature or name prefix, so it cannot be derived the way
+  // `starlink`/`stations`/etc. are — approximate by construction, same as
+  // `sbas`. List taken from a live Celestrak GROUP=military fetch
+  // (2026-08-02); re-fetch and update if Celestrak's curated set changes.
+  military: {
+    label: 'Military (approx.)',
+    approximate: true,
+    where: `OBJECT_NAME IN (
+              'SAR-LUPE 2', 'SAPPHIRE', 'VICTUS HAZE PUMA',
+              'PRAETORIAN SDA_601', 'PRAETORIAN SDA_602', 'PRAETORIAN SDA_603',
+              'PRAETORIAN SDA_604', 'PRAETORIAN SDA_605', 'PRAETORIAN SDA_606',
+              'PRAETORIAN SDA_607', 'PRAETORIAN SDA_608', 'PRAETORIAN SDA_609',
+              'PRAETORIAN SDA_610', 'PRAETORIAN SDA_611', 'PRAETORIAN SDA_612',
+              'PRAETORIAN SDA_613', 'PRAETORIAN SDA_614', 'PRAETORIAN SDA_615',
+              'PRAETORIAN SDA_616', 'PRAETORIAN SDA_617', 'PRAETORIAN SDA_618',
+              'PRAETORIAN SDA_619', 'PRAETORIAN SDA_620', 'PRAETORIAN SDA_621'
+            )`,
+  },
 };
 
 /** R2 key for a group's 3LE bundle. */

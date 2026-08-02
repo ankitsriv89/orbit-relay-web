@@ -20,7 +20,7 @@ const ALLOWED_GROUPS = new Set([
   'qianfan', 'hulianwang', 'irnss', 'iridium-next', 'weather', 'geo',
   'resource', 'last-30-days', 'oneweb', 'sbas',
   'cosmos-2251-debris', 'cosmos-1408-debris', 'fengyun-1c-debris',
-  'iridium-33-debris',
+  'iridium-33-debris', 'active', 'military',
 ]);
 
 const CACHE_TTL = 21600; // 6h

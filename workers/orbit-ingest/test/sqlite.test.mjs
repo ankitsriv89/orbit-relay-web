@@ -149,7 +149,7 @@ test('a NULL DECAY_DATE is SQL NULL, not the text "null"', () => {
 
 /* ── Group predicates ───────────────────────────────────────────────────── */
 
-console.log('\n-- all 20 group predicates against the real schema --');
+console.log('\n-- all group predicates against the real schema --');
 
 // One synthetic object per group, named the way Space-Track names them, so
 // membership is asserted rather than assumed. A predicate that compiles but
@@ -175,6 +175,8 @@ const SPECIMENS = {
   'cosmos-1408-debris':  { NORAD_CAT_ID: 50000, OBJECT_NAME: 'COSMOS 1408 DEB', OBJECT_TYPE: 'DEBRIS', OBJECT_ID: '1982-092BQ', PERIOD: '92.0' },
   'fengyun-1c-debris':   { NORAD_CAT_ID: 30000, OBJECT_NAME: 'FENGYUN 1C DEB', OBJECT_TYPE: 'DEBRIS', OBJECT_ID: '1999-025DKV', PERIOD: '99.0' },
   'iridium-33-debris':   { NORAD_CAT_ID: 33800, OBJECT_NAME: 'IRIDIUM 33 DEB', OBJECT_TYPE: 'DEBRIS', OBJECT_ID: '1997-051KM', PERIOD: '96.0' },
+  active:                { NORAD_CAT_ID: 45000, OBJECT_NAME: 'ANYSAT-1', OBJECT_TYPE: 'PAYLOAD', PERIOD: '100.0' },
+  military:              { NORAD_CAT_ID: 39088, OBJECT_NAME: 'SAPPHIRE', OBJECT_TYPE: 'PAYLOAD', PERIOD: '101.7' },
 };
 
 const specimenDb = (() => {
