@@ -19,6 +19,8 @@
  *    there would only hide data.
  */
 
+import { State } from '/spacetrack/shared/state.js';
+
 const MOBILE_MQ = window.matchMedia('(max-width: 768px)');
 export const isMobile = () => MOBILE_MQ.matches;
 
@@ -201,5 +203,64 @@ export function initFilterDrawer() {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && _drawerOpen) closeFilterDrawer();
+    });
+}
+
+/* ── Orbital revolution count (trajectory multi-rev, plan 35 §3) ──────────────
+ * A cycle button that extends the inspected orbit ring to N revolutions
+ * (plus a fixed half-rev past arc). The desired count is a State
+ * `trajectory.revs` preference (default 1), shared across every spacetrack
+ * route. Buttons declare either `data-revs=N` (a discrete preset, active
+ * state synced) or `data-revs-label` (a single cycle button whose text shows
+ * the current value).
+ *
+ * These are shared/hud.js exports (not spacetrack-internal) because every
+ * route that draws `addInspectVisuals` — /orbit/, /starlink/ and all four
+ * spacetrack pages — needs the same button semantics. */
+
+export const REVS_OPTIONS = [1, 3, 5];
+export const REVS_STATE_PATH = 'trajectory.revs';
+
+export function normalizeRevsCount(revs) {
+    const n = Number(revs);
+    return REVS_OPTIONS.includes(n) ? n : REVS_OPTIONS[0];
+}
+
+export function currentRevs() {
+    return normalizeRevsCount(State.get(REVS_STATE_PATH));
+}
+
+export function revsLabel(revs) {
+    return `REV ${normalizeRevsCount(revs)}×`;
+}
+
+export function setRevs(revs) {
+    const next = normalizeRevsCount(revs);
+    State.set(REVS_STATE_PATH, next);
+    syncRevsButtons(next);
+    return next;
+}
+
+export function cycleRevs() {
+    return setRevs(REVS_OPTIONS[(REVS_OPTIONS.indexOf(currentRevs()) + 1) % REVS_OPTIONS.length]);
+}
+
+export function syncRevsButtons(revs, root = document) {
+    const n = normalizeRevsCount(revs);
+    root.querySelectorAll('[data-revs]').forEach(btn => {
+        const active = Number(btn.dataset.revs) === n;
+        btn.classList.toggle('st-toggle-btn--on', active);
+        btn.setAttribute('aria-pressed', String(active));
+    });
+    root.querySelectorAll('[data-revs-label]').forEach(el => { el.textContent = revsLabel(n); });
+    return n;
+}
+
+export function wireRevsButton(button, { onChange } = {}) {
+    if (!button) return;
+    button.addEventListener('click', () => {
+        const preset = button.dataset.revs;
+        const next = preset != null ? setRevs(Number(preset)) : cycleRevs();
+        if (onChange) onChange(next);
     });
 }

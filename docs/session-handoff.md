@@ -43,9 +43,14 @@
       `addInspectVisuals()` (both `requestRender()`). Verified headless on
       `/orbit/`: past = 31 pts (60 base × 0.5 + 1), orbit = 121/361/481 at
       revs 1/3/5 (480 clamp), sync fallback agrees (31 / 241), console clean.
-- [ ] **S4 Revs UI plumbing**: `public/spacetrack/shared/hud.js` — `cycleRevs`,
-      `revsLabel`, `syncRevsButtons`, `wireRevsButton`; State-backed under the
-      existing `spacetrack_state_v1` preferences (see state.js shape below).
+- [x] **S4 Revs UI plumbing**: `cycleRevs`, `revsLabel`, `syncRevsButtons`, `setRevs`,
+      `wireRevsButton`, `currentRevs`/`normalizeRevsCount`, `REVS_OPTIONS` → added to
+      `public/shared/hud.js` (the file moved there in 2.1; the handoff's earlier
+      `public/spacetrack/shared/hud.js` path is stale). State-backed: key
+      `trajectory.revs` (default 1) added to `spacetrack_state_v1` in
+      `spacetrack/shared/state.js`, matching plan 35 §3 (`trajectory.revs` rather
+      than anything under `preferences`). `REVS_OPTIONS = [1,3,5]` — the same revs the
+      S3 headless probe exercised (121/361/481 pts).
 - [ ] **S5 Dossier revs-awareness**: `public/shared/dossier.js` — `createDossier`
       accepts `revs` and rebuilds visuals on revs change (subscribe, don't poll).
 - [ ] **S6 Revs buttons on all four routes**: catalog (5th `.st-toggle-btn` in the

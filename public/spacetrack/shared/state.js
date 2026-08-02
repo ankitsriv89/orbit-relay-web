@@ -28,6 +28,9 @@ const defaultState = {
         units: 'metric',
         colorMode: 'type',   // 'type' or 'country'
     },
+    trajectory: {
+        revs: 1,   // orbital revolutions shown for past + future path arcs
+    },
 };
 
 let state = { ...defaultState };
