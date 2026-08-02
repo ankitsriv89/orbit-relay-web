@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>About — Orbital Relay</title>
+    <meta name="description" content="What Orbital Relay is, where its data comes from, how it works, and its privacy and legal terms.">
+    <meta name="theme-color" content="#050810">
+    <link rel="canonical" href="https://orbitalrelay.space/about/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="About — Orbital Relay">
+    <meta property="og:description" content="What Orbital Relay is, where its data comes from, how it works, and its privacy and legal terms.">
+    <meta property="og:url" content="https://orbitalrelay.space/about/">
+    <meta property="og:image" content="https://orbitalrelay.space/icons/favicon-512.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="About — Orbital Relay">
+    <meta name="twitter:description" content="What Orbital Relay is, where its data comes from, and how it works.">
+    <meta name="twitter:image" content="https://orbitalrelay.space/icons/favicon-512.png">
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/docs.css">
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                <img src="/icons/logo.png" alt="" width="28" height="28" class="wordmark__logo">
+                ORBITAL<span class="wordmark__accent">·</span>RELAY
+            </a>
+            <a class="header-cta" href="/orbit/">LAUNCH →</a>
+        </div>
+    </header>
+
+    <main id="main" class="docs-main">
+        <div class="docs-hero">
+            <span class="eyebrow">ABOUT</span>
+            <h1>About Orbital Relay</h1>
+            <p>What this project is, where its data comes from, how it works, and its
+               privacy and legal terms.</p>
+        </div>
+
+        <nav class="docs-toc" aria-label="Section links">
+            <h2>On this page</h2>
+            <ul>
+                <li><a href="#about">About</a></li>
+                <li><a href="#data-sources">Data sources</a></li>
+                <li><a href="#how-it-works">How it works</a></li>
+                <li><a href="#privacy">Privacy</a></li>
+                <li><a href="#legal">Legal</a></li>
+            </ul>
+        </nav>
+
+        <section id="about" class="docs-section" aria-labelledby="about-h">
+            <h2 id="about-h">About</h2>
+            <p>Orbital Relay is a satellite visualization platform: a live 3D globe, a
+               28,000+ object catalog, conjunction (close-approach) screening, RF link
+               budgets, pass prediction and catalog analytics — built directly on
+               government and public orbital-element data, not a mockup of it.</p>
+            <p>Eight views, one catalog:</p>
+            <ul>
+                <li><strong>Orbital Relay</strong> (<a href="/orbit/">/orbit/</a>) — a
+                    cinematic 3D globe of the CelesTrak-tracked catalog: stations, debris
+                    and constellations with real orbital mechanics.</li>
+                <li><strong>Space-Track Catalog</strong>
+                    (<a href="/spacetrack/">/spacetrack/</a>) — search and render the
+                    full USSPACECOM object catalog.</li>
+                <li><strong>Signal</strong> (<a href="/spacetrack/signal/">/spacetrack/signal/</a>)
+                    — visibility windows, coverage, pass prediction and RF link budgets.</li>
+                <li><strong>Conjunctions</strong>
+                    (<a href="/spacetrack/conjunctions/">/spacetrack/conjunctions/</a>)
+                    — derived close-approach screening between tracked objects.</li>
+                <li><strong>Brief</strong> (<a href="/spacetrack/brief/">/spacetrack/brief/</a>)
+                    — a daily rundown of catalog changes, launches and reentries.</li>
+                <li><strong>Analytics</strong> (<a href="/spacetrack/analytics/">/spacetrack/analytics/</a>)
+                    — launch history, debris families and country-by-decade trends.</li>
+                <li><strong>Starlink Constellation</strong> (<a href="/starlink/">/starlink/</a>)
+                    — the live Starlink shell as orbital planes, on its own globe.</li>
+            </ul>
+            <p>For a field-by-field reference of what each view shows and what its
+               derived data terms mean, see the <a href="/wiki/">Wiki</a>.</p>
+        </section>
+
+        <section id="data-sources" class="docs-section" aria-labelledby="data-sources-h">
+            <h2 id="data-sources-h">Data sources</h2>
+            <p>Two upstream sources, both public:</p>
+            <ul>
+                <li><strong><a href="https://www.space-track.org" target="_blank" rel="noopener">Space-Track.org ↗</a></strong>
+                    — the USSPACECOM / 18th Space Defense Squadron catalog: SATCAT and
+                    General Perturbations (GP) element sets for every cataloged object.
+                    This is the source for the Space-Track Catalog, Signal, Conjunctions,
+                    Brief and Analytics views.</li>
+                <li><strong><a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak ↗</a></strong>
+                    — public GP element sets grouped by constellation and mission type
+                    (GPS, Starlink, weather, debris families, and more). This is the
+                    source for the Orbital Relay globe and the Starlink Constellation
+                    view.</li>
+            </ul>
+            <p>Element sets refresh on a regular ingest cycle — TLE/GP baselines are
+               re-fetched roughly every six hours. The catalog age shown on the
+               <a href="/">home page</a> live-stat strip reflects the most recent
+               ingest.</p>
+            <div class="docs-citation">
+                Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron).
+                Redistributed under USSPACECOM express blanket approval for basic SSA
+                data.
+            </div>
+            <p class="dim">This citation is a condition of that redistribution approval,
+               not a courtesy — it accompanies Space-Track-derived data everywhere it
+               appears on this site, including every API response.</p>
+        </section>
+
+        <section id="how-it-works" class="docs-section" aria-labelledby="how-it-works-h">
+            <h2 id="how-it-works-h">How it works</h2>
+            <p>Every object's position is computed, not looked up. Orbital elements
+               (TLEs / GP element sets) are propagated with SGP4 — the same standard
+               orbital-mechanics model used across the tracking community — to derive a
+               satellite's position and velocity at any point in time, including
+               forward and backward along its orbit.</p>
+            <p>Some fields shown alongside an object are <strong>derived</strong> rather
+               than reported directly by Space-Track or CelesTrak:</p>
+            <ul>
+                <li><strong>Operator</strong> is inferred from the object's name, not an
+                    authoritative registry field — it is labeled as derived everywhere
+                    it's shown.</li>
+                <li><strong>Orbital regime</strong> (LEO / MEO / HEO / GEO) is classified
+                    from the object's computed altitude, not a catalog field.</li>
+            </ul>
+            <p>See the <a href="/wiki/#glossary">Wiki glossary</a> for the full list of
+               derived terms.</p>
+            <div class="docs-warn">
+                ⚠ Conjunction and pass-prediction output on this site is unofficial and
+                must never be used for collision avoidance or operational maneuver
+                decisions. It is a derived screening pass over public element sets, not
+                an official conjunction data message (CDM).
+            </div>
+        </section>
+
+        <section id="privacy" class="docs-section" aria-labelledby="privacy-h">
+            <h2 id="privacy-h">Privacy</h2>
+            <p>There are no user accounts anywhere on this site, and no cookies are set
+               for visitors. Nothing you enter into a search box, filter, or form is
+               sent anywhere other than this site's own API to fetch catalog data.</p>
+            <p>A minimal, anonymous pageview beacon runs on every page to understand
+               traffic. Per pageview, it records:</p>
+            <ul>
+                <li>Timestamp and the page path visited</li>
+                <li>Referring site's origin only (never a full referring URL)</li>
+                <li>Country, derived from the request (not city- or address-level)</li>
+                <li>A one-way hash of your IP address, salted and rotated daily — this
+                    supports counting unique visitors per day without the raw IP being
+                    stored, and the hash cannot be linked across different days</li>
+                <li>A coarse device class (mobile, tablet, or desktop) — never the raw
+                    browser user-agent string</li>
+            </ul>
+            <p>Automated crawlers and bots are detected and excluded from these
+               counts. This data is used only to understand which views are used and
+               roughly how much traffic the site gets — it is never sold or shared with
+               third parties.</p>
+        </section>
+
+        <section id="legal" class="docs-section" aria-labelledby="legal-h">
+            <h2 id="legal-h">Legal</h2>
+            <p>Orbital Relay is an independent, non-commercial project. It is not
+               affiliated with, endorsed by, or operated on behalf of USSPACECOM, the
+               18th Space Defense Squadron, Space-Track.org, or CelesTrak.</p>
+            <p>All orbital data is redistributed under Space-Track.org's published terms
+               for basic space situational awareness (SSA) data, and under CelesTrak's
+               public terms of use, both linked above. This site adds no claim of
+               authority beyond what those sources provide.</p>
+            <p>This site and the views, positions, screenings and predictions it renders
+               are provided for informational and educational purposes only, with no
+               warranty of accuracy, completeness, or fitness for any particular
+               purpose — including, as stated above, collision avoidance or any
+               operational or safety-critical decision. Use of computed or derived data
+               (orbital positions, conjunctions, pass predictions, link budgets) is at
+               your own risk.</p>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <div class="site-footer__grid">
+                <div class="site-footer__brand">
+                    <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                        <img src="/icons/logo.png" alt="" width="24" height="24" class="wordmark__logo">
+                        ORBITAL<span class="wordmark__accent">·</span>RELAY
+                    </a>
+                    <p class="site-footer__tagline">Every tracked object in orbit, rendered live.</p>
+                </div>
+
+                <nav class="site-footer__col" aria-labelledby="footer-views">
+                    <h3 id="footer-views">Views</h3>
+                    <ul>
+                        <li><a href="/orbit/">Orbital Relay</a></li>
+                        <li><a href="/spacetrack/">Space-Track Catalog</a></li>
+                        <li><a href="/spacetrack/signal/">Signal</a></li>
+                        <li><a href="/starlink/">Starlink Constellation</a></li>
+                    </ul>
+                </nav>
+
+                <nav class="site-footer__col" aria-labelledby="footer-intel">
+                    <h3 id="footer-intel">Intelligence</h3>
+                    <ul>
+                        <li><a href="/spacetrack/conjunctions/">Conjunctions</a></li>
+                        <li><a href="/spacetrack/brief/">Daily Brief</a></li>
+                        <li><a href="/spacetrack/analytics/">Analytics</a></li>
+                    </ul>
+                </nav>
+
+                <div class="site-footer__col">
+                    <h3>Data sources</h3>
+                    <ul>
+                        <li><a href="https://www.space-track.org" target="_blank" rel="noopener">Space-Track.org ↗</a></li>
+                        <li><a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak ↗</a></li>
+                    </ul>
+                </div>
+
+                <nav class="site-footer__col" aria-labelledby="footer-about">
+                    <h3 id="footer-about">About</h3>
+                    <ul>
+                        <li><a href="/about/">About</a></li>
+                        <li><a href="/about/#data-sources">Data sources</a></li>
+                        <li><a href="/about/#privacy">Privacy</a></li>
+                        <li><a href="/about/#legal">Legal</a></li>
+                        <li><a href="/wiki/">Wiki</a></li>
+                    </ul>
+                </nav>
+            </div>
+
+            <div class="site-footer__bottom">
+                <p>Built on CesiumJS, Space-Track.org and CelesTrak. No build step, no bundler
+                   — what ships is what runs.</p>
+                <p class="site-footer__meta">© 2026 Orbital Relay · Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron), redistributed under USSPACECOM express blanket approval for basic SSA data, plus CelesTrak GP element sets.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/js/beacon.js" defer></script>
+</body>
+</html>

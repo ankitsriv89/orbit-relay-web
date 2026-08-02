@@ -1,0 +1,400 @@
+/* Orbital Relay — shared prose-page styles for /about/ and /wiki/.
+ * Reuses landing.css's header/footer classes verbatim (same markup, same
+ * classes) so the two docs pages don't fork the nav/footer chrome; this file
+ * only adds the reading-column layout those pages need on top.
+ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    color-scheme: dark;
+}
+
+body {
+    font-family: var(--font-mono);
+    background: var(--c-void);
+    color: var(--c-text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--c-signal);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.skip-link {
+    position: absolute;
+    top: -100%;
+    left: 1rem;
+    z-index: 100;
+    padding: 0.6rem 1rem;
+    background: var(--c-signal);
+    color: #001018;
+    font-weight: 700;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+    top: calc(1rem + var(--sa-top));
+}
+
+/* ── Header (byte-for-byte the same classes as landing.css's .site-header) ── */
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding-top: var(--sa-top);
+    background: rgba(5, 8, 16, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--c-line);
+}
+
+.site-header__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0.9rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    color: var(--c-text);
+}
+
+.wordmark__logo {
+    display: block;
+    border-radius: 4px;
+}
+
+.wordmark__accent {
+    color: var(--c-signal);
+}
+
+.header-cta {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--c-signal);
+    border-radius: 4px;
+    color: var(--c-signal);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.header-cta:hover {
+    background: var(--c-signal);
+    color: #001018;
+}
+
+/* ── Reading column ────────────────────────────────────────────────────── */
+.docs-main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: clamp(2rem, 6vh, 3.5rem) 1.5rem clamp(3rem, 8vh, 5rem);
+}
+
+.docs-hero {
+    margin-bottom: 2.5rem;
+}
+
+.docs-hero .eyebrow {
+    display: block;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--c-signal-dim);
+    margin-bottom: 0.6rem;
+}
+
+.docs-hero h1 {
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.75rem;
+}
+
+.docs-hero p {
+    color: var(--c-text-dim);
+    line-height: 1.6;
+    max-width: 60ch;
+}
+
+.docs-toc {
+    margin: 1.75rem 0 0;
+    padding: 1rem 1.2rem;
+    background: var(--c-panel);
+    border: 1px solid var(--c-line);
+    border-radius: 6px;
+}
+
+.docs-toc h2 {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--c-text-dim);
+    margin-bottom: 0.6rem;
+}
+
+.docs-toc ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+}
+
+.docs-toc a {
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.docs-toc a:hover {
+    text-decoration: underline;
+}
+
+.docs-section {
+    padding-top: 2.75rem;
+    margin-top: 2.75rem;
+    border-top: 1px solid var(--c-line);
+    scroll-margin-top: calc(4.5rem + var(--sa-top));
+}
+
+.docs-section:first-of-type {
+    padding-top: 0;
+    margin-top: 0;
+    border-top: none;
+}
+
+.docs-section h2 {
+    font-size: clamp(1.15rem, 2.6vw, 1.4rem);
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.docs-section h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--c-signal);
+    margin: 1.4rem 0 0.5rem;
+}
+
+.docs-section p {
+    line-height: 1.7;
+    color: var(--c-text);
+    margin-bottom: 0.9rem;
+}
+
+.docs-section p.dim {
+    color: var(--c-text-dim);
+    font-size: 0.9rem;
+}
+
+.docs-section ul,
+.docs-section ol {
+    line-height: 1.7;
+    margin: 0 0 0.9rem 1.3rem;
+}
+
+.docs-section li {
+    margin-bottom: 0.35rem;
+}
+
+.docs-citation {
+    padding: 0.9rem 1.1rem;
+    background: var(--c-panel);
+    border: 1px solid var(--c-line);
+    border-left: 3px solid var(--c-signal);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--c-text-dim);
+    margin: 1rem 0;
+}
+
+.docs-warn {
+    padding: 0.9rem 1.1rem;
+    background: rgba(255, 140, 90, 0.08);
+    border: 1px solid rgba(255, 140, 90, 0.35);
+    border-left: 3px solid var(--c-warn);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--c-warn);
+    margin: 1rem 0;
+}
+
+/* Glossary + app-reference definition list */
+.docs-dl {
+    margin: 0.5rem 0 1.2rem;
+}
+
+.docs-dl dt {
+    font-weight: 700;
+    color: var(--c-signal);
+    font-size: 0.92rem;
+    margin-top: 0.9rem;
+}
+
+.docs-dl dd {
+    margin: 0.25rem 0 0;
+    color: var(--c-text-dim);
+    line-height: 1.6;
+    font-size: 0.88rem;
+}
+
+.docs-app {
+    padding: 1.1rem 1.2rem;
+    background: var(--c-panel);
+    border: 1px solid var(--c-line);
+    border-radius: 6px;
+    margin-bottom: 1.1rem;
+}
+
+.docs-app h3 {
+    margin-top: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.docs-app__path {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--c-text-dim);
+}
+
+.docs-app__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.7rem;
+}
+
+.docs-app__filters span {
+    font-size: 0.68rem;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--c-line);
+    border-radius: 3px;
+    color: var(--c-text-dim);
+    letter-spacing: 0.02em;
+}
+
+/* ── Footer (same classes/markup as landing.css) ──────────────────────── */
+.site-footer {
+    border-top: 1px solid var(--c-line);
+    background: var(--c-panel);
+}
+
+.site-footer__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem calc(1.75rem + var(--sa-bottom));
+}
+
+.site-footer__grid {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(4, 1fr);
+    gap: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--c-line);
+}
+
+.site-footer__tagline {
+    margin-top: 0.5rem;
+    color: var(--c-text-dim);
+    font-size: 0.85rem;
+    max-width: 30ch;
+}
+
+.site-footer__col h3 {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-text-dim);
+    margin-bottom: 0.75rem;
+}
+
+.site-footer__col ul {
+    list-style: none;
+}
+
+.site-footer__col li {
+    margin-bottom: 0.5rem;
+}
+
+.site-footer__col a {
+    text-decoration: none;
+    font-size: 0.85rem;
+    color: var(--c-text);
+}
+
+.site-footer__col a:hover {
+    color: var(--c-signal);
+}
+
+.site-footer__bottom {
+    padding-top: 1.5rem;
+    font-size: 0.78rem;
+    color: var(--c-text-dim);
+    line-height: 1.6;
+}
+
+.site-footer__meta {
+    margin-top: 0.5rem;
+    font-size: 0.72rem;
+    opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+    .site-footer__grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem 1.5rem;
+    }
+
+    .site-footer__brand {
+        grid-column: 1 / -1;
+    }
+
+    .docs-toc ul {
+        gap: 0.4rem 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .site-footer__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .docs-main {
+        padding-left: 1.1rem;
+        padding-right: 1.1rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .header-cta {
+        transition: none;
+    }
+}

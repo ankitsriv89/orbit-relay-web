@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Wiki — Orbital Relay</title>
+    <meta name="description" content="A reference for every Orbital Relay view — what it shows, its filters — plus a glossary of orbital and derived-data terms used across the site.">
+    <meta name="theme-color" content="#050810">
+    <link rel="canonical" href="https://orbitalrelay.space/wiki/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Wiki — Orbital Relay">
+    <meta property="og:description" content="A reference for every Orbital Relay view and a glossary of orbital and derived-data terms.">
+    <meta property="og:url" content="https://orbitalrelay.space/wiki/">
+    <meta property="og:image" content="https://orbitalrelay.space/icons/favicon-512.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Wiki — Orbital Relay">
+    <meta name="twitter:description" content="A reference for every Orbital Relay view and a glossary of orbital and derived-data terms.">
+    <meta name="twitter:image" content="https://orbitalrelay.space/icons/favicon-512.png">
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/docs.css">
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                <img src="/icons/logo.png" alt="" width="28" height="28" class="wordmark__logo">
+                ORBITAL<span class="wordmark__accent">·</span>RELAY
+            </a>
+            <a class="header-cta" href="/orbit/">LAUNCH →</a>
+        </div>
+    </header>
+
+    <main id="main" class="docs-main">
+        <div class="docs-hero">
+            <span class="eyebrow">WIKI</span>
+            <h1>Wiki</h1>
+            <p>What each view shows and its filters, plus a glossary of the orbital and
+               derived-data terms used across the site. For data sources, privacy and
+               legal terms, see <a href="/about/">About</a>.</p>
+        </div>
+
+        <nav class="docs-toc" aria-label="Section links">
+            <h2>On this page</h2>
+            <ul>
+                <li><a href="#apps">App reference</a></li>
+                <li><a href="#glossary">Glossary</a></li>
+            </ul>
+        </nav>
+
+        <section id="apps" class="docs-section" aria-labelledby="apps-h">
+            <h2 id="apps-h">App reference</h2>
+
+            <div class="docs-app">
+                <h3>Orbital Relay <span class="docs-app__path">/orbit/</span></h3>
+                <p>A cinematic 3D globe of the CelesTrak-tracked catalog. Toggle
+                   constellations by group (GPS, GLONASS, Galileo, BeiDou, OneWeb,
+                   Starlink, and more), each rendered at its own real orbital position.
+                   Click any satellite for its telemetry — position, velocity, period,
+                   and orbital regime. Includes a past/future trajectory trail (1×, 3×
+                   or 5× the orbital period) and adjustable time rate.</p>
+                <p class="dim">Layer groups mirror CelesTrak's own GP group names —
+                   ACTIVE and MILITARY are the largest, at up to a few thousand rendered
+                   objects each (capped for frame rate).</p>
+                <div class="docs-app__filters">
+                    <span>GPS</span><span>GLONASS</span><span>GALILEO</span>
+                    <span>ONEWEB</span><span>BEIDOU</span><span>QIANFAN</span>
+                    <span>GUOWANG</span><span>NAVIC</span><span>STATIONS</span>
+                    <span>WEATHER</span><span>GEO BELT</span><span>EARTH-OBS</span>
+                    <span>NEWEST</span><span>DEBRIS</span><span>ACTIVE</span>
+                    <span>MILITARY</span>
+                </div>
+            </div>
+
+            <div class="docs-app">
+                <h3>Space-Track Catalog <span class="docs-app__path">/spacetrack/</span></h3>
+                <p>Search and render the full USSPACECOM catalog — every payload, rocket
+                   body and tracked fragment currently in orbit. Filter by object type,
+                   country, orbital regime, launch era, or operator; overlay a density
+                   heatmap, debris-family highlighting, launch-site markers, an
+                   age-since-launch color ramp, and LEO/MEO/HEO/GEO altitude shells.</p>
+                <div class="docs-app__filters">
+                    <span>TYPE</span><span>COUNTRY</span><span>REGIME</span>
+                    <span>ERA</span><span>OPERATOR</span>
+                </div>
+            </div>
+
+            <div class="docs-app">
+                <h3>Signal <span class="docs-app__path">/spacetrack/signal/</span></h3>
+                <p>Visibility windows, ground-track coverage, multi-day pass prediction
+                   (with an elevation-angle mask and minimum-duration filter), and an RF
+                   link budget — EIRP, path loss, G/T and signal margin — for any
+                   catalog object against any of a set of preset ground stations.</p>
+            </div>
+
+            <div class="docs-app">
+                <h3>Conjunctions <span class="docs-app__path">/spacetrack/conjunctions/</span></h3>
+                <p>Derived close-approach screening between tracked objects, run in a
+                   background worker over a configurable time window and distance
+                   threshold. This is <strong>not</strong> an official conjunction data
+                   message (CDM) — it's a coarse screening pass over public element
+                   sets, intended for exploration, not operational maneuver decisions.</p>
+                <div class="docs-warn">
+                    ⚠ UNOFFICIAL — NOT FOR COLLISION AVOIDANCE.
+                </div>
+            </div>
+
+            <div class="docs-app">
+                <h3>Brief <span class="docs-app__path">/spacetrack/brief/</span></h3>
+                <p>A daily rundown of catalog changes: new launches, reentries, and
+                   notable orbital events, written strictly from the day's ingested
+                   facts. Every numeral in the brief is checked against the underlying
+                   data before publishing — a sentence containing any number not present
+                   in the source facts, even a correct one, is rejected rather than
+                   shown.</p>
+            </div>
+
+            <div class="docs-app">
+                <h3>Analytics <span class="docs-app__path">/spacetrack/analytics/</span></h3>
+                <p>Aggregate trends across the full catalog: launch history over time,
+                   debris-family breakdowns, and a country-by-decade launch matrix.</p>
+            </div>
+
+            <div class="docs-app">
+                <h3>Starlink Constellation <span class="docs-app__path">/starlink/</span></h3>
+                <p>The full live Starlink shell — the largest single constellation in
+                   the catalog — rendered as orbital planes on its own dedicated globe.</p>
+            </div>
+        </section>
+
+        <section id="glossary" class="docs-section" aria-labelledby="glossary-h">
+            <h2 id="glossary-h">Glossary</h2>
+
+            <dl class="docs-dl">
+                <dt>TLE / GP element set</dt>
+                <dd>A compact set of numbers describing a satellite's orbit at a
+                    specific reference time (its epoch) — inclination, eccentricity,
+                    mean motion, and so on. "TLE" (Two-Line Element) is the classic
+                    fixed-width text format; "GP" (General Perturbations) is the same
+                    underlying data in Space-Track's modern format. Both go stale as the
+                    satellite drifts from its last-known orbit, which is why fresh
+                    element sets matter.</dd>
+
+                <dt>SGP4</dt>
+                <dd>The standard orbital-propagation model used to turn a TLE/GP element
+                    set into a position and velocity at any given time, forward or
+                    backward from its epoch. Every position rendered on this site comes
+                    from an SGP4 propagation, not a stored coordinate.</dd>
+
+                <dt>NORAD ID / catalog number</dt>
+                <dd>The unique integer identifying a tracked object, assigned at
+                    cataloging and never reused.</dd>
+
+                <dt>COSPAR ID / international designator</dt>
+                <dd>The launch-based identifier in the form YYYY-NNNLLL (launch year,
+                    launch-of-year sequence, and a letter for each piece from that
+                    launch) — a different identity scheme from the NORAD ID, tied to the
+                    launch event rather than the object.</dd>
+
+                <dt>Orbital regime — LEO / MEO / HEO / GEO</dt>
+                <dd>Low, medium, highly-elliptical and geostationary/geosynchronous
+                    Earth orbit. On this site, regime is <strong>derived</strong> from
+                    an object's computed altitude, not a field Space-Track or CelesTrak
+                    reports directly.</dd>
+
+                <dt>Operator (derived)</dt>
+                <dd>The organization inferred to operate a satellite, guessed from its
+                    object name — not an authoritative registry field. Wherever it
+                    appears, it is labeled as derived; treat it as a best-effort
+                    label, not ground truth.</dd>
+
+                <dt>Debris family</dt>
+                <dd>A group of tracked fragments attributed to a single breakup or
+                    collision event (for example, the Cosmos 2251 collision debris),
+                    grouped by their shared parent event rather than by operator.</dd>
+
+                <dt>Apogee / perigee</dt>
+                <dd>An orbit's highest and lowest points above Earth's surface, in
+                    kilometers — computed from the element set's eccentricity and
+                    semi-major axis.</dd>
+
+                <dt>RCS (radar cross-section)</dt>
+                <dd>A coarse size class (small / medium / large) describing how visible
+                    an object is to ground-based radar — used as a rough proxy for
+                    physical size, not a precise measurement.</dd>
+
+                <dt>Conjunction</dt>
+                <dd>A predicted close approach between two tracked objects. This site's
+                    conjunction screening is a derived, unofficial pass over public
+                    element sets — see the <a href="#apps">Conjunctions</a> reference
+                    above.</dd>
+
+                <dt>Revs (orbital revolutions)</dt>
+                <dd>How many orbital periods of trajectory are drawn around a selected
+                    satellite — 1×, 3× or 5× its own orbital period, shown as past
+                    (dashed) and future (solid) arcs.</dd>
+
+                <dt>Time rate</dt>
+                <dd>How fast simulated time advances relative to real time on the globe
+                    pages — 1×, 10×, 100× or 1000× realtime, i.e. that many simulated
+                    seconds pass per real second.</dd>
+            </dl>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <div class="site-footer__grid">
+                <div class="site-footer__brand">
+                    <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                        <img src="/icons/logo.png" alt="" width="24" height="24" class="wordmark__logo">
+                        ORBITAL<span class="wordmark__accent">·</span>RELAY
+                    </a>
+                    <p class="site-footer__tagline">Every tracked object in orbit, rendered live.</p>
+                </div>
+
+                <nav class="site-footer__col" aria-labelledby="footer-views">
+                    <h3 id="footer-views">Views</h3>
+                    <ul>
+                        <li><a href="/orbit/">Orbital Relay</a></li>
+                        <li><a href="/spacetrack/">Space-Track Catalog</a></li>
+                        <li><a href="/spacetrack/signal/">Signal</a></li>
+                        <li><a href="/starlink/">Starlink Constellation</a></li>
+                    </ul>
+                </nav>
+
+                <nav class="site-footer__col" aria-labelledby="footer-intel">
+                    <h3 id="footer-intel">Intelligence</h3>
+                    <ul>
+                        <li><a href="/spacetrack/conjunctions/">Conjunctions</a></li>
+                        <li><a href="/spacetrack/brief/">Daily Brief</a></li>
+                        <li><a href="/spacetrack/analytics/">Analytics</a></li>
+                    </ul>
+                </nav>
+
+                <div class="site-footer__col">
+                    <h3>Data sources</h3>
+                    <ul>
+                        <li><a href="https://www.space-track.org" target="_blank" rel="noopener">Space-Track.org ↗</a></li>
+                        <li><a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak ↗</a></li>
+                    </ul>
+                </div>
+
+                <nav class="site-footer__col" aria-labelledby="footer-about">
+                    <h3 id="footer-about">About</h3>
+                    <ul>
+                        <li><a href="/about/">About</a></li>
+                        <li><a href="/about/#data-sources">Data sources</a></li>
+                        <li><a href="/about/#privacy">Privacy</a></li>
+                        <li><a href="/about/#legal">Legal</a></li>
+                        <li><a href="/wiki/">Wiki</a></li>
+                    </ul>
+                </nav>
+            </div>
+
+            <div class="site-footer__bottom">
+                <p>Built on CesiumJS, Space-Track.org and CelesTrak. No build step, no bundler
+                   — what ships is what runs.</p>
+                <p class="site-footer__meta">© 2026 Orbital Relay · Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron), redistributed under USSPACECOM express blanket approval for basic SSA data, plus CelesTrak GP element sets.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/js/beacon.js" defer></script>
+</body>
+</html>

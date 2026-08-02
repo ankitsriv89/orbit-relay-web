@@ -546,7 +546,7 @@ a {
 
 .site-footer__grid {
     display: grid;
-    grid-template-columns: 1.4fr repeat(3, 1fr);
+    grid-template-columns: 1.4fr repeat(4, 1fr);
     gap: 2rem;
     text-align: left;
     padding-bottom: 2.25rem;

@@ -27,6 +27,12 @@
 /starlink/*
   Cache-Control: public, max-age=86400
 
+/about/*
+  Cache-Control: public, max-age=86400
+
+/wiki/*
+  Cache-Control: public, max-age=86400
+
 # Landing-page assets. Un-hashed filenames rule out immutable long-TTL caching;
 # stale-while-revalidate gets the latency without serving a stale file for a day.
 /css/*
