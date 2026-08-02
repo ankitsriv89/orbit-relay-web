@@ -49,9 +49,11 @@ for g in $TLE_GROUPS; do
     echo "  !! $g — no usable data (throttled or invalid); keeping existing file if any"
   else
     printf '%s' "$body" > "$out"
-    # Starlink is ~10k objects (~1.5MB); the page shows ≤600 and the live
-    # refresh can pull the full set — ship a trimmed baseline (600 sats = 1800 lines).
-    if [[ "$g" == "starlink" ]]; then
+    # Starlink (~10k objects) and active (~16k objects) are both far larger
+    # than anything the page renders (cap 600 / 150 respectively) — ship a
+    # trimmed baseline (600 sats = 1800 lines) for both; the live refresh can
+    # still pull the full set via /api/tle.
+    if [[ "$g" == "starlink" || "$g" == "active" ]]; then
       head -1800 "$out" > "$out.trim" && mv "$out.trim" "$out"
     fi
     n=$(grep -c '^1 ' "$out" || true)
