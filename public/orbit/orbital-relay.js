@@ -8,7 +8,8 @@
  * The rendering and propagation engine lives in `/orbit-engine/` and is shared
  * with `/spacetrack/` (plan 33 wave 3) — points in one PointPrimitiveCollection,
  * a throttled tick in a Web Worker, transferable position buffers. What is left
- * here is this page: its HUDs, its 16 group checkboxes, the inspector card and
+ * here is this page: its HUDs, its constellation layer registry (./layers.js),
+ * the inspector card and
  * the fly-to cinematics.
  *
  * Features: time-warp, click-to-inspect, ground tracks, coverage footprints,
@@ -26,6 +27,7 @@ import {
 } from '/shared/hud.js';
 import { syncCheckboxes } from '/shared/sync-checkbox.js';
 import { State } from '/spacetrack/shared/state.js';
+import { renderLayerList } from './layers.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 // The previous orbit-page token was rejected by api.cesium.com with a 403,
@@ -68,6 +70,14 @@ wireHudToggle('iss-hud',      'iss-hud-toggle',      'iss-hud-body');
 wireHudToggle('layers-hud',   'layers-hud-toggle',   'layers-hud-body');
 
 initHamburgerMenu();
+
+/* ── Layer list (plan 34 3.1 S11) ─────────────────────────────────────────
+ * Both the desktop panel and mobile drawer are built from the same LAYERS
+ * registry in ./layers.js, before anything below queries `.layer-cb` —
+ * the drawer mirror wiring, the layer-cb change handler, and reloadAllLayers
+ * all assume the checkboxes already exist in the DOM. */
+renderLayerList('layer-list');
+renderLayerList('layer-list-drawer', '-drawer');
 
 /* ── Orbit revolution count (plan 35 §3, S6) — authored twice: desktop panel
  * + mobile drawer, mirroring every other layers-hud control until the S11

@@ -171,12 +171,35 @@
       seen are `/api/*` calls against the static-file-only dev server —
       pre-existing, unrelated); `emulate_media(reduced_motion='reduce')`
       confirmed `animationName` reads `none`.
-- [ ] **S11 Layer registry**: `public/orbit/layers.js` — `LAYERS` array + `renderLayerList`
-      (same 15 + new: Active, Military, Rocket Body) + sync/hooks; orbital-relay.js
-      consumes it; checkboxes mirrored in the mobile filter drawer; kills the
-      duplicating pattern for good. layer-label CSS coverage in the M6 mobile check
-      (`tests/e2e/test_mobile_responsive.py:216`) applies to the drawer, not the
-      layers panel.
+- [x] **S11 Layer registry** (commit `<fill-in>`): `public/orbit/layers.js` —
+      `LAYERS` array (6 sections, same 15 groups, byte-identical `data-group`/
+      `data-color`/`data-cap`/`data-builtin` values) + `ISS_LAYER` (the
+      always-on, checkbox-less row) + `renderLayerList(mountId, idSuffix)`,
+      which builds `<li class="layer-item">` rows via `createElement` (repo
+      rule, no `innerHTML`) into either `#layer-list` or `#layer-list-drawer`.
+      `orbital-relay.js` calls `renderLayerList('layer-list')` and
+      `renderLayerList('layer-list-drawer', '-drawer')` right after
+      `initHamburgerMenu()`, before the drawer-mirror wiring, the `.layer-cb`
+      change-handler `querySelectorAll`, and `reloadAllLayers()` — all three
+      assume the checkboxes already exist. `index.html`'s two `<ul>`s are now
+      empty mount points; every id/class the rest of the page (and
+      `tests/e2e/test_orbit.py`'s `set_layer()`, which selects by
+      `data-group`) depends on is unchanged. **Active/Military/Rocket-Body
+      were deliberately NOT added** — `functions/api/tle.js`'s
+      `ALLOWED_GROUPS` and the baseline `.txt` files don't exist yet (that's
+      S12), and `test_orbit.py`'s "every non-builtin layer ships a baseline
+      snapshot" check would go red immediately if the registry listed a group
+      with no backend/baseline behind it. S12 should add those three groups
+      to `LAYERS` in the same commit it adds backend support, not before.
+      Headless probe (custom Playwright script, not `tests/e2e/` — see S8-S10's
+      same workaround) at 1400×900 and 390×844: main/drawer checkbox counts
+      both 15, `data-group` order identical between the two, all 6 section
+      labels present, ISS row has no `<input>` and both status spans read `1`;
+      toggling GPS on the main panel mirrors `checked` to the drawer copy and
+      both `layer-status-gps-ops[-drawer]` spans update to the loaded count;
+      opening the mobile drawer shows all 15 checkboxes; zero console errors
+      on either viewport. `npm test` green (67/67 syntax — one new file —,
+      55/55 resolve, 13 suites).
 - [ ] **S12 Backend layers**: `functions/api/tle.js` ALLOWED_GROUPS +=
       `active`, `military`; `scripts/snapshot_tle.sh` fetch them; baseline files
       `public/data/tle/celestrak/{active,military}.txt`; fallback path must handle
@@ -209,9 +232,12 @@
   `isMobile()`; `shared/hud.js:48/54` (used by all four spacetrack routes) strips
   the guard — desktop allows several panels open. Don't "fix" either copy to match
   the other without the mobile contract review.
-- **Nav + filter drawer**: mobile drawer duplicates nav verbatim + filter
-  checkboxes. Every layer-list change must touch both the desktop panel and the
-  drawer until the S11 registry lands (the registry IS the fix).
+- **Nav + filter drawer**: mobile drawer duplicates nav verbatim. Layer
+  checkboxes no longer need hand-duplication as of S11 — `public/orbit/layers.js`'s
+  `LAYERS` registry + `renderLayerList()` builds both `#layer-list` and
+  `#layer-list-drawer` from one source; add a new layer there, not in
+  `index.html`. The revs-toggle button (S6) and hamburger/nav chrome are
+  still hand-duplicated — S11 only covers the constellation layer list.
 - **Tests that gate /orbit/ markup** (keep passing):
   - `tests/e2e/test_orbit.py:958`-ish: `.tw-btn`, `.source-btn`, `.refresh-btn`
     exist; `#sat-detail` visible after click; `.layer-cb[data-group]` checked;
