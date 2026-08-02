@@ -114,8 +114,33 @@
       console errors; repeated at 390×844 — card fits on screen, no text
       under 11px. `npm test` green (65/65 syntax, 53 resolve, 60/60
       orbit-ingest).
-- [ ] **S9 Regime shells**: extract the GEO shell-ring code from catalog.js into a
-      helper; draw LEO/MEO/HEO/GEO rings via the registry (S11).
+- [x] **S9 Regime shells** (commit PENDING): `public/spacetrack/overlays/regime-shells.js`
+      — `createRegimeShells({ viewer, engine })`, the exact two-ring-glow construction
+      the GEO belt used, parameterized over `SHELLS = [LEO 1200km, MEO 20200km, GEO
+      35786km, HEO 39000km]` (altitude bands chosen to sit inside each of
+      `orbitRegime()`'s thresholds in `orbit-engine/astro.js:52-57`, not on the boundary).
+      catalog.js's old `addGeoBelt()` IIFE is deleted; the overlay is constructed
+      once alongside the other overlays and is **not** part of `clearRendered()` —
+      unlike debris/launch-sites it doesn't derive from query results, so it isn't
+      rebuilt per-query. Defaults to visible (user confirmed: preserve today's
+      always-on GEO-belt behavior) with a `SHELLS` toggle row (`#regime-shells-toggle`,
+      `.st-toggle-btn`) added to `/spacetrack/index.html`'s catalog HUD, below `ORBIT`
+      — no registry (S11) yet, so this is one more hand-authored HUD row, same as
+      `revs-toggle` was in S6. Only `/spacetrack/` (catalog.js) got it — the GEO belt
+      was catalog-only to begin with; `/orbit/`, `/starlink/`, signal/conjunctions
+      dossiers don't draw any belt today and are out of scope for S9.
+      `catalog-compute.test.mjs`'s "every overlay entity routes through the engine"
+      check was catalog.js-only and went red because `viewer.entities.add(` moved out
+      of catalog.js into the new overlay file (false-negative, not a real regression)
+      — updated to scan `catalog.js` + `debris.js` + `launch-sites.js` +
+      `regime-shells.js` together. `npm test` green (66/66 syntax — one new file —,
+      54/54 resolve, 13 suites). Headless probe on `/spacetrack/`: toggle starts
+      "ON", cycles OFF→ON correctly, zero non-network console errors at 1400×900 and
+      390×844; touch-target height (17px) matches the existing `.st-toggle-btn`
+      baseline (`age-color-toggle`/`revs-toggle`), not a new regression. Canvas itself
+      renders black in this sandbox (Cesium Ion 403 — pre-existing, unrelated to this
+      change, see "Load-bearing details" / env-quirks memory), so ring color/rendering
+      was not eyeballed — only DOM/console behavior was verified headless.
 - [ ] **S10 VFX CSS**: `.vfx-overlay`/`.noise-layer` exist in 7 HTML files with zero
       CSS — add film-grain + vignette to `/css/chrome.css` + `public/starlink/starlink.css`
       under `prefers-reduced-motion: no-preference` (disable in reduced-motion);

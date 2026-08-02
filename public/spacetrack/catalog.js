@@ -18,6 +18,7 @@ import { createDebris } from './overlays/debris.js';
 import { createLaunchSites } from './overlays/launch-sites.js';
 import { createAge } from './overlays/age.js';
 import { createLOD } from './overlays/lod.js';
+import { createRegimeShells } from './overlays/regime-shells.js';
 import {
     TYPE_COLORS, COUNTRY_COLORS, CB_TYPE_COLORS, CB_COUNTRY_COLORS,
     colorForRow, colorForCountry,
@@ -461,6 +462,7 @@ const debris = createDebris({ viewer, engine, getRendered: () => rendered });
 const launchSites = createLaunchSites({ viewer, engine, getRendered: () => rendered });
 const age = createAge({ engine, getRendered: () => rendered, recolorRendered });
 createLOD({ viewer, engine, getRendered: () => rendered });
+createRegimeShells({ viewer, engine });
 
 function clearRendered() {
     rendered.forEach(s => engine.removeSat(s));
@@ -784,45 +786,6 @@ if (screenshotBtn) {
     if (noElset) msg += ` · ${noElset} without an elset`;
     status(msg);
     setText('results-count', shown ? `(${num(shown)})` : '');
-})();
-
-/* ── GEO belt glow ring ─────────────────────────────────────────────────── */
-(function addGeoBelt() {
-    const GEO_ALT_KM = 35786;
-    const SEGMENTS = 180;
-    const positions = [];
-    for (let i = 0; i <= SEGMENTS; i++) {
-        const lon = (i / SEGMENTS) * 360 - 180;
-        positions.push(Cesium.Cartesian3.fromDegrees(lon, 0, GEO_ALT_KM * 1000));
-    }
-    engine.addManagedEntity(viewer.entities.add({
-        polyline: {
-            positions,
-            width: 1.2,
-            material: new Cesium.PolylineGlowMaterialProperty({
-                glowPower: 0.15,
-                color: Cesium.Color.fromCssColorString('#ffe066').withAlpha(0.25),
-            }),
-            arcType: Cesium.ArcType.NONE,
-        },
-    }));
-    // Second ring slightly offset for depth
-    const positions2 = [];
-    for (let i = 0; i <= SEGMENTS; i++) {
-        const lon = (i / SEGMENTS) * 360 - 180;
-        positions2.push(Cesium.Cartesian3.fromDegrees(lon, 0, (GEO_ALT_KM + 200) * 1000));
-    }
-    engine.addManagedEntity(viewer.entities.add({
-        polyline: {
-            positions: positions2,
-            width: 0.6,
-            material: new Cesium.PolylineGlowMaterialProperty({
-                glowPower: 0.08,
-                color: Cesium.Color.fromCssColorString('#ffe066').withAlpha(0.12),
-            }),
-            arcType: Cesium.ArcType.NONE,
-        },
-    }));
 })();
 
 viewer.camera.flyTo({

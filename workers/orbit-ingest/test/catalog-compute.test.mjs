@@ -182,13 +182,22 @@ await test('catalog.js and its overlays import the maths instead of re-implement
 });
 
 await test('every overlay entity routes through the engine, none escapes cleanup', () => {
-  const src = read('public/spacetrack/catalog.js');
-  // The wrapped form still literally contains `viewer.entities.add(`, so assert
-  // no occurrence that is NOT immediately wrapped in addManagedEntity(...).
-  assert.ok(!/(?<!addManagedEntity\()viewer\.entities\.add\(/.test(src),
-            'no bare viewer.entities.add — those escape engine.destroy()');
-  assert.ok(/addManagedEntity\(viewer\.entities\.add/.test(src),
-            'overlay entities must be managed by the engine');
+  const files = [
+    'public/spacetrack/catalog.js',
+    'public/spacetrack/overlays/debris.js',
+    'public/spacetrack/overlays/launch-sites.js',
+    'public/spacetrack/overlays/regime-shells.js',
+  ];
+  let sawManaged = false;
+  for (const file of files) {
+    const src = read(file);
+    // The wrapped form still literally contains `viewer.entities.add(`, so assert
+    // no occurrence that is NOT immediately wrapped in addManagedEntity(...).
+    assert.ok(!/(?<!addManagedEntity\()viewer\.entities\.add\(/.test(src),
+              `${file}: no bare viewer.entities.add — those escape engine.destroy()`);
+    if (/addManagedEntity\(viewer\.entities\.add/.test(src)) sawManaged = true;
+  }
+  assert.ok(sawManaged, 'overlay entities must be managed by the engine');
 });
 
 const passed = results.filter(Boolean).length;
