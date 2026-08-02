@@ -59,10 +59,23 @@
       open; no-op when closed. Callers (catalog/conjunctions) unchanged — they
       get the State-driven default. `npm test` green (65/65 syntax, 53 resolve,
       60/60 orbit-ingest).
-- [ ] **S6 Revs buttons on all four routes**: catalog (5th `.st-toggle-btn` in the
-      orbit HUD, + `clearRendered()` must reset it), signal, starlink, orbit
-      (via the S11 registry). signal.js + starlink.js must rebuild inspect visuals
-      on revs change (they draw via `addInspectVisuals` directly, not createDossier).
+- [x] **S6 Revs buttons on all four routes** (commit `ab974c23`): catalog gets
+      a 5th `.st-toggle-btn` in the orbit HUD — no `clearRendered()` reset
+      needed, since `trajectory.revs` is a persistent cross-route preference,
+      not a per-query overlay toggle, and `createDossier` (S5) already
+      subscribes to it. signal.js/starlink.js/orbital-relay.js call
+      `addInspectVisuals` directly (not `createDossier`), so each now tracks
+      its last-inspected `meta` and subscribes to `REVS_STATE_PATH` to tear
+      down + rebuild on change. `/orbit/` authors the button twice (desktop
+      `#revs-toggle` + drawer `#revs-toggle-drawer`, since S11's registry
+      hasn't landed) — not class `layer-cb`, so `reloadAllLayers()` doesn't
+      treat it as a Celestrak layer; `syncRevsButtons()` queries
+      `[data-revs-label]` globally so the two stay in sync with no manual
+      mirror. Added `.st-toggle-btn`/`.st-toggle-btn--on`/`.hud-row--toggle`
+      CSS to `orbit.css` and `starlink.css` (spacetrack.css only). Headless
+      probe on `/orbit/`: button exists, cycles REV 1×→3×→5×→1×, drawer
+      stays in sync every click, zero console errors. `npm test` green
+      (65/65 syntax, 53 resolve, 12 suites/348 checks).
 - [ ] **S7 Time rates 1×/10×/100×/1000×**: `initTimeWarpButtons` in
       `public/spacetrack/shared/globe.js`; hardcoded buttons in
       `public/orbit/index.html` + `public/starlink/index.html`; normalize a saved
