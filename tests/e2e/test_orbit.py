@@ -224,12 +224,17 @@ def run(page):
         page.evaluate('document.getElementById("sat-detail-name").textContent'))
 
     # Past-orbit arc + revs-aware future path (plan 35 §2/§3, S1/S3/S13).
-    # Discriminate the two inspect-visual polylines by MATERIAL TYPE, not by
-    # clamp — `material.getType()` ('PolylineDash'/'PolylineGlow') is the
-    # reliable read against the minified CDN build (`instanceof` on the
-    # material constructor is not, per S9/S13 investigation); the past arc's
-    # `clampToGround` is `undefined` (unset), same as the future orbit path,
-    # so only the ground track (S1) uses the unwrap-and-compare-true pattern.
+    # `material.getType()` ('PolylineDash'/'PolylineGlow') is the reliable
+    # discriminator against the minified CDN build (`instanceof` on the
+    # material constructor is not, per prior sessions' investigation) — but
+    # the GROUND TRACK (S1) is ALSO PolylineDash, so material type alone
+    # conflates it with the past arc (confirmed empirically: without the
+    # clamp check below, `past` reads the ground track's vertex count, which
+    # happens to collide with the future path's default rev-1 length and
+    # silently masks the real past-arc assertion). The full discriminator is
+    # therefore material type AND `clampToGround`: PolylineGlow -> future
+    # orbit; PolylineDash + clamp !== true -> past arc; PolylineDash + clamp
+    # === true -> ground track (excluded here, already covered above).
     def inspect_vertex_counts():
         return page.evaluate("""() => {
             const t = viewer.clock.currentTime;
@@ -241,7 +246,14 @@ def run(page):
                 const kind = mat.getType(t);
                 const p = e.polyline.positions.getValue(t);
                 const n = p ? p.length : 0;
-                if (kind === 'PolylineDash') past = n;
+                // The ground track (S1) is ALSO a PolylineDash material — the
+                // discriminator between it and the past-orbit arc is
+                // clampToGround: true for the ground track, undefined (unset)
+                // for the past arc. Without this the ground track's fixed
+                // ~121-pt length collides with the future path's default
+                // rev-1 length and masks the real past-arc bug.
+                const clamped = Cesium.Property.getValueOrUndefined(e.polyline.clampToGround, t) === true;
+                if (kind === 'PolylineDash' && !clamped) past = n;
                 else if (kind === 'PolylineGlow') orbit = n;
             });
             return { past, orbit };

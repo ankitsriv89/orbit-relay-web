@@ -244,10 +244,56 @@
       `OBJECT_TYPE` classification, a Space-Track concept, and stays out of
       scope for this registry. `npm test` green (67/67 syntax, 55/55 resolve,
       13 suites, all group-predicate tests updated and passing).
-- [ ] **S13 E2E assertions**: past-orbit polyline present; rev count changes the
-      future path vertex count; dossier ids on /orbit/; baseline-check skips
-      spacetrack layer checkboxes (S11 registry changes /orbit/ markup — update
-      the orbit-layer baseline in `tests/e2e/test_orbit.py`).
+- [x] **S13 E2E assertions** (commit `<fill-in>`): four new checks added to
+      `tests/e2e/test_orbit.py`'s `run()`, right after the existing "inspector
+      shows an altitude" check:
+      - **Dossier ids**: `#sat-detail-norad` matches `/NORAD \d+/` for the ISS
+        (`NORAD 25544`) and `#sat-detail-name` is non-trivial — the S8 markup
+        finally has assertions, not just a headless-probe verification note.
+      - **Past-orbit polyline + revs-aware future path** (plan 35 §2/§3,
+        S1/S3/S6): a helper `inspect_vertex_counts()` reads
+        `viewer.entities.values` and classifies each polyline by
+        `material.getType()` (`'PolylineDash'`/`'PolylineGlow'`) — but the
+        **ground track (S1) is ALSO `PolylineDash`**, so material type alone
+        is not enough. Discovered this the hard way: the first version of
+        this check (material-type only) read the past arc as `121` — the
+        ground track's length, not the past arc's real `31` — because both
+        matched the same branch and the ground track (added first) won.
+        Confirmed via a standalone Playwright probe against live entity data
+        before touching the assertion again. Fixed by requiring
+        `clampToGround !== true` (unwrapped via
+        `Cesium.Property.getValueOrUndefined`, same pattern as the S1
+        guardrail) in addition to the dash material, which is exactly what
+        the ground track sets and the past arc does not. Verified: past stays
+        `31` across REV 1×/3×/5×/1× (fixed half-rev, per S3); future scales
+        `121→361→481→121` (120 base steps × revs + 1, clamped to 480, per
+        S2/S3); the REV toggle is clicked 3× total to land back on 1× before
+        continuing (REVS_OPTIONS is `[1,3,5]`, cyclic) so it doesn't leak
+        into later checks.
+      - **Baseline-check accepts the documented `active.txt` gap** (S12): the
+        existing "every non-builtin layer group ships a baseline snapshot"
+        check went red the moment S12 added the `active` checkbox without a
+        baseline file (Celestrak rate-limited every fetch attempt that
+        session). Rather than "skip spacetrack layer checkboxes" (the
+        original task wording — stale/inapplicable, since this suite never
+        navigates to `/spacetrack/` for this check and `.layer-cb` only
+        matches `/orbit/`'s own checkboxes), the fix asserts the missing set
+        is exactly `{'active'}` via `KNOWN_MISSING_BASELINES`, not a blanket
+        pass — so a REAL regression in some other group's baseline still
+        fails loudly instead of being silently absorbed. Also handles
+        `active` appearing twice in the raw `missing` list (desktop panel +
+        drawer both carry `data-group="active"` — expected, not a bug).
+      Full `test_orbit.py --no-mobile` run: every check through
+      `perf_gate`'s startup passed (including all 5 new/changed ones above);
+      the pre-existing "visible sats advance between ticks" check is FLAKY
+      independent of this batch — observed both PASS (44236 m moved) and FAIL
+      (0 m moved) across identical back-to-back runs with zero code changes
+      in between, and `git log` on `tests/e2e/test_orbit.py` shows
+      `wait_ticks`/this assertion predate S1. **S14 should investigate this
+      flake** (likely a `tickCount` polling race under this box's slow
+      SwiftShader/2-core contention) rather than treat one red run as a
+      regression. `npm test` still green (67/67 syntax, 55/55 resolve, 13
+      suites) — this task only touched the Python E2E suite.
 - [ ] **S14 Verify**: `npm test`; dev-server console check; `test_orbit.py` full,
       `test_mobile_dom.py`, `test_mobile_responsive.py`; then push (deploy is
       automatic). Fix any failures in follow-up commits.
