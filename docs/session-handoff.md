@@ -200,10 +200,50 @@
       opening the mobile drawer shows all 15 checkboxes; zero console errors
       on either viewport. `npm test` green (67/67 syntax — one new file —,
       55/55 resolve, 13 suites).
-- [ ] **S12 Backend layers**: `functions/api/tle.js` ALLOWED_GROUPS +=
-      `active`, `military`; `scripts/snapshot_tle.sh` fetch them; baseline files
-      `public/data/tle/celestrak/{active,military}.txt`; fallback path must handle
-      missing baselines gracefully.
+- [x] **S12 Backend layers** (commit `4688fae6`): `functions/api/tle.js`
+      `ALLOWED_GROUPS` += `active`, `military`. Both need a Space-Track predicate
+      in `workers/orbit-ingest/src/derive.js`'s `GROUPS` too — `ALLOWED_GROUPS`
+      gates `?source=spacetrack` as well as Celestrak, and a group with no
+      `GROUPS[slug]` definition passes validation then 404s on R2 (caught by
+      `derive.test.mjs`'s "every group the API accepts has a definition").
+      `active` is plain `OBJECT_TYPE = 'PAYLOAD'` — the `buildGroupArtifacts()`
+      wrapper query already ANDs in `DECAY_DATE IS NULL` (Space-Track's own
+      definition of "active"), so no extra predicate narrows it further.
+      `military` is an `OBJECT_NAME IN (...)` hand-list (SAR-Lupe, Sapphire, the
+      SDA PRAETORIAN cluster ×21, Victus Haze — the exact names from a live
+      Celestrak `GROUP=military` fetch, 2026-08-02) marked `approximate: true`,
+      same as `sbas` — Celestrak's own `military` group is a small curated set
+      with no shared name prefix or orbit signature to predicate on.
+      `public/orbit/layers.js` gets a new "🎖 OTHER" section with both as
+      checkboxes (cap 150 each). `scripts/snapshot_tle.sh`'s `GROUPS` list grew
+      the two slugs. Updated three test fixtures to match: `derive.test.mjs`'s
+      approximate-groups list (now `['glo-ops', 'military', 'sbas']`),
+      `sqlite.test.mjs`'s `SPECIMENS` (added `active`/`military` synthetic rows
+      so "every group matches its specimen" actually exercises the two new
+      predicates), `env-node.test.mjs`'s hardcoded group count (`20` →
+      `Object.keys(GROUPS).length`, since it was a magic number that silently
+      drifts every time a group is added).
+      **`public/data/tle/celestrak/active.txt` is a known gap**: Celestrak's
+      GP endpoint rate-limits per client and returned 403 on every attempt to
+      fetch `GROUP=active` this session (it's Celestrak's largest bundle — the
+      full active-payload catalog) even after 45s/60s/120s waits; the user
+      declined further retries. `military.txt` fetched fine (24 objects, no
+      trim needed — the `starlink.txt`-style 1800-line trim only applies once
+      `active.txt` is fetched, expected to be thousands of objects).
+      `fetchTLE()` (`orbit-engine/tle.js`) already falls through to the live
+      `/api/tle` proxy on a missing/invalid baseline file, so the ACTIVE
+      checkbox works today via the slow path — it just fails
+      `test_orbit.py`'s "every non-builtin layer group ships a baseline
+      snapshot" check until someone runs
+      `scripts/snapshot_tle.sh` (ideally from a different network/timing than
+      this session used) and commits the resulting `active.txt`. **S13/S14
+      should either fetch it first, or accept that one E2E check will be
+      red until it's supplied — do not fabricate placeholder TLE data.**
+      No plain "rocket bodies" Celestrak GP group exists (verified live:
+      `GROUP=rocket-bodies` and `GROUP=rb` both 400) — that spec filter needs
+      `OBJECT_TYPE` classification, a Space-Track concept, and stays out of
+      scope for this registry. `npm test` green (67/67 syntax, 55/55 resolve,
+      13 suites, all group-predicate tests updated and passing).
 - [ ] **S13 E2E assertions**: past-orbit polyline present; rev count changes the
       future path vertex count; dossier ids on /orbit/; baseline-check skips
       spacetrack layer checkboxes (S11 registry changes /orbit/ markup — update
