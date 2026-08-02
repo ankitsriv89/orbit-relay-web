@@ -171,7 +171,7 @@
       seen are `/api/*` calls against the static-file-only dev server —
       pre-existing, unrelated); `emulate_media(reduced_motion='reduce')`
       confirmed `animationName` reads `none`.
-- [x] **S11 Layer registry** (commit `<fill-in>`): `public/orbit/layers.js` —
+- [x] **S11 Layer registry** (commit `b2b3b13d`): `public/orbit/layers.js` —
       `LAYERS` array (6 sections, same 15 groups, byte-identical `data-group`/
       `data-color`/`data-cap`/`data-builtin` values) + `ISS_LAYER` (the
       always-on, checkbox-less row) + `renderLayerList(mountId, idSuffix)`,
