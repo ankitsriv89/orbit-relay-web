@@ -141,7 +141,7 @@
       renders black in this sandbox (Cesium Ion 403 — pre-existing, unrelated to this
       change, see "Load-bearing details" / env-quirks memory), so ring color/rendering
       was not eyeballed — only DOM/console behavior was verified headless.
-- [x] **S10 VFX CSS** (commit TBD): `.vfx-overlay`/`.noise-layer` styled in
+- [x] **S10 VFX CSS** (commit `63fc6813`): `.vfx-overlay`/`.noise-layer` styled in
       `/css/chrome.css` (covers /orbit/, /spacetrack/ + its 4 sub-pages, all of
       which already link chrome.css) and duplicated into
       `public/starlink/starlink.css` (the one page that doesn't link
