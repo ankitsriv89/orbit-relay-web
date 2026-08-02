@@ -270,19 +270,26 @@
         S2/S3); the REV toggle is clicked 3× total to land back on 1× before
         continuing (REVS_OPTIONS is `[1,3,5]`, cyclic) so it doesn't leak
         into later checks.
-      - **Baseline-check accepts the documented `active.txt` gap** (S12): the
-        existing "every non-builtin layer group ships a baseline snapshot"
-        check went red the moment S12 added the `active` checkbox without a
-        baseline file (Celestrak rate-limited every fetch attempt that
-        session). Rather than "skip spacetrack layer checkboxes" (the
-        original task wording — stale/inapplicable, since this suite never
-        navigates to `/spacetrack/` for this check and `.layer-cb` only
-        matches `/orbit/`'s own checkboxes), the fix asserts the missing set
-        is exactly `{'active'}` via `KNOWN_MISSING_BASELINES`, not a blanket
-        pass — so a REAL regression in some other group's baseline still
-        fails loudly instead of being silently absorbed. Also handles
-        `active` appearing twice in the raw `missing` list (desktop panel +
-        drawer both carry `data-group="active"` — expected, not a bug).
+      - **Baseline-check**: the existing "every non-builtin layer group ships
+        a baseline snapshot" check went red the moment S12 added the `active`
+        checkbox without a baseline file (Celestrak rate-limited every fetch
+        attempt that session). First fix was a `KNOWN_MISSING_BASELINES =
+        {'active'}` allowance (asserting the missing set was exactly
+        `{'active'}`, not a blanket pass, so a REAL regression in some other
+        group's baseline would still fail loudly) — but `active.txt` landed
+        for real a commit later (`a95c7c4c`, `scripts/snapshot_tle.sh` re-run
+        once Celestrak's rate limit cleared, trimmed to 600 sats/1800 lines
+        like `starlink.txt`), closing the gap the allowance existed for.
+        Per CLAUDE.md's "don't keep complexity for scenarios that can't
+        happen," the allowance was reverted back to the original plain
+        `missing == []` assertion once the file existed — a permanent carve-out
+        for a resolved gap would itself be the kind of dead conditional the
+        repo avoids. (Original task wording said "skip spacetrack layer
+        checkboxes" — that was stale/inapplicable regardless: this suite
+        never navigates to `/spacetrack/` for this check and `.layer-cb` only
+        matches `/orbit/`'s own checkboxes.) Also note `active` appears twice
+        in the raw `missing` list when it's absent — desktop panel + drawer
+        both carry `data-group="active"` — expected, not a bug.
       Full `test_orbit.py --no-mobile` run: every check through
       `perf_gate`'s startup passed (including all 5 new/changed ones above);
       the pre-existing "visible sats advance between ticks" check is FLAKY

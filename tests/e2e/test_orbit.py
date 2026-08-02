@@ -350,20 +350,8 @@ def run(page):
     # always full. Against the real /data/tle/ root, `missing` is empty.
     check('iridium-NEXT baseline resolves lowercase',
           'iridium-NEXT' not in missing, f'missing: {missing}')
-    # S12 added the `active` checkbox (public/orbit/layers.js's OTHER section)
-    # ahead of its baseline file: Celestrak's GP endpoint rate-limited every
-    # fetch attempt of GROUP=active (its largest bundle) that session, so
-    # public/data/tle/celestrak/active.txt is a known, accepted gap —
-    # fetchTLE() already falls through to the live /api/tle proxy on a missing
-    # baseline, so the checkbox itself still works, just not from the fast
-    # path. Don't let this one known gap mask a REAL regression in some other
-    # group's baseline — assert the missing set is exactly {'active'}, not a
-    # blanket "skip failures".
-    KNOWN_MISSING_BASELINES = {'active'}
-    unexpected_missing = set(missing) - KNOWN_MISSING_BASELINES
-    check('every non-builtin layer group ships a baseline snapshot '
-          '(except the documented active.txt gap)',
-          unexpected_missing == set(), f'unexpected: {unexpected_missing}')
+    check('every non-builtin layer group ships a baseline snapshot',
+          missing == [], f'missing: {missing}')
 
     # ---------------------------------------------------------------- source
     print('\n-- source  SPACE-TRACK is a link now (wave 3) --')
