@@ -76,10 +76,20 @@
       probe on `/orbit/`: button exists, cycles REV 1×→3×→5×→1×, drawer
       stays in sync every click, zero console errors. `npm test` green
       (65/65 syntax, 53 resolve, 12 suites/348 checks).
-- [ ] **S7 Time rates 1×/10×/100×/1000×**: `initTimeWarpButtons` in
-      `public/spacetrack/shared/globe.js`; hardcoded buttons in
-      `public/orbit/index.html` + `public/starlink/index.html`; normalize a saved
-      legacy rate (0/1/60/600) to the nearest new rate.
+- [x] **S7 Time rates 1×/10×/100×/1000×** (commit `579df166`): replaced the
+      0/1/60/600 preset in `initTimeWarpButtons` (`public/spacetrack/shared/globe.js`,
+      used by catalog.js + signal.js) with 0/1/10/100/1000; added
+      `normalizeTimeRate()` mapping legacy saved rates (60→10, 600→1000) to
+      the nearest new preset via `LEGACY_TIME_RATE_MAP` (0/1 map to
+      themselves), applied to the `State.get('time.rate')` restore path.
+      `clock.multiplier = rate` is a direct sim-seconds-per-real-second
+      value, so this is a pure preset swap, not a semantics change.
+      `/orbit/` and `/starlink/` hardcode their own `.tw-btn[data-rate]`
+      buttons and never persist `time.rate` (no `State`/localStorage there
+      at all), so they only needed the label/value swap in their HTML —
+      no migration logic. Headless probe on all 4 routes: `.tw-btn[data-rate]`
+      values read back as `['0','1','10','100','1000']`, zero console errors.
+      `npm test` green.
 - [ ] **S8 Dossier on /orbit/**: replace inline `.sat-detail` markup in
       `public/orbit/index.html` with `.st-dossier*` (copy spacetrack markup/CSS —
       `orbit.css` has NO st-dossier rules); `orbital-relay.js` calls
