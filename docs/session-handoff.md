@@ -114,7 +114,7 @@
       console errors; repeated at 390×844 — card fits on screen, no text
       under 11px. `npm test` green (65/65 syntax, 53 resolve, 60/60
       orbit-ingest).
-- [x] **S9 Regime shells** (commit PENDING): `public/spacetrack/overlays/regime-shells.js`
+- [x] **S9 Regime shells** (commit `4d4055ac`): `public/spacetrack/overlays/regime-shells.js`
       — `createRegimeShells({ viewer, engine })`, the exact two-ring-glow construction
       the GEO belt used, parameterized over `SHELLS = [LEO 1200km, MEO 20200km, GEO
       35786km, HEO 39000km]` (altitude bands chosen to sit inside each of
