@@ -34,7 +34,7 @@ async function fetchJSON(url, options = {}) {
 
 export const API = {
     async search(params) {
-        const url = new URL(`${API_BASE}/search`);
+        const url = new URL(`${API_BASE}/search`, window.location.origin);
         Object.entries(params).forEach(([k, v]) => {
             if (v !== '' && v != null) url.searchParams.set(k, v);
         });
