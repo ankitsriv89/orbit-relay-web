@@ -11,7 +11,7 @@ working tree and fix whichever file is stale.
 
 ## What this repo is
 
-`orbitalrelay.space` — a satellite visualization platform on Cloudflare Pages. Eight routes,
+`orbitalrelay.space` — a satellite visualization platform on Cloudflare Pages. Ten routes,
 all static ES modules with **no build step**:
 
 | Route | What |
@@ -24,6 +24,8 @@ all static ES modules with **no build step**:
 | `/spacetrack/brief/` | Daily brief |
 | `/spacetrack/analytics/` | Catalog analytics |
 | `/starlink/` | Starlink constellation view |
+| `/about/` | Data sources, how it works, privacy, legal |
+| `/wiki/` | Per-route app reference + glossary of derived terms |
 
 Backed by 9 Pages Functions in `functions/api/` over D1 + R2, fed by
 `workers/orbit-ingest/` running from GitHub Actions.
@@ -104,6 +106,37 @@ In order, cheapest first:
 
 When you add a guardrail, **write it before the fix and watch it go red on the real bug.**
 A check that has never failed on a bug it claims to catch has not been tested.
+
+---
+
+## The landing page must stay in sync with the product
+
+`/` is the front door — the app-card grid, the routes table above, and `/wiki/`'s app
+reference all assert "this is the full list of what exists." A route that exists but isn't
+listed there is effectively unlisted; a route listed there that no longer exists is a dead
+link a visitor will hit before you do.
+
+**When a session adds or removes a whole route/page/app** (a new `/something/` directory
+under `public/` with its own `index.html`, or the deletion of one), update, in the same
+session:
+
+- The routes table at the top of this file.
+- `public/index.html`'s `.app-grid` (a new `<a class="app-card">`) and `site-footer__grid`
+  nav columns — or their removal.
+- `public/wiki/index.html`'s `#apps` section — add or remove that route's reference block.
+- `_redirects` (extensionless → trailing-slash redirect) and `_headers`
+  (cache-control block) for the new/removed path, matching the existing entries' pattern.
+
+This does **not** cover every feature added to an existing page (a new filter, a new
+overlay, a new HUD panel) — only whole routes appearing or disappearing. Advertising every
+in-page feature on the landing page would make it a permanently-stale changelog; the
+app-card's one-line description only needs to stay roughly true to what the page does, not
+enumerate its filters. `/wiki/`'s per-route reference is the place for filter-level detail
+when it's worth documenting — update it when a change there would otherwise make the Wiki
+actively wrong, not on every feature commit.
+
+Treat this as a step in "Before you say a change works," not a separate pass: check it at
+the same time you're already touring the affected routes under `npm run dev`.
 
 ---
 
