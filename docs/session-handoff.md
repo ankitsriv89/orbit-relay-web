@@ -90,7 +90,7 @@
       no migration logic. Headless probe on all 4 routes: `.tw-btn[data-rate]`
       values read back as `['0','1','10','100','1000']`, zero console errors.
       `npm test` green.
-- [x] **S8 Dossier on /orbit/** (commit pending — see below): `#sat-detail`
+- [x] **S8 Dossier on /orbit/** (commit `905d2f53`): `#sat-detail`
       markup in `public/orbit/index.html` restructured with `.st-dossier`/
       `.st-dossier__id` classes (spacetrack's visual skin) while **keeping every
       existing id** (`#sat-detail`, `#sat-detail-alt`, `#sat-detail-close`, …) —
