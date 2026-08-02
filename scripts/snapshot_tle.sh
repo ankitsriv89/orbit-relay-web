@@ -22,7 +22,14 @@ SLEEP="${SLEEP:-4}"   # seconds between groups, to dodge the 403 cooldown
 
 # Must match ALLOWED_GROUPS in the Pages Function (functions/api/tle.js) and the
 # data-group values in public/orbit/index.html.
-GROUPS="stations starlink gps-ops glo-ops galileo beidou qianfan hulianwang \
+#
+# NOT named GROUPS: some shells/dotfiles predefine GROUPS as an array (id -Gn
+# style GIDs). Assigning a plain string to an existing array name only
+# overwrites index 0, so `for g in $GROUPS` silently iterates a single stale
+# numeric GID instead of the real list — this bit a real run (2026-08-02,
+# GROUPS=([0]="1000" [1]="20" ...) in the invoking shell). TLE_GROUPS avoids
+# the collision outright.
+TLE_GROUPS="stations starlink gps-ops glo-ops galileo beidou qianfan hulianwang \
 irnss iridium-NEXT weather geo resource last-30-days oneweb cosmos-2251-debris \
 active military"
 
@@ -30,7 +37,7 @@ mkdir -p "$OUT"
 echo "==> Writing baseline TLE snapshot to: $OUT"
 echo
 
-for g in $GROUPS; do
+for g in $TLE_GROUPS; do
   # The Celestrak group name is mixed-case (iridium-NEXT) but the page looks the
   # baseline up by the LOWERCASED slug, so the filename must be lowercase or the
   # snapshot 404s and that group silently always takes the slow API path.
