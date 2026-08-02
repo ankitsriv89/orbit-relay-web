@@ -89,8 +89,9 @@ export function initTimeWarpButtons(container) {
         <div class="tw-btns">
             <button class="tw-btn" data-rate="0" title="Pause">❚❚</button>
             <button class="tw-btn tw-btn--active" data-rate="1" title="Real time">1×</button>
-            <button class="tw-btn" data-rate="60" title="60× speed">60×</button>
-            <button class="tw-btn" data-rate="600" title="600× speed">600×</button>
+            <button class="tw-btn" data-rate="10" title="10× speed">10×</button>
+            <button class="tw-btn" data-rate="100" title="100× speed">100×</button>
+            <button class="tw-btn" data-rate="1000" title="1000× speed">1000×</button>
         </div>
         <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
         <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
@@ -105,11 +106,26 @@ export function initTimeWarpButtons(container) {
             document.querySelectorAll('.tw-btn[data-rate]').forEach(b => b.classList.toggle('tw-btn--active', b === btn));
         });
     });
-    const savedRate = State.get('time.rate');
+    const savedRate = normalizeTimeRate(State.get('time.rate'));
     if (savedRate != null) {
         setTimeRate(savedRate);
         document.querySelectorAll('.tw-btn[data-rate]').forEach(b => b.classList.toggle('tw-btn--active', Number(b.dataset.rate) === savedRate));
     }
+}
+
+/** Legacy saved rates (0/1/60/600) map to the nearest new preset
+ *  (0/1/10/100/1000) so a returning visitor's localStorage value still
+ *  picks a real button rather than landing on an orphaned rate. */
+const TIME_RATE_OPTIONS = [0, 1, 10, 100, 1000];
+const LEGACY_TIME_RATE_MAP = { 0: 0, 1: 1, 60: 10, 600: 1000 };
+
+export function normalizeTimeRate(rate) {
+    if (rate == null) return null;
+    const n = Number(rate);
+    if (TIME_RATE_OPTIONS.includes(n)) return n;
+    if (n in LEGACY_TIME_RATE_MAP) return LEGACY_TIME_RATE_MAP[n];
+    return TIME_RATE_OPTIONS.reduce((closest, opt) =>
+        Math.abs(opt - n) < Math.abs(closest - n) ? opt : closest, TIME_RATE_OPTIONS[0]);
 }
 
 export function destroyGlobe() {
