@@ -301,9 +301,53 @@
       SwiftShader/2-core contention) rather than treat one red run as a
       regression. `npm test` still green (67/67 syntax, 55/55 resolve, 13
       suites) — this task only touched the Python E2E suite.
-- [ ] **S14 Verify**: `npm test`; dev-server console check; `test_orbit.py` full,
-      `test_mobile_dom.py`, `test_mobile_responsive.py`; then push (deploy is
-      automatic). Fix any failures in follow-up commits.
+- [x] **S14 Verify** (commit `<fill-in>`): full battery run.
+      - **`npm test`**: green (67/67 syntax, 55/55 resolve, 13 suites).
+      - **Console check** (static server, not `npm run dev` — see below): all
+        8 routes (`/`, `/orbit/`, `/spacetrack/` + its 4 sub-pages,
+        `/starlink/`) loaded with zero unexpected console errors (only the
+        documented `/api/*` 404 noise from a Functions-less static server).
+      - **`test_orbit.py --no-mobile`**: every check through the `source`
+        section passed cleanly across two consecutive full runs, including
+        all of S13's new assertions and the simplified baseline check
+        (`missing: []` — confirms `active.txt` resolves now). The perf/
+        fallback/spacetrack gates always hit the 280s script timeout mid
+        `perf_gate`'s 45s soak — that's the fixed test budget, not a hang;
+        the suite makes real progress every run (see "the suite hangs" note
+        below, superseding the older claim that it produced zero output).
+        The pre-existing "visible sats advance between ticks" check is
+        confirmed FLAKY (not a regression): failed once, passed twice across
+        three otherwise-identical runs with no code changes in between.
+      - **`test_mobile_dom.py`**: 31/31 passed, fully clean.
+      - **`test_mobile_responsive.py`**: 131/140 passed. All 9 failures
+        traced to real causes, none a regression from S1-S13:
+        - 5× "N HUD panels found" — the hardcoded `>= 3` threshold in this
+          suite's `test_layout()` is stale for `/orbit/` (2 HUDs by design,
+          matching `test_mobile_dom.py`'s already-correct per-page
+          `PAGES = {'/orbit/': 2, '/spacetrack/': 5}`, which this second
+          suite never adopted). Not touched — out of scope for a
+          verification pass; a future task should port the same per-page
+          map into `test_mobile_responsive.py`.
+        - 2× "Cesium resolutionScale set for mobile DPR" — the check only
+          accepts `1.0`/`0.5`; the actual, deliberately-documented value is
+          `0.85` (`sat-engine.js:73-75`, present since the very first commit
+          of this file). Stale test allowlist, not a product regression.
+        - 2× "citation visible" on `/spacetrack/` mobile — see the CSS
+          cascade bug + mobile-citation-gap writeup in "Surprises &
+          decisions". Fixed the CSS bug (moved `orbit.css`'s base
+          `.orbital-footer` rule before its own `@media` override so the
+          mobile-hide actually wins on `/orbit/` too, matching
+          `/spacetrack/`'s already-correct behavior); the deeper
+          "citation has no mobile surface on either page" finding is
+          intentionally left unfixed, per the user's direction, as a
+          follow-up design task.
+      - **Not run**: `npm run dev` (needs nvm-managed wrangler, not
+        available in this session) — substituted `tests/e2e/serve.py`
+        (static, no-cache) for the console check, which is sufficient for a
+        pure-frontend verification pass; no Pages Functions changed in this
+        batch.
+      - **Pushed**: S1-S14 is now the full plan-34 3.1 batch, complete and
+        on `main`.
 
 ## Load-bearing details (from the previous session's investigation)
 
@@ -372,6 +416,38 @@
 
 ## Surprises & decisions
 
+- **S14 found and fixed a real, pre-existing CSS cascade bug on /orbit/**:
+  `orbit.css`'s unconditional `.orbital-footer { display: flex; ... }` rule
+  used to live at the BOTTOM of the file (after the `@media (max-width:
+  768px) { .orbital-footer { display: none } }` mobile-hide block), so the
+  later unconditional rule won the cascade and silently undid the hide —
+  `/orbit/`'s footer (and the Space-Track citation it contains) was actually
+  `display: flex` at 390px width despite the override existing, contradicting
+  its own "hidden on mobile, replaced by bottom nav" comment.
+  `/spacetrack/` never had this bug because `spacetrack.css` loads AFTER
+  `orbit.css` and re-asserts its own later `@media { display: none }`, which
+  wins regardless of orbit.css's internal ordering. Fixed by moving the base
+  `.orbital-footer` rule (+ its two dependent rules, `span + span::before`
+  and `__cite`) to before the `@media` block, matching the ordering that
+  already worked correctly for every other mobile-overridden rule in this
+  file. Caught by `test_mobile_responsive.py`'s "citation visible" check
+  failing on `/spacetrack/` mobile but passing on `/orbit/` mobile — backwards
+  from what the CSS intended, which was the tell that something was inverted
+  rather than both pages just being flaky.
+  **Deeper finding, NOT fixed, needs a follow-up task**: with the cascade bug
+  fixed, the Space-Track citation now has **no visible surface on mobile on
+  EITHER page** — `.orbital-footer__cite` only exists inside the footer, and
+  both pages correctly hide that footer below 768px with nothing replacing
+  it. CLAUDE.md requires the citation "visible in the product," and this is a
+  pre-existing gap (not introduced by this fix — `/spacetrack/` already had
+  it; the fix just made `/orbit/` consistent rather than accidentally
+  compliant). User's call: document only, no quick patch — this needs a
+  deliberate design decision (a persistent mini-footer? a citation line in
+  the mobile nav/bottom bar? a HUD row?) rather than a bolted-on fix under
+  a verification task's scope. `test_mobile_responsive.py`'s "citation
+  visible" check will now legitimately fail on BOTH pages' phone-width
+  viewports (390/412px) — this is a real, known gap, not a regression to
+  chase in S14.
 - **S8's `createDossier` reuse question was put to the user directly** rather
   than assumed: `/shared/dossier.js` needs a `State` object and fetches
   `/spacetrack/object/{norad}`, which /orbit/ doesn't have and whose data

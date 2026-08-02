@@ -525,9 +525,50 @@ body[data-page-id="spacetrack-catalog"] {
     margin: -4px 0 8px;
 }
 
+.orbital-footer {
+    position: fixed;
+    bottom: calc(8px + var(--sa-bottom));
+    right: calc(16px + var(--sa-right));
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0 6px;
+    max-width: min(72vw, 640px);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 1px;
+    color: rgba(160, 200, 230, 0.55);
+    pointer-events: none;
+}
+
+/* Separator drawn in CSS so the citation stays one uninterrupted string in the
+   markup — it is a required attribution, not a list of credits to punctuate. */
+.orbital-footer span + span::before {
+    content: "· ";
+    color: rgba(160, 200, 230, 0.35);
+}
+
+.orbital-footer__cite {
+    color: rgba(160, 200, 230, 0.7);
+}
+
 /* ── Mobile / Tablet (<768px) ────────────────────────────────────────────────
  * Shared orbit.css responsive rules for both /orbit/ and /spacetrack/ pages.
- * The 768px breakpoint aligns with spacetrack.css's responsive tiers. */
+ * The 768px breakpoint aligns with spacetrack.css's responsive tiers.
+ *
+ * The base `.orbital-footer` rule above MUST stay before this block in
+ * source order. /spacetrack/ hides the footer on mobile via its OWN
+ * later-loaded spacetrack.css re-asserting `display: none`, but /orbit/ has
+ * no second stylesheet to do that — the `@media { display: none }` override
+ * a few lines below is the ONLY thing hiding it here, and an unconditional
+ * `.orbital-footer` rule declared after this block would silently win the
+ * cascade and undo it. (This exact bug shipped for a period: the base rule
+ * used to live at the bottom of this file, after this @media block, so the
+ * footer read back as `display: flex` at 390px width despite this override
+ * existing — caught by test_mobile_responsive.py's "citation visible" check
+ * failing only on /spacetrack/, never /orbit/, which was backwards from what
+ * the CSS intended.) */
 @media (max-width: 768px) {
     /* Half the blur: a 16px backdrop-filter sampled over a full-screen WebGL
        canvas is one of the most expensive things a phone GPU can be handed, and
@@ -959,33 +1000,6 @@ body.layers-drawer-open { overflow: hidden; }
     border-radius: 8px;
 }
 
-.orbital-footer {
-    position: fixed;
-    bottom: calc(8px + var(--sa-bottom));
-    right: calc(16px + var(--sa-right));
-    z-index: 20;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0 6px;
-    max-width: min(72vw, 640px);
-    font-family: var(--font-mono);
-    font-size: 0.58rem;
-    letter-spacing: 1px;
-    color: rgba(160, 200, 230, 0.55);
-    pointer-events: none;
-}
-
-/* Separator drawn in CSS so the citation stays one uninterrupted string in the
-   markup — it is a required attribution, not a list of credits to punctuate. */
-.orbital-footer span + span::before {
-    content: "· ";
-    color: rgba(160, 200, 230, 0.35);
-}
-
-.orbital-footer__cite {
-    color: rgba(160, 200, 230, 0.7);
-}
 
 /* ==========================================================================
    MOBILE — the STANDALONE components above
