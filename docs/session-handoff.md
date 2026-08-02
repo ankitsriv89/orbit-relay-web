@@ -51,8 +51,14 @@
       `spacetrack/shared/state.js`, matching plan 35 §3 (`trajectory.revs` rather
       than anything under `preferences`). `REVS_OPTIONS = [1,3,5]` — the same revs the
       S3 headless probe exercised (121/361/481 pts).
-- [ ] **S5 Dossier revs-awareness**: `public/shared/dossier.js` — `createDossier`
-      accepts `revs` and rebuilds visuals on revs change (subscribe, don't poll).
+- [x] **S5 Dossier revs-awareness** (commit `1c8d4616`): `createDossier` takes
+      `revs` (number | getter, default `currentRevs()` from `/shared/hud.js`),
+      stores `dossierVisualMeta` for the last `addInspectVisuals` call, passes
+      `{ revs }` at both open paths, and subscribes to `State.subscribe('trajectory.revs')`
+      (subscribe, don't poll) to teardown-and-rebuild visuals while a dossier is
+      open; no-op when closed. Callers (catalog/conjunctions) unchanged — they
+      get the State-driven default. `npm test` green (65/65 syntax, 53 resolve,
+      60/60 orbit-ingest).
 - [ ] **S6 Revs buttons on all four routes**: catalog (5th `.st-toggle-btn` in the
       orbit HUD, + `clearRendered()` must reset it), signal, starlink, orbit
       (via the S11 registry). signal.js + starlink.js must rebuild inspect visuals
