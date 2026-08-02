@@ -1,10 +1,7 @@
 import { $, setText, num } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
-import { wireHudToggle, initMobileListener } from '/shared/hud.js';
-
-/* ── HUD toggle ──────────────────────────────────────────────────────────── */
-wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');
+import { initMobileListener } from '/shared/hud.js';
 
 initMobileListener();
 
@@ -71,8 +68,6 @@ function renderAnalytics(data) {
     table.appendChild(tbody);
     wrap.textContent = '';
     wrap.appendChild(table);
-
-    expandPanel();
 }
 
 function renderBars(containerId, hintId, items, labelFn, valueFn) {
@@ -115,16 +110,6 @@ function renderBars(containerId, hintId, items, labelFn, valueFn) {
         bar.append(label, track, val);
         wrap.appendChild(bar);
     }
-}
-
-function expandPanel() {
-    const hud = $('catalog-hud');
-    const body = $('catalog-hud-body');
-    const toggle = $('catalog-hud-toggle');
-    if (!hud || !body) return;
-    hud.classList.remove('key-hud--collapsed');
-    body.hidden = false;
-    if (toggle) toggle.setAttribute('aria-expanded', 'true');
 }
 
 loadAnalytics();

@@ -52,29 +52,31 @@
         </div>
     </div>
 
-    <div id="catalog-hud" class="orbital-hud key-hud key-hud--collapsed">
-        <button class="key-hud-toggle" id="catalog-hud-toggle" aria-expanded="false" aria-controls="catalog-hud-body">
-            <span class="key-hud-toggle-arrow">▶</span>
-            <span class="hud-title hud-title--bare">// ANALYTICS</span>
-        </button>
-        <div id="catalog-hud-body" class="key-hud-body" hidden>
-            <div class="st-signal-section__title">LAUNCHES BY DECADE</div>
+    <main class="st-card-grid" id="analytics-grid">
+        <section class="st-card" id="decade-card" aria-labelledby="decade-card-title">
+            <h2 class="st-card__title" id="decade-card-title">// LAUNCHES BY DECADE</h2>
             <div class="st-bars" id="an-decade-bars"></div>
             <div class="st-hint" id="an-decade-hint">loading…</div>
-            <hr class="hud-divider">
-            <div class="st-signal-section__title">TOP LAUNCH SITES</div>
+        </section>
+
+        <section class="st-card" id="sites-card" aria-labelledby="sites-card-title">
+            <h2 class="st-card__title" id="sites-card-title">// TOP LAUNCH SITES</h2>
             <div class="st-bars" id="an-site-bars"></div>
             <div class="st-hint" id="an-site-hint">loading…</div>
-            <hr class="hud-divider">
-            <div class="st-signal-section__title">DEBRIS FAMILIES</div>
+        </section>
+
+        <section class="st-card" id="family-card" aria-labelledby="family-card-title">
+            <h2 class="st-card__title" id="family-card-title">// DEBRIS FAMILIES</h2>
             <div class="st-bars" id="an-family-bars"></div>
             <div class="st-hint" id="an-family-hint">loading…</div>
-            <hr class="hud-divider">
-            <div class="st-signal-section__title">COUNTRY × DECADE</div>
+        </section>
+
+        <section class="st-card st-card--wide" id="country-card" aria-labelledby="country-card-title">
+            <h2 class="st-card__title" id="country-card-title">// COUNTRY × DECADE</h2>
             <div class="st-country-matrix" id="an-country-matrix"></div>
             <div class="st-hint" id="an-country-hint">loading…</div>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <footer class="orbital-footer">
         <span id="footer-source">Live data: Space-Track</span>

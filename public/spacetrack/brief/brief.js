@@ -1,10 +1,9 @@
 import { $, setText, num, relTime } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
-import { wireHudToggle, initHamburgerMenu } from '/shared/hud.js';
+import { initHamburgerMenu } from '/shared/hud.js';
+import { colorForCountry } from '/theme/palette.js';
 
-/* ── HUD toggle ──────────────────────────────────────────────────────────── */
-wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');
 initHamburgerMenu();
 
 /* ── Brief ────────────────────────────────────────────────────────────────────
@@ -17,7 +16,7 @@ initHamburgerMenu();
  */
 
 function renderBrief(card) {
-    const section = $('catalog-hud');
+    const section = $('brief-card');
     if (!section) return;
 
     if (!card || card.available === false || !card.facts) {
@@ -59,7 +58,6 @@ function renderBrief(card) {
     }
 
     setText('brief-hint', briefHint(card));
-    expandPanel();
 }
 
 function briefHint(card) {
@@ -72,16 +70,6 @@ function briefHint(card) {
     return `built ${when}`;
 }
 
-function expandPanel() {
-    const hud = $('catalog-hud');
-    const body = $('catalog-hud-body');
-    const toggle = $('catalog-hud-toggle');
-    if (!hud || !body) return;
-    hud.classList.remove('key-hud--collapsed');
-    body.hidden = false;
-    if (toggle) toggle.setAttribute('aria-expanded', 'true');
-}
-
 async function loadBrief() {
     try {
         renderBrief(await API.brief());
@@ -91,13 +79,134 @@ async function loadBrief() {
     }
 }
 
+/* ── Activity: signal feed / reentry watch ───────────────────────────────────
+ * Moved here from the Catalog globe page — this is read-only informational
+ * data with no interaction with the 3D view, so it belongs on the
+ * informational pages (Brief/Analytics), not floating over the globe.
+ */
+async function loadFeed() {
+    const list = $('feed-list');
+    const hint = $('feed-hint');
+    try {
+        const f = await API.feed(30);
+        const events = f.events || [];
+        if (!list) return;
+        list.textContent = '';
+        if (!events.length) {
+            if (hint) hint.textContent = 'no events yet';
+            return;
+        }
+        if (hint) hint.textContent = '';
+        for (const e of events) {
+            const li = document.createElement('li');
+            li.className = 'st-feed__item';
+            const title = document.createElement('span');
+            title.className = 'st-feed__title';
+            title.textContent = e.title || e.kind;
+            const meta = document.createElement('span');
+            meta.className = 'st-feed__meta';
+            meta.textContent = `${relTime(e.ts)} · ${e.kind}`;
+            li.append(title, meta);
+            list.appendChild(li);
+        }
+    } catch (err) {
+        console.warn('[brief] feed failed:', err);
+        if (hint) hint.textContent = 'feed unavailable';
+    }
+}
+
+async function loadDecayWatch() {
+    const list = $('decay-list');
+    const hint = $('decay-hint');
+    try {
+        const d = await API.decayWatch(20);
+        const watch = d.watch || [];
+        if (!list) return;
+        list.textContent = '';
+        if (!watch.length) {
+            if (hint) hint.textContent = 'no predicted reentries on file';
+            return;
+        }
+        if (hint) hint.textContent = '';
+        for (const w of watch) {
+            const li = document.createElement('li');
+            li.className = 'st-feed__item';
+            const title = document.createElement('span');
+            title.className = 'st-feed__title';
+            title.textContent = w.name;
+            const meta = document.createElement('span');
+            const soon = w.days_until != null && w.days_until <= 7;
+            meta.className = 'st-feed__meta' + (soon ? ' st-feed__meta--soon' : '');
+            meta.textContent = w.days_until != null
+                ? `~${w.days_until}d · ${w.country || '—'} · ${w.source || 'prediction'}`
+                : `${w.decay_epoch || 'date unknown'} · ${w.country || '—'}`;
+            li.append(title, meta);
+            list.appendChild(li);
+        }
+    } catch (err) {
+        console.warn('[brief] decay-watch failed:', err);
+        if (hint) hint.textContent = 'decay watch unavailable';
+    }
+}
+
+/* ── Boxscore: country breakdown ──────────────────────────────────────────── */
+async function loadBoxscore() {
+    const bars = $('boxscore-bars');
+    const hint = $('boxscore-hint');
+    try {
+        const b = await API.boxscore();
+        const countries = (b.countries || []).slice(0, 10);
+        if (!bars) return;
+        bars.textContent = '';
+        if (!countries.length) {
+            if (hint) hint.textContent = 'no boxscore yet';
+            return;
+        }
+        if (hint) hint.textContent = '';
+        const maxTotal = countries[0]?.COUNTRY_TOTAL || 1;
+        for (const c of countries) {
+            const row = document.createElement('div');
+            row.className = 'st-boxscore__row';
+            const label = document.createElement('span');
+            label.className = 'st-boxscore__country';
+            label.textContent = c.COUNTRY;
+            label.title = c.COUNTRY;
+            const track = document.createElement('div');
+            track.className = 'st-boxscore__track';
+            const fill = document.createElement('div');
+            fill.className = 'st-boxscore__fill';
+            const pct = (c.COUNTRY_TOTAL / maxTotal) * 100;
+            fill.style.width = `${pct}%`;
+            fill.style.background = colorForCountry(c.SPADOC_CD || c.COUNTRY);
+            track.appendChild(fill);
+            const count = document.createElement('span');
+            count.className = 'st-boxscore__count';
+            count.textContent = num(c.COUNTRY_TOTAL);
+            row.append(label, track, count);
+            bars.appendChild(row);
+        }
+    } catch (err) {
+        console.warn('[brief] boxscore failed:', err);
+        if (hint) hint.textContent = 'boxscore unavailable';
+    }
+}
+
 loadBrief();
+loadFeed();
+loadDecayWatch();
+loadBoxscore();
 
 /* Refetch every 30 min to catch the daily ingest */
 setInterval(loadBrief, 30 * 60 * 1000);
+setInterval(loadFeed, 5 * 60 * 1000);
+setInterval(loadDecayWatch, 5 * 60 * 1000);
+setInterval(loadBoxscore, 10 * 60 * 1000);
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
 exposeDebug('brief', {
     loadBrief,
     renderBrief,
+    loadFeed,
+    loadDecayWatch,
+    loadBoxscore,
 });

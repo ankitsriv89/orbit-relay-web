@@ -49,17 +49,17 @@ body[data-page-id="spacetrack-catalog"] {
  *   • filters-hud     → top-right    (catalog filter controls)
  *   • analysis-hud    → top-right    (signal analysis controls)
  *   • screening-hud   → top-right    (conjunction screening controls)
- *   • activity-hud    → bottom-left  (feed / decay / boxscore)
  *   • results-hud     → bottom-right (filtered results list)
- * Pages with fewer HUDs simply leave the other corners empty.
+ * Pages with fewer HUDs simply leave the other corners empty. Brief and
+ * Analytics have no globe competing for space, so they use a static
+ * .st-card-grid (below) instead of floating HUDs.
  */
 
-/* Top-left: catalog summary on every page */
+/* Top-left: catalog summary on every page (brief/analytics use a static
+ * card grid instead of a fixed HUD — see .st-card-grid below). */
 body[data-page-id="spacetrack-catalog"] #catalog-hud,
 body[data-page-id="spacetrack-signal"] #catalog-hud,
-body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
-body[data-page-id="spacetrack-brief"] #catalog-hud,
-body[data-page-id="spacetrack-analytics"] #catalog-hud {
+body[data-page-id="spacetrack-conjunctions"] #catalog-hud {
     top: calc(56px + var(--sa-top));
     left: calc(24px + var(--sa-left));
 }
@@ -71,13 +71,6 @@ body[data-page-id="spacetrack-conjunctions"] #screening-hud {
     top: calc(56px + var(--sa-top));
     right: calc(24px + var(--sa-right));
     left: auto;
-}
-
-/* Bottom-left: activity feed */
-body[data-page-id="spacetrack-catalog"] #activity-hud {
-    bottom: calc(74px + var(--sa-bottom));
-    left: calc(24px + var(--sa-left));
-    top: auto;
 }
 
 /* Bottom-right: results list */
@@ -97,14 +90,10 @@ body[data-page-id="spacetrack-catalog"] #results-hud {
 body[data-page-id="spacetrack-catalog"] #catalog-hud,
 body[data-page-id="spacetrack-signal"] #catalog-hud,
 body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
-body[data-page-id="spacetrack-brief"] #catalog-hud,
-body[data-page-id="spacetrack-analytics"] #catalog-hud,
 body[data-page-id="spacetrack-catalog"] #filters-hud,
 body[data-page-id="spacetrack-signal"] #analysis-hud,
 body[data-page-id="spacetrack-conjunctions"] #screening-hud,
-body[data-page-id="spacetrack-catalog"] #activity-hud,
-body[data-page-id="spacetrack-catalog"] #results-hud,
-body[data-page-id="spacetrack-catalog"] #boxscore-hud {
+body[data-page-id="spacetrack-catalog"] #results-hud {
     box-sizing: border-box;
     max-height: calc(100vh - 56px - 24px);
     display: flex;
@@ -114,14 +103,10 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud {
 body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body,
 body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body,
 body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body,
-body[data-page-id="spacetrack-brief"] #catalog-hud .key-hud-body,
-body[data-page-id="spacetrack-analytics"] #catalog-hud .key-hud-body,
 body[data-page-id="spacetrack-catalog"] #filters-hud .key-hud-body,
 body[data-page-id="spacetrack-signal"] #analysis-hud .key-hud-body,
 body[data-page-id="spacetrack-conjunctions"] #screening-hud .key-hud-body,
-body[data-page-id="spacetrack-catalog"] #activity-hud .key-hud-body,
-body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body,
-body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body {
+body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body {
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
@@ -132,27 +117,19 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body {
 body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body::-webkit-scrollbar,
 body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body::-webkit-scrollbar,
 body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body::-webkit-scrollbar,
-body[data-page-id="spacetrack-brief"] #catalog-hud .key-hud-body::-webkit-scrollbar,
-body[data-page-id="spacetrack-analytics"] #catalog-hud .key-hud-body::-webkit-scrollbar,
 body[data-page-id="spacetrack-catalog"] #filters-hud .key-hud-body::-webkit-scrollbar,
 body[data-page-id="spacetrack-signal"] #analysis-hud .key-hud-body::-webkit-scrollbar,
 body[data-page-id="spacetrack-conjunctions"] #screening-hud .key-hud-body::-webkit-scrollbar,
-body[data-page-id="spacetrack-catalog"] #activity-hud .key-hud-body::-webkit-scrollbar,
-body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scrollbar,
-body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body::-webkit-scrollbar {
+body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scrollbar {
     width: 6px;
 }
 body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
 body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
 body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
-body[data-page-id="spacetrack-brief"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
-body[data-page-id="spacetrack-analytics"] #catalog-hud .key-hud-body::-webkit-scrollbar-thumb,
 body[data-page-id="spacetrack-catalog"] #filters-hud .key-hud-body::-webkit-scrollbar-thumb,
 body[data-page-id="spacetrack-signal"] #analysis-hud .key-hud-body::-webkit-scrollbar-thumb,
 body[data-page-id="spacetrack-conjunctions"] #screening-hud .key-hud-body::-webkit-scrollbar-thumb,
-body[data-page-id="spacetrack-catalog"] #activity-hud .key-hud-body::-webkit-scrollbar-thumb,
-body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scrollbar-thumb,
-body[data-page-id="spacetrack-catalog"] #boxscore-hud .key-hud-body::-webkit-scrollbar-thumb {
+body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scrollbar-thumb {
     background: rgba(0, 210, 255, 0.4);
     border-radius: 3px;
 }
@@ -849,9 +826,7 @@ body[data-page-id="spacetrack-catalog"] #dossier {
 @media (min-width: 769px) and (max-width: 1024px) {
     body[data-page-id="spacetrack-catalog"] #catalog-hud,
     body[data-page-id="spacetrack-signal"] #catalog-hud,
-    body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
-    body[data-page-id="spacetrack-brief"] #catalog-hud,
-    body[data-page-id="spacetrack-analytics"] #catalog-hud {
+    body[data-page-id="spacetrack-conjunctions"] #catalog-hud {
         top: calc(56px + var(--sa-top));
         left: calc(16px + var(--sa-left));
     }
@@ -862,12 +837,6 @@ body[data-page-id="spacetrack-catalog"] #dossier {
         top: calc(56px + var(--sa-top));
         right: calc(16px + var(--sa-right));
         left: auto;
-    }
-
-    body[data-page-id="spacetrack-catalog"] #activity-hud {
-        bottom: calc(72px + var(--sa-bottom));
-        left: calc(16px + var(--sa-left));
-        top: auto;
     }
 
     body[data-page-id="spacetrack-catalog"] #results-hud {
@@ -895,9 +864,7 @@ body[data-page-id="spacetrack-catalog"] #dossier {
 @media (min-width: 1025px) and (max-width: 1199px) {
     body[data-page-id="spacetrack-catalog"] #catalog-hud,
     body[data-page-id="spacetrack-signal"] #catalog-hud,
-    body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
-    body[data-page-id="spacetrack-brief"] #catalog-hud,
-    body[data-page-id="spacetrack-analytics"] #catalog-hud {
+    body[data-page-id="spacetrack-conjunctions"] #catalog-hud {
         left: calc(20px + var(--sa-left));
     }
 
@@ -905,10 +872,6 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     body[data-page-id="spacetrack-signal"] #analysis-hud,
     body[data-page-id="spacetrack-conjunctions"] #screening-hud {
         right: calc(20px + var(--sa-right));
-    }
-
-    body[data-page-id="spacetrack-catalog"] #activity-hud {
-        left: calc(20px + var(--sa-left));
     }
 
     body[data-page-id="spacetrack-catalog"] #results-hud {
@@ -964,12 +927,10 @@ body[data-page-id="spacetrack-catalog"] #dossier {
         display: none;
     }
 
-    /* Top-left: catalog summary / selected object / screen / brief / analytics */
+    /* Top-left: catalog summary / selected object / screening */
     body[data-page-id="spacetrack-catalog"] #catalog-hud,
     body[data-page-id="spacetrack-signal"] #catalog-hud,
-    body[data-page-id="spacetrack-conjunctions"] #catalog-hud,
-    body[data-page-id="spacetrack-brief"] #catalog-hud,
-    body[data-page-id="spacetrack-analytics"] #catalog-hud {
+    body[data-page-id="spacetrack-conjunctions"] #catalog-hud {
         top: calc(48px + var(--sa-top));
         left: calc(8px + var(--sa-left));
     }
@@ -979,13 +940,6 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     body[data-page-id="spacetrack-signal"] #analysis-hud,
     body[data-page-id="spacetrack-conjunctions"] #screening-hud {
         display: none;
-    }
-
-    /* Bottom-left: activity */
-    body[data-page-id="spacetrack-catalog"] #activity-hud {
-        bottom: calc(130px + var(--sa-bottom));
-        left: calc(8px + var(--sa-left));
-        top: auto;
     }
 
     /* Bottom-right: results */
@@ -1122,15 +1076,7 @@ body[data-page-id="spacetrack-catalog"] #dossier {
    TIER 2 & 3 — VISUALIZATION ENHANCEMENTS
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Boxscore bar chart HUD ─────────────────────────────────────────────── */
-body[data-page-id="spacetrack-catalog"] #boxscore-hud {
-    bottom: calc(180px + var(--sa-bottom));
-    right: calc(24px + var(--sa-right));
-    left: auto;
-    top: auto;
-    max-height: 200px;
-}
-
+/* ── Boxscore bar chart (now a static card on the Brief page) ───────────── */
 .st-boxscore {
     display: flex;
     flex-direction: column;
@@ -1172,6 +1118,87 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud {
     text-align: right;
     font-variant-numeric: tabular-nums;
     font-size: 0.5rem;
+}
+
+/* ── Static card grid (Brief, Analytics) ──────────────────────────────────
+ * These pages have no globe fighting for screen space (#cesium-container is
+ * display:none), so their content is a permanent, non-collapsible grid of
+ * cards in normal document flow rather than the fixed/collapsible
+ * .orbital-hud pattern the globe pages use. Each .st-card reuses the same
+ * visual language (border, blur, mono type) as .orbital-hud so the page still
+ * reads as the same instrument, it just isn't `position: fixed`. */
+.st-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: calc(80px + var(--sa-top)) calc(24px + var(--sa-right)) calc(32px + var(--sa-bottom)) calc(24px + var(--sa-left));
+    align-items: start;
+}
+
+.st-card {
+    box-sizing: border-box;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 1.4px;
+    color: rgba(200, 240, 255, 0.95);
+    background: linear-gradient(145deg, rgba(0, 12, 24, 0.92) 0%, rgba(0, 25, 45, 0.88) 100%);
+    border: 1px solid rgba(0, 210, 255, 0.45);
+    border-radius: 8px;
+    padding: 18px 22px;
+    box-shadow:
+        0 0 30px rgba(0, 210, 255, 0.08),
+        0 4px 24px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+}
+
+.st-card::-webkit-scrollbar {
+    width: 6px;
+}
+
+.st-card::-webkit-scrollbar-thumb {
+    background: rgba(0, 210, 255, 0.4);
+    border-radius: 3px;
+}
+
+.st-card__title {
+    margin: 0 0 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    color: rgba(0, 210, 255, 0.9);
+}
+
+/* Spans every column — for cards whose content (a wide table) benefits from
+ * the full grid width rather than being squeezed into one column's share. */
+.st-card--wide {
+    grid-column: 1 / -1;
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .st-card-grid {
+        padding-top: calc(72px + var(--sa-top));
+        gap: 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    .st-card-grid {
+        grid-template-columns: 1fr;
+        padding: calc(64px + var(--sa-top)) calc(12px + var(--sa-right)) calc(88px + var(--sa-bottom)) calc(12px + var(--sa-left));
+        gap: 14px;
+    }
+
+    .st-card {
+        max-height: none;
+        font-size: 0.66rem;
+        padding: 14px 16px;
+    }
 }
 
 /* ── Age legend ─────────────────────────────────────────────────────────── */
@@ -1284,16 +1311,8 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud {
     margin-top: 4px;
 }
 
-/* ── Mobile overrides for new HUDs and buttons ──────────────────────────── */
+/* ── Mobile overrides for HUDs and buttons ──────────────────────────────── */
 @media (max-width: 768px) {
-    body[data-page-id="spacetrack-catalog"] #boxscore-hud {
-        bottom: calc(180px + var(--sa-bottom));
-        right: calc(8px + var(--sa-right));
-        left: auto;
-        top: auto;
-        max-height: 180px;
-    }
-
     .st-screenshot-btn {
         bottom: calc(130px + var(--sa-bottom));
         right: calc(8px + var(--sa-right));
@@ -1318,15 +1337,8 @@ body[data-page-id="spacetrack-catalog"] #boxscore-hud {
     }
 }
 
-/* ── Tablet overrides for new HUDs ──────────────────────────────────────── */
+/* ── Tablet overrides for HUDs ───────────────────────────────────────────── */
 @media (min-width: 769px) and (max-width: 1024px) {
-    body[data-page-id="spacetrack-catalog"] #boxscore-hud {
-        bottom: calc(180px + var(--sa-bottom));
-        right: calc(16px + var(--sa-right));
-        left: auto;
-        top: auto;
-    }
-
     .st-screenshot-btn {
         bottom: calc(72px + var(--sa-bottom));
         right: calc(16px + var(--sa-right));

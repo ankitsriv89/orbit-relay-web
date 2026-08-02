@@ -21,7 +21,7 @@ import { createLOD } from './overlays/lod.js';
 import { createRegimeShells } from './overlays/regime-shells.js';
 import {
     TYPE_COLORS, COUNTRY_COLORS, CB_TYPE_COLORS, CB_COUNTRY_COLORS,
-    colorForRow, colorForCountry,
+    colorForRow,
 } from '/theme/palette.js';
 
 const RENDER_CAP = 500;
@@ -47,9 +47,7 @@ updateClock();
 /* ── HUD toggles ───────────────────────────────────────────────────────────── */
 wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');
 wireHudToggle('filters-hud', 'filters-hud-toggle', 'filters-hud-body');
-wireHudToggle('activity-hud', 'activity-hud-toggle', 'activity-hud-body');
 wireHudToggle('results-hud', 'results-hud-toggle', 'results-hud-body');
-wireHudToggle('boxscore-hud', 'boxscore-hud-toggle', 'boxscore-hud-body');
 initHamburgerMenu();
 initFilterDrawer();
 
@@ -338,114 +336,6 @@ function fillSelect(id, entries) {
     }
 }
 
-/* ── Feed / Decay Watch / Boxscore (wave 4) ────────────────────────────────── */
-
-async function loadFeed() {
-    const list = $('feed-list');
-    const hint = $('feed-hint');
-    try {
-        const f = await API.feed(30);
-        const events = f.events || [];
-        if (!list) return;
-        list.textContent = '';
-        if (!events.length) {
-            if (hint) hint.textContent = 'no events yet';
-            return;
-        }
-        if (hint) hint.textContent = '';
-        for (const e of events) {
-            const li = document.createElement('li');
-            li.className = 'st-feed__item';
-            const title = document.createElement('span');
-            title.className = 'st-feed__title';
-            title.textContent = e.title || e.kind;
-            const meta = document.createElement('span');
-            meta.className = 'st-feed__meta';
-            meta.textContent = `${relTime(e.ts)} · ${e.kind}`;
-            li.append(title, meta);
-            list.appendChild(li);
-        }
-    } catch (err) {
-        console.warn('[catalog] feed failed:', err);
-        if (hint) hint.textContent = 'feed unavailable';
-    }
-}
-
-async function loadDecayWatch() {
-    const list = $('decay-list');
-    const hint = $('decay-hint');
-    try {
-        const d = await API.decayWatch(20);
-        const watch = d.watch || [];
-        if (!list) return;
-        list.textContent = '';
-        if (!watch.length) {
-            if (hint) hint.textContent = 'no predicted reentries on file';
-            return;
-        }
-        if (hint) hint.textContent = '';
-        for (const w of watch) {
-            const li = document.createElement('li');
-            li.className = 'st-feed__item';
-            const title = document.createElement('span');
-            title.className = 'st-feed__title';
-            title.textContent = w.name;
-            const meta = document.createElement('span');
-            const soon = w.days_until != null && w.days_until <= 7;
-            meta.className = 'st-feed__meta' + (soon ? ' st-feed__meta--soon' : '');
-            meta.textContent = w.days_until != null
-                ? `~${w.days_until}d · ${w.country || '—'} · ${w.source || 'prediction'}`
-                : `${w.decay_epoch || 'date unknown'} · ${w.country || '—'}`;
-            li.append(title, meta);
-            list.appendChild(li);
-        }
-    } catch (err) {
-        console.warn('[catalog] decay-watch failed:', err);
-        if (hint) hint.textContent = 'decay watch unavailable';
-    }
-}
-
-async function loadBoxscore() {
-    const bars = $('boxscore-bars');
-    const hint = $('boxscore-hint');
-    try {
-        const b = await API.boxscore();
-        const countries = (b.countries || []).slice(0, 10);
-        if (!bars) return;
-        bars.textContent = '';
-        if (!countries.length) {
-            if (hint) hint.textContent = 'no boxscore yet';
-            return;
-        }
-        if (hint) hint.textContent = '';
-        const maxTotal = countries[0]?.COUNTRY_TOTAL || 1;
-        for (const c of countries) {
-            const row = document.createElement('div');
-            row.className = 'st-boxscore__row';
-            const label = document.createElement('span');
-            label.className = 'st-boxscore__country';
-            label.textContent = c.COUNTRY;
-            label.title = c.COUNTRY;
-            const track = document.createElement('div');
-            track.className = 'st-boxscore__track';
-            const fill = document.createElement('div');
-            fill.className = 'st-boxscore__fill';
-            const pct = (c.COUNTRY_TOTAL / maxTotal) * 100;
-            fill.style.width = `${pct}%`;
-            fill.style.background = colorForCountry(c.SPADOC_CD || c.COUNTRY);
-            track.appendChild(fill);
-            const count = document.createElement('span');
-            count.className = 'st-boxscore__count';
-            count.textContent = num(c.COUNTRY_TOTAL);
-            row.append(label, track, count);
-            bars.appendChild(row);
-        }
-    } catch (err) {
-        console.warn('[catalog] boxscore failed:', err);
-        if (hint) hint.textContent = 'boxscore unavailable';
-    }
-}
-
 /* ── Time-warp ─────────────────────────────────────────────────────────────── */
 initTimeWarpButtons($('time-warp'));
 
@@ -621,13 +511,6 @@ clickHandler.setInputAction((movement) => {
 /* ── Boot ────────────────────────────────────────────────────────────────── */
 loadSummary();
 loadFacets().then(() => populateDrawerSelects());
-loadFeed();
-loadDecayWatch();
-loadBoxscore();
-
-engine.own(setInterval(loadFeed, 5 * 60 * 1000));
-engine.own(setInterval(loadDecayWatch, 5 * 60 * 1000));
-engine.own(setInterval(loadBoxscore, 10 * 60 * 1000));
 
 /* ══════════════════════════════════════════════════════════════════════════════
    TIER 3.2 — TIME-BASED FILTER PRESETS
@@ -822,7 +705,7 @@ exposeDebug('catalog', {
     get debrisCloudVisible() { return debris.visible; },
     get launchSitesVisible() { return launchSites.visible; },
     render, openDossier, closeDossier, clearRendered,
-    loadSummary, loadFacets, loadFeed, loadDecayWatch, loadBoxscore,
+    loadSummary, loadFacets,
     buildDebrisCloud: () => debris.build(),
     removeDebrisCloud: () => debris.remove(),
     buildLaunchSites: () => launchSites.build(),

@@ -52,12 +52,9 @@
         </div>
     </div>
 
-    <div id="catalog-hud" class="orbital-hud key-hud key-hud--collapsed">
-        <button class="key-hud-toggle" id="catalog-hud-toggle" aria-expanded="false" aria-controls="catalog-hud-body">
-            <span class="key-hud-toggle-arrow">▶</span>
-            <span class="hud-title hud-title--bare">// BRIEF</span>
-        </button>
-        <div id="catalog-hud-body" class="key-hud-body" hidden>
+    <main class="st-card-grid" id="brief-grid">
+        <section class="st-card" id="brief-card" aria-labelledby="brief-card-title">
+            <h2 class="st-card__title" id="brief-card-title">// DAILY BRIEF</h2>
             <div class="hud-row"><span class="hud-label">NEW OBJECTS</span><span id="brief-new" class="hud-val">—</span></div>
             <div class="hud-row"><span class="hud-label">DECAYED</span><span id="brief-decayed" class="hud-val">—</span></div>
             <div class="hud-row"><span class="hud-label">REENTRY WATCH</span><span id="brief-reentry" class="hud-val">—</span></div>
@@ -71,8 +68,25 @@
             <div class="st-signal-section__title">REENTRY HIGHLIGHTS</div>
             <ul class="st-feed" id="brief-highlights"></ul>
             <div class="st-hint" id="brief-hint">loading…</div>
-        </div>
-    </div>
+        </section>
+
+        <section class="st-card" id="activity-card" aria-labelledby="activity-card-title">
+            <h2 class="st-card__title" id="activity-card-title">// ACTIVITY</h2>
+            <div class="st-signal-section__title">SIGNAL FEED</div>
+            <ul class="st-feed" id="feed-list"></ul>
+            <div class="st-hint" id="feed-hint">loading…</div>
+            <hr class="hud-divider">
+            <div class="st-signal-section__title">REENTRY WATCH</div>
+            <ul class="st-feed" id="decay-list"></ul>
+            <div class="st-hint" id="decay-hint">loading…</div>
+        </section>
+
+        <section class="st-card" id="boxscore-card" aria-labelledby="boxscore-card-title">
+            <h2 class="st-card__title" id="boxscore-card-title">// BOXSCORE — TOP COUNTRIES</h2>
+            <div class="st-boxscore" id="boxscore-bars"></div>
+            <div class="st-hint" id="boxscore-hint">loading…</div>
+        </section>
+    </main>
 
     <footer class="orbital-footer">
         <span id="footer-source">Live data: Space-Track</span>
