@@ -130,7 +130,7 @@ missing writes its own `.st-hint` instead of drawing an empty chart that looks l
 
 ---
 
-## [ ] 5 — `buildBrief` archive writes
+## [x] 5 — `buildBrief` archive writes
 
 **Files:** `workers/orbit-ingest/src/derive.js`, `workers/orbit-ingest/test/brief.test.mjs`
 

@@ -26,6 +26,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import {
   BRIEF_KEY, BRIEF_MODEL, MIN_NARRATIVE_CHARS, MAX_NARRATIVE_CHARS,
+  BRIEF_INDEX_KEY, BRIEF_INDEX_DAYS, archiveKey, rebuildIndex,
   collectFacts, buildPrompt, allowedNumerals, checkNarrative, cleanNarrative,
   buildBrief, cardsEnabled, isQuiet, parseEpochUTC,
 } from '../src/brief.js';
@@ -59,7 +60,20 @@ function localD1(db) {
 
 function fakeR2() {
   const puts = new Map();
-  return { puts, async put(key, body, opts) { puts.set(key, { body, opts }); } };
+  return {
+    puts,
+    async put(key, body, opts) { puts.set(key, { body, opts }); },
+    async get(key) {
+      const v = puts.get(key);
+      return v ? { body: v.body, text: async () => String(v.body) } : null;
+    },
+    async list({ prefix = '' } = {}) {
+      const objects = [...puts.keys()]
+        .filter((k) => k.startsWith(prefix))
+        .map((key) => ({ key }));
+      return { objects, truncated: false, cursor: undefined };
+    },
+  };
 }
 
 /** A model that returns exactly what it is told to. */
@@ -499,6 +513,134 @@ await test('the card labels its narrative as machine-written', async () => {
   const card = await buildBrief(env, { now: NOW });
   assert.match(card.disclaimer, /language model/i);
   assert.match(card.disclaimer, /not by the model/i);
+});
+
+/* ── narrative_source ───────────────────────────────────────────────────── */
+
+await test('narrative_source is "ai" only once a narrative clears the gate', async () => {
+  const ai = stubAI(GOOD);
+  const env = envOf(db, { ORBIT_AI: ai, ORBIT_AI_CARDS: '1' });
+  const card = await buildBrief(env, { now: NOW });
+  assert.equal(card.narrative_status, 'ok');
+  assert.equal(card.narrative_source, 'ai');
+});
+
+await test('narrative_source is "none" for every non-ai outcome', async () => {
+  // Flag off.
+  assert.equal((await buildBrief(envOf(db), { now: NOW })).narrative_source, 'none');
+  // Rejected by the gate.
+  const hallucinating = stubAI('A record 12,904 objects were catalogued, the busiest day ever.');
+  const rejected = await buildBrief(
+    envOf(db, { ORBIT_AI: hallucinating, ORBIT_AI_CARDS: '1' }), { now: NOW });
+  assert.equal(rejected.narrative_source, 'none');
+  // Model outage.
+  const broken = stubAI(new Error('502 upstream'));
+  const errored = await buildBrief(
+    envOf(db, { ORBIT_AI: broken, ORBIT_AI_CARDS: '1' }), { now: NOW });
+  assert.equal(errored.narrative_source, 'none');
+  // Quiet day, flag on.
+  const empty = new DatabaseSync(':memory:');
+  empty.exec(SCHEMA);
+  const quiet = await buildBrief(
+    envOf(localD1(empty), { ORBIT_AI: stubAI(GOOD), ORBIT_AI_CARDS: '1' }), { now: NOW });
+  assert.equal(quiet.narrative_source, 'none');
+});
+
+/* ── Archive: brief/<date>.json + brief/index.json ─────────────────────── */
+
+await test('buildBrief writes latest.json AND the day archive card, identical', async () => {
+  const env = envOf(db, { ORBIT_AI_CARDS: '0' });
+  const card = await buildBrief(env, { now: NOW });
+  const date = card.generated_at.slice(0, 10);
+  const archived = env.ORBIT_R2.puts.get(archiveKey(date));
+  assert.ok(archived, `nothing written to ${archiveKey(date)}`);
+  assert.deepEqual(JSON.parse(archived.body), card);
+});
+
+await test('buildBrief rebuilds the index after the day-card write', async () => {
+  const env = envOf(db, { ORBIT_AI_CARDS: '0' });
+  const card = await buildBrief(env, { now: NOW });
+  const date = card.generated_at.slice(0, 10);
+  const idx = JSON.parse(env.ORBIT_R2.puts.get(BRIEF_INDEX_KEY).body);
+  assert.equal(idx.total, 1);
+  assert.equal(idx.days.length, 1);
+  assert.equal(idx.days[0].date, date);
+  assert.equal(idx.days[0].new_objects, card.facts.new_objects);
+  assert.equal(idx.days[0].decays, card.facts.decays);
+  assert.equal(idx.days[0].narrative_source, 'none');
+});
+
+await test('the index carries a headline (first sentence) when a narrative shipped', async () => {
+  const ai = stubAI(GOOD);
+  const env = envOf(db, { ORBIT_AI: ai, ORBIT_AI_CARDS: '1' });
+  await buildBrief(env, { now: NOW });
+  const idx = JSON.parse(env.ORBIT_R2.puts.get(BRIEF_INDEX_KEY).body);
+  assert.equal(idx.days[0].narrative_source, 'ai');
+  assert.equal(idx.days[0].headline, GOOD.split(/(?<=[.!?])\s+/)[0]);
+});
+
+await test('a day with no narrative has a null headline, not a blank string', async () => {
+  const env = envOf(db, { ORBIT_AI_CARDS: '0' });
+  await buildBrief(env, { now: NOW });
+  const idx = JSON.parse(env.ORBIT_R2.puts.get(BRIEF_INDEX_KEY).body);
+  assert.equal(idx.days[0].headline, null);
+});
+
+await test('rebuildIndex is a prefix SCAN, not an append — it self-heals a gap', async () => {
+  // Simulate three prior successful day-card writes with NO index ever built
+  // (as if every previous index write had failed). A scan-based rebuild must
+  // recover all three; an append-based one would have lost all but the last.
+  const env = envOf(db);
+  const mkCard = (date, n) => ({
+    generated_at: `${date}T00:00:00.000Z`,
+    citation: CITATION,
+    facts: { new_objects: n, decays: 0 },
+    narrative: null,
+    narrative_status: 'disabled',
+    narrative_source: 'none',
+  });
+  for (const [date, n] of [['2026-07-30', 1], ['2026-07-31', 2], ['2026-08-01', 3]]) {
+    await env.ORBIT_R2.put(archiveKey(date), JSON.stringify(mkCard(date, n)), {
+      httpMetadata: {}, customMetadata: {},
+    });
+  }
+  assert.equal(env.ORBIT_R2.puts.has(BRIEF_INDEX_KEY), false, 'no index written yet');
+
+  const index = await rebuildIndex(env);
+  assert.equal(index.total, 3);
+  assert.deepEqual(index.days.map((d) => d.date), ['2026-08-01', '2026-07-31', '2026-07-30'],
+                    'newest first');
+  assert.deepEqual(index.days.map((d) => d.new_objects), [3, 2, 1]);
+});
+
+await test('the index respects the 90-day hard cap, keeping the newest days', async () => {
+  const env = envOf(db);
+  const N = BRIEF_INDEX_DAYS + 10;
+  for (let i = 0; i < N; i++) {
+    const d = new Date(Date.UTC(2026, 0, 1) + i * 86400_000).toISOString().slice(0, 10);
+    await env.ORBIT_R2.put(archiveKey(d), JSON.stringify({
+      generated_at: `${d}T00:00:00.000Z`, citation: CITATION,
+      facts: { new_objects: 0, decays: 0 },
+      narrative: null, narrative_status: 'disabled', narrative_source: 'none',
+    }), { httpMetadata: {}, customMetadata: {} });
+  }
+  const index = await rebuildIndex(env);
+  assert.equal(index.total, N, '`total` reports every archived day, capped or not');
+  assert.equal(index.days.length, BRIEF_INDEX_DAYS, 'the DAYS array itself is capped');
+  const newest = new Date(Date.UTC(2026, 0, 1) + (N - 1) * 86400_000).toISOString().slice(0, 10);
+  assert.equal(index.days[0].date, newest, 'the cap keeps the newest days, not the oldest');
+});
+
+await test('an archive write failure does not stop latest.json from being written', async () => {
+  const env = envOf(db, { ORBIT_AI_CARDS: '0' });
+  const realPut = env.ORBIT_R2.put.bind(env.ORBIT_R2);
+  env.ORBIT_R2.put = async (key, ...rest) => {
+    if (key.startsWith('brief/2') && key !== BRIEF_KEY) throw new Error('R2 unavailable');
+    return realPut(key, ...rest);
+  };
+  const card = await buildBrief(env, { now: NOW });
+  assert.equal(card.narrative_status, 'disabled', 'buildBrief must still return the card');
+  assert.ok(env.ORBIT_R2.puts.get(BRIEF_KEY), 'latest.json must still be written');
 });
 
 /* ── Cross-file invariants ──────────────────────────────────────────────── */

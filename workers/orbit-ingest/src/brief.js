@@ -39,6 +39,16 @@
 import { CITATION } from './derive.js';
 
 export const BRIEF_KEY = 'brief/latest.json';
+export const BRIEF_ARCHIVE_PREFIX = 'brief/';
+export const BRIEF_INDEX_KEY = 'brief/index.json';
+
+/** Hard cap on the archive index (plan 38). Older days stay reachable by `?date=`. */
+export const BRIEF_INDEX_DAYS = 90;
+
+/** `brief/<YYYY-MM-DD>.json` — the day key a card's `generated_at` maps to. */
+export function archiveKey(dateStr) {
+  return `brief/${dateStr}.json`;
+}
 
 /** Small, fast and free-tier eligible. Overridable via env for evaluation. */
 export const BRIEF_MODEL = '@cf/meta/llama-3.1-8b-instruct';
@@ -386,10 +396,18 @@ export function cardsEnabled(env) {
 }
 
 /**
- * Build `brief/latest.json` and write it to R2.
+ * Build `brief/latest.json` (+ the day's archive card and index) and write
+ * them to R2.
  *
  * The artifact is written whether or not a narrative survived, because the
  * facts are the useful part and a stale card is worse than a plain one.
+ *
+ * `narrative_source` is separate from `narrative_status`: status is the
+ * detailed outcome of *this build* (ok / rejected: reason / error: … /
+ * disabled / skipped …), while source is the three-way the UI badges —
+ * `'ai'` once a narrative actually clears the gate, `'none'` for every other
+ * outcome here. A manual edit (plan 38 task 8, `/api/admin/brief`) is the only
+ * path that ever writes `'manual'`; nothing in this build ever does.
  */
 export async function buildBrief(env, { now = Date.now() } = {}) {
   const facts = await collectFacts(env, { now });
@@ -401,6 +419,7 @@ export async function buildBrief(env, { now = Date.now() } = {}) {
     facts,
     narrative: null,
     narrative_status: 'disabled',
+    narrative_source: 'none',
     model: null,
     // The panel says this out loud. A machine-written sentence on a page of
     // measured numbers has to be labelled as one.
@@ -408,15 +427,15 @@ export async function buildBrief(env, { now = Date.now() } = {}) {
                 'once per day. Every number is computed from the catalog, not by the model.',
   };
 
-  if (!cardsEnabled(env)) return put(env, card);
+  if (!cardsEnabled(env)) return finish(env, card);
   if (!env.ORBIT_AI || typeof env.ORBIT_AI.run !== 'function') {
     card.narrative_status = 'unavailable: no AI binding';
-    return put(env, card);
+    return finish(env, card);
   }
   if (isQuiet(facts)) {
     // Nothing happened. Asking a model to say so produces filler by definition.
     card.narrative_status = 'skipped: nothing to report';
-    return put(env, card);
+    return finish(env, card);
   }
 
   const model = env.ORBIT_AI_MODEL || BRIEF_MODEL;
@@ -439,6 +458,7 @@ export async function buildBrief(env, { now = Date.now() } = {}) {
     if (verdict.ok) {
       card.narrative = verdict.text;
       card.narrative_status = 'ok';
+      card.narrative_source = 'ai';
     } else {
       card.narrative_status = `rejected: ${verdict.reason}`;
       // The text stays out of the public artifact but goes to the run log, which
@@ -452,7 +472,83 @@ export async function buildBrief(env, { now = Date.now() } = {}) {
     console.warn('[orbit-brief] generation failed:', err);
   }
 
-  return put(env, card);
+  return finish(env, card);
+}
+
+/**
+ * Write `latest.json`, the day's archive card, and rebuild the index.
+ *
+ * The archive/index writes are wrapped separately from `put()` and never
+ * throw: losing a day from the archive is a gap in a list, losing
+ * `latest.json` is the live page going blank. The two must not share a
+ * failure mode.
+ */
+async function finish(env, card) {
+  await put(env, card);
+  try {
+    await putArchiveDay(env, card);
+    await rebuildIndex(env);
+  } catch (err) {
+    console.warn('[orbit-brief] archive write failed:', err);
+  }
+  return card;
+}
+
+/** Write `brief/<date>.json` — the same card, keyed by the day it narrates. */
+async function putArchiveDay(env, card) {
+  const date = card.generated_at.slice(0, 10);
+  await env.ORBIT_R2.put(archiveKey(date), JSON.stringify(card), {
+    httpMetadata: { contentType: 'application/json; charset=utf-8' },
+    customMetadata: { citation: CITATION, generated: card.generated_at },
+  });
+}
+
+/**
+ * Rebuild `brief/index.json` from an R2 `list()` prefix scan — never by
+ * appending to the previous index. If a day's card write succeeds and an
+ * append-based index write then fails, that day is permanently missing from
+ * an appended index: a silent gap. A prefix-scan rebuild self-heals on the
+ * next successful run, because it is recomputed from what R2 actually holds
+ * rather than from what the last index write remembered.
+ */
+export async function rebuildIndex(env) {
+  const keys = [];
+  let cursor;
+  do {
+    const page = await env.ORBIT_R2.list({ prefix: BRIEF_ARCHIVE_PREFIX, cursor });
+    for (const obj of page.objects || []) {
+      const m = /^brief\/(\d{4}-\d{2}-\d{2})\.json$/.exec(obj.key);
+      if (m) keys.push(m[1]);
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  keys.sort().reverse(); // newest first
+  const capped = keys.slice(0, BRIEF_INDEX_DAYS);
+
+  const days = [];
+  for (const date of capped) {
+    const obj = await env.ORBIT_R2.get(archiveKey(date));
+    if (!obj) continue; // listed but unreadable — skip rather than fail the index
+    let day;
+    try { day = JSON.parse(await obj.text()); } catch (_) { continue; }
+    days.push({
+      date,
+      new_objects: day.facts ? day.facts.new_objects : 0,
+      decays: day.facts ? day.facts.decays : 0,
+      narrative_source: day.narrative_source || 'none',
+      headline: day.narrative
+        ? day.narrative.split(/(?<=[.!?])\s+/)[0]
+        : null,
+    });
+  }
+
+  const index = { generated_at: new Date().toISOString(), total: keys.length, days };
+  await env.ORBIT_R2.put(BRIEF_INDEX_KEY, JSON.stringify(index), {
+    httpMetadata: { contentType: 'application/json; charset=utf-8' },
+    customMetadata: { citation: CITATION, generated: index.generated_at },
+  });
+  return index;
 }
 
 async function put(env, card) {

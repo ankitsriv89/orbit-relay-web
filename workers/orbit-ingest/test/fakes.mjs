@@ -63,6 +63,13 @@ export function fakeR2() {
       const v = puts.get(key);
       return v ? { body: v.body, text: async () => String(v.body) } : null;
     },
+    // No pagination: tests here never approach R2's 1000-key page size.
+    async list({ prefix = '' } = {}) {
+      const objects = [...puts.keys()]
+        .filter((k) => k.startsWith(prefix))
+        .map((key) => ({ key }));
+      return { objects, truncated: false, cursor: undefined };
+    },
   };
 }
 
