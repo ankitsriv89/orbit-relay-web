@@ -161,8 +161,8 @@ function recolorRendered() {
     for (const sat of rendered) {
         const row = sat.meta.row;
         if (!row) continue;
-        sat.primitive.color = Cesium.Color.fromCssColorString(
-            colorForRow(row, colorMode, CB_TYPE_COLORS, CB_COUNTRY_COLORS));
+        engine.setSatColor(sat, Cesium.Color.fromCssColorString(
+            colorForRow(row, colorMode, CB_TYPE_COLORS, CB_COUNTRY_COLORS)));
         sat.primitive.pixelSize = regimeSize(row.apogee_km ?? row.perigee_km ?? 400);
         sat.baseSize = sat.primitive.pixelSize;
     }
@@ -501,11 +501,8 @@ const { open: openDossier, close: closeDossier } =
 /* Click a point → its dossier */
 const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 clickHandler.setInputAction((movement) => {
-    const picked = viewer.scene.pick(movement.position);
-    if (picked && picked.id && picked.id.meta) {
-        const meta = picked.id.meta;
-        openDossier(meta.norad, meta);
-    }
+    const sat = engine.pickSat(viewer.scene.pick(movement.position));
+    if (sat && sat.meta) openDossier(sat.meta.norad, sat.meta);
 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 /* ── Boot ────────────────────────────────────────────────────────────────── */

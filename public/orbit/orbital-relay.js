@@ -16,7 +16,7 @@
  * animated orbit trails, constellation pulse FX.
  */
 
-import { SatEngine, SatPoint, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../orbit-engine/sat-engine.js';
 import { parseTLE, parseTLEChunked, fetchTLE } from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
@@ -376,10 +376,8 @@ State.subscribe(REVS_STATE_PATH, () => {
 // PointPrimitives whose `.id` is the SatPoint wrapper (carries `.meta`).
 const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 clickHandler.setInputAction((movement) => {
-    const picked = viewer.scene.pick(movement.position);
-    if (picked && picked.id instanceof SatPoint) {
-        inspectSatellite(picked.id.meta);
-    }
+    const sat = engine.pickSat(viewer.scene.pick(movement.position));
+    if (sat) inspectSatellite(sat.meta);
 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 /* ── Time-warp controls ────────────────────────────────────────────────── */

@@ -17,7 +17,7 @@ export function createAge({ engine, getRendered, recolorRendered }) {
             const row = sat.meta?.row;
             if (!row) continue;
             const c = ageColor(row);
-            if (c) sat.primitive.color = Cesium.Color.fromCssColorString(c);
+            if (c) engine.setSatColor(sat, Cesium.Color.fromCssColorString(c));
         }
         engine.requestRender();
     }

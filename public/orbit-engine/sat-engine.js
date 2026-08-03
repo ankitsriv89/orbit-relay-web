@@ -30,7 +30,7 @@
  */
 
 import {
-    geoAt, orbitalPeriodMin, footprintRadiusM,
+    geoAt, orbitalPeriodMin, footprintRadiusM, farSideFade,
 } from './astro.js';
 
 const SAT_TICK_MS   = 280;   // position refresh (a sat moves ~metres in this time)
@@ -172,6 +172,23 @@ export class SatPoint {
         this.ring      = null;   // orbit ring entity, built lazily by ensureRing()
         this._ringStyle = null;  // the orbitStyle arg passed to addSatellite
         this._ringColor = null;
+        /** Immutable snapshot of the colour this sat is drawn at when nothing
+         *  occludes it — {r,g,b,a} floats, deliberately NOT a Cesium.Color.
+         *
+         *  The far-side pass rebuilds from this rather than reading hue back off
+         *  the live primitive, for two reasons. It cannot compound its own
+         *  output; and pages are free to pass ONE shared Cesium.Color for a
+         *  whole layer (starlink.js does — every sat gets the same instance),
+         *  where reading `primitive.color` can hand back a reference into the
+         *  collection and writing through it would smear one point's fade
+         *  across every other point sharing that colour. */
+        this.baseColor = { r: 1, g: 1, b: 1, a: 1 };
+        /** Set by the engine's per-frame occlusion pass: true when the Earth is
+         *  between the camera and this sat. Click handlers read it — a faded
+         *  point is still pickable, and picking one behind the globe selects a
+         *  satellite over India from a click on Kansas. */
+        this.farSide   = false;
+        this._appliedFade = 1;   // last fade written, so the pass can skip no-ops
     }
     get show()  { return this.primitive.show; }
     set show(v) {
@@ -229,6 +246,19 @@ export class SatEngine {
 
         this._intervals.push(setInterval(() => this.propagate(),  SAT_TICK_MS));
         this._intervals.push(setInterval(() => this._pulse(),     PULSE_TICK_MS));
+
+        // Far-side occlusion, refreshed per DRAWN FRAME rather than on the
+        // propagation tick. Occlusion is a function of the camera as much as of
+        // position, and the camera moves continuously during a drag while
+        // propagate() only lands every 280 ms — computing the fade there would
+        // leave ~56 of every 60 dragged frames carrying a camera up to a quarter
+        // second stale, so the dots would visibly pop behind the hand. preRender
+        // fires exactly when Cesium draws, whoever asked for the frame, and adds
+        // nothing on frames that were not going to be drawn — under
+        // requestRenderMode an idle camera renders ~4 fps, so this is a
+        // passenger, never a driver.
+        this._occludeFrame = () => this._refreshOcclusion();
+        viewer.scene.preRender.addEventListener(this._occludeFrame);
     }
 
     /* ── Time ───────────────────────────────────────────────────────────── */
@@ -411,6 +441,11 @@ export class SatEngine {
 
         const sat = new SatPoint(this, primitive, satrec, safeMeta, pointSize,
                                  !!(meta && meta.pulse));
+        // Snapshot the unoccluded colour by VALUE. Layers pass pre-faded colours
+        // (the dimmed non-matching set on /spacetrack/) and may reuse one Color
+        // instance for a whole layer, so copying the components here is what
+        // keeps the far-side pass from smearing across a shared instance.
+        sat.baseColor = { r: color.red, g: color.green, b: color.blue, a: color.alpha };
         primitive.id = sat;          // scene.pick() returns this → click-to-inspect
         this.allSats.push(sat);
         if (sat.pulse) this.pulseSats.push(sat);
@@ -527,6 +562,85 @@ export class SatEngine {
             changed = true;
         }
         if (changed) this.requestRender();
+    }
+
+    /**
+     * Fade satellites the Earth is in front of, once per drawn frame.
+     *
+     * Why this exists: sat points are drawn with `disableDepthTestDistance:
+     * Infinity` (so they never z-fight the globe or sink into terrain up close),
+     * which means a far-side satellite draws straight *through* the planet, over
+     * whatever continent faces the camera. Without a depth cue, rotating the
+     * globe reads as "the dots stayed put while the map moved" — the positions
+     * are correct, but the eye maps a satellite over India onto Kansas.
+     *
+     * Three things keep this affordable at /spacetrack/ scale (~28k objects):
+     *
+     *   - the test is one dot product and a compare, no allocation, no sqrt on
+     *     the visible path;
+     *   - hidden points are skipped outright;
+     *   - `primitive.color` is only WRITTEN when the fade actually moves. Every
+     *     write dirties the collection's packed buffer and forces a re-upload,
+     *     so a parked camera must settle to zero writes — same no-op-skip
+     *     discipline as _pulse(). The 0.01 threshold is below one 8-bit alpha
+     *     step, so nothing visible is dropped.
+     *
+     * Deliberately does NOT call requestRender(): it runs *inside* a frame that
+     * is already being drawn, and asking for another from here would loop.
+     */
+    _refreshOcclusion() {
+        const cam = this.viewer.camera.positionWC;
+        if (!cam) return;
+        for (let i = 0; i < this.allSats.length; i++) {
+            const s = this.allSats[i];
+            const prim = s.primitive;
+            if (!prim.show) continue;
+            const fade = farSideFade(prim.position, cam);
+            s.farSide = fade < 1;
+            if (Math.abs(fade - s._appliedFade) < 0.01) continue;
+            s._appliedFade = fade;
+            // Rebuild from the base snapshot, never from prim.color: the getter
+            // can return a reference the page shares across a whole layer.
+            // Assigning a fresh Color is also what marks the buffer dirty.
+            const b = s.baseColor;
+            prim.color = new Cesium.Color(b.r, b.g, b.b, b.a * fade);
+        }
+    }
+
+    /**
+     * Recolour a satellite — the only supported way to change a point's colour.
+     *
+     * Writing `sat.primitive.color` directly is not enough once far-side fading
+     * is on: the per-frame pass rebuilds every faded point from `baseColor`, so
+     * a direct write to a currently-faded point is reverted on the next drawn
+     * frame. This updates the snapshot the pass reads from, then applies the
+     * live fade so the new colour appears immediately at the right opacity.
+     *
+     * @param {SatPoint} sat
+     * @param {Cesium.Color} color the unoccluded colour
+     */
+    setSatColor(sat, color) {
+        if (!sat || !color) return;
+        sat.baseColor = { r: color.red, g: color.green, b: color.blue, a: color.alpha };
+        const fade = sat._appliedFade;
+        sat.primitive.color = fade < 1
+            ? new Cesium.Color(color.red, color.green, color.blue, color.alpha * fade)
+            : color;
+    }
+
+    /**
+     * The SatPoint under a `scene.pick()` result, or null.
+     *
+     * Filters out satellites behind the Earth. `scene.pick()` ignores alpha, so
+     * without this a faded far-side dot still wins the click over the globe in
+     * front of it — you click Kansas and select a satellite over India, which is
+     * the same confusion the fade removes visually, arriving through a different
+     * channel. All three globe pages pick the same way; this is the one place
+     * that knows the rule.
+     */
+    pickSat(picked) {
+        if (!picked || !(picked.id instanceof SatPoint)) return null;
+        return picked.id.farSide ? null : picked.id;
     }
 
     /* ── Shared visuals ─────────────────────────────────────────────────── */
@@ -758,6 +872,10 @@ export class SatEngine {
         this._intervals.length = 0;
         this._managedEntities.forEach(e => this.viewer.entities.remove(e));
         this._managedEntities.length = 0;
+        if (this._occludeFrame) {
+            this.viewer.scene.preRender.removeEventListener(this._occludeFrame);
+            this._occludeFrame = null;
+        }
         if (this.worker) { this.worker.terminate(); this.worker = null; }
     }
 
