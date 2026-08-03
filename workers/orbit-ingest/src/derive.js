@@ -511,10 +511,60 @@ function safeParse(s) {
  * of its total — the opposite of what "on orbit right now" means in the
  * summary panel.
  */
+/**
+ * Fixed-width SQL bucket count over an expression already indexed or cheap to
+ * scan. Mirrors `public/shared/charts.js`'s `bin()` edge rule so the two stay
+ * consistent even though they run in different places (SQL here, over rows
+ * already in memory there): a value exactly on `max` lands in the LAST
+ * bucket via `MIN(..., count-1)`, not an overflow bucket one past the end.
+ */
+async function binQuery(db, { expr, where, min, max, width }) {
+  const count = Math.max(1, Math.ceil((max - min) / width));
+  const { results } = await db.prepare(`
+    SELECT MIN(${count - 1}, CAST((${expr} - ?) / ? AS INTEGER)) AS bucket, COUNT(*) AS n
+    FROM objects
+    WHERE ${where} AND ${expr} IS NOT NULL AND ${expr} >= ? AND ${expr} <= ?
+    GROUP BY bucket ORDER BY bucket ASC
+  `).bind(min, width, min, max).all();
+  const byBucket = new Map((results || []).map((r) => [r.bucket, r.n]));
+  const bins = [];
+  for (let i = 0; i < count; i++) {
+    bins.push({ min: min + i * width, max: Math.min(max, min + (i + 1) * width), n: byBucket.get(i) || 0 });
+  }
+  return bins;
+}
+
+/**
+ * `catalog/analytics.json` (plan 33 wave 7, extended plan 38 A1) — the launch-
+ * history AND on-orbit-distribution breakdowns for the ANALYTICS panel.
+ *
+ * **Historical vs on-orbit-now — the split this artifact must keep straight:**
+ * `launches_by_decade`/`launches_by_year`/`regime_by_year`/`operator_by_year`/
+ * `cohort_on_orbit`/`decays_by_month`/`top_launch_sites`/`debris_families`/
+ * `country_by_decade` all run over the WHOLE catalog (decayed included) —
+ * "how many things launched in the 1980s" is a historical count, and
+ * excluding everything that has since deorbited would undercount every decade
+ * before the 2010s by most of its total. `by_type`/`by_regime`/`rcs_sizes`/
+ * `altitude_bins`/`inclination_bins` are the opposite: they filter
+ * `DECAY_DATE IS NULL` because "what's up there now" is an on-orbit-now
+ * question, same discipline as `buildSummary`. Mixing these two up is the
+ * easiest way for this artifact to become quietly wrong — see the plan's
+ * Risks table.
+ */
 export async function buildAnalytics(env) {
-  const [byDecade, bySite, byFamily, byCountryDecade] = await Promise.all([
+  const live = 'WHERE DECAY_DATE IS NULL';
+  const [
+    total, byDecade, byYear, bySite, byFamily, byCountryDecade,
+    byType, byRegime, regimeByYear, rcsSizes, decaysByMonth,
+    cohortLaunched, cohortAlive, operatorByYear,
+  ] = await Promise.all([
+    env.ORBIT_DB.prepare(`SELECT COUNT(*) AS n FROM objects ${live}`).first(),
     tally(env.ORBIT_DB, `
       SELECT (launch_year / 10) * 10 AS k, COUNT(*) AS n
+      FROM objects WHERE launch_year IS NOT NULL
+      GROUP BY k ORDER BY k ASC`),
+    tally(env.ORBIT_DB, `
+      SELECT launch_year AS k, COUNT(*) AS n
       FROM objects WHERE launch_year IS NOT NULL
       GROUP BY k ORDER BY k ASC`),
     tally(env.ORBIT_DB, `
@@ -529,7 +579,45 @@ export async function buildAnalytics(env) {
       SELECT COUNTRY_CODE AS country, (launch_year / 10) * 10 AS decade, COUNT(*) AS n
       FROM objects WHERE launch_year IS NOT NULL AND COUNTRY_CODE IS NOT NULL
       GROUP BY country, decade`),
+    tally(env.ORBIT_DB, `SELECT OBJECT_TYPE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
+    tally(env.ORBIT_DB, `SELECT regime AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
+    tally(env.ORBIT_DB, `
+      SELECT launch_year AS year, regime AS k, COUNT(*) AS n FROM objects
+      ${live} AND launch_year IS NOT NULL AND regime IS NOT NULL
+      GROUP BY year, k`),
+    tally(env.ORBIT_DB, `SELECT RCS_SIZE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
+    tally(env.ORBIT_DB, `
+      SELECT substr(DECAY_DATE, 1, 7) AS k, COUNT(*) AS n FROM objects
+      WHERE DECAY_DATE IS NOT NULL GROUP BY k ORDER BY k ASC`),
+    tally(env.ORBIT_DB, `
+      SELECT (launch_year / 10) * 10 AS decade, COUNT(*) AS n
+      FROM objects WHERE launch_year IS NOT NULL GROUP BY decade`),
+    tally(env.ORBIT_DB, `
+      SELECT (launch_year / 10) * 10 AS decade, COUNT(*) AS n
+      FROM objects WHERE launch_year IS NOT NULL AND DECAY_DATE IS NULL GROUP BY decade`),
+    tally(env.ORBIT_DB, `
+      SELECT launch_year AS year, operator AS k, COUNT(*) AS n FROM objects
+      WHERE launch_year IS NOT NULL AND operator IS NOT NULL
+      GROUP BY year, k`),
   ]);
+
+  const [altitudeBins, inclinationBins] = await Promise.all([
+    binQuery(env.ORBIT_DB, {
+      expr: '(APOAPSIS + PERIAPSIS) / 2', where: live.replace(/^WHERE /, ''),
+      min: 0, max: 40000, width: 1000,
+    }),
+    binQuery(env.ORBIT_DB, {
+      expr: 'INCLINATION', where: live.replace(/^WHERE /, ''),
+      min: 0, max: 180, width: 10,
+    }),
+  ]);
+
+  // Site names come from launch_sites (plan 38 task 2) — a LEFT JOIN would
+  // need a second round-trip either way, and the table is ~60 rows, so one
+  // extra SELECT + an in-memory join is simpler than rewriting bySite's query.
+  const { results: siteNames } = await env.ORBIT_DB
+    .prepare('SELECT SITE_CODE, LAUNCH_SITE FROM launch_sites').all();
+  const nameOf = new Map((siteNames || []).map((r) => [r.SITE_CODE, r.LAUNCH_SITE]));
 
   // Top 8 countries by all-time total drive which rows the by-decade matrix
   // carries — a full COUNTRY_CODE x decade grid is mostly zeroes and the panel
@@ -545,11 +633,62 @@ export async function buildAnalytics(env) {
     byCountryMap.get(r.country)[r.decade] = r.n;
   }
 
+  // regime_by_year: one row per year, one column per regime, zero-filled —
+  // same "no missing decade" discipline as country_by_decade below.
+  const years = [...new Set(byYear.map((r) => r.k))].sort((a, b) => a - b);
+  const regimeByYearMap = new Map();
+  for (const r of regimeByYear) {
+    if (!regimeByYearMap.has(r.year)) regimeByYearMap.set(r.year, {});
+    regimeByYearMap.get(r.year)[r.k] = r.n;
+  }
+
+  // operator_by_year: top operators overall (by all-time launch count) get
+  // their own year-by-year series; everything else collapses into `other` so
+  // the chart has a handful of labelled series instead of the long tail of
+  // every operator that ever launched one satellite. `operator` is OUR
+  // inference (operators.js), never authoritative — badge it wherever shown.
+  const operatorTotals = new Map();
+  for (const r of operatorByYear) operatorTotals.set(r.k, (operatorTotals.get(r.k) || 0) + r.n);
+  const topOperators = [...operatorTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([o]) => o);
+  const operatorByYearMap = new Map();
+  for (const r of operatorByYear) {
+    if (!operatorByYearMap.has(r.year)) operatorByYearMap.set(r.year, { top: {}, other: 0 });
+    const bucket = operatorByYearMap.get(r.year);
+    if (topOperators.includes(r.k)) bucket.top[r.k] = r.n;
+    else bucket.other += r.n;
+  }
+
+  // cohort_on_orbit: of everything launched in decade D, how many are still up
+  // — a survival stat, not a timeline. Both queries share the same decade
+  // buckets so a decade with launches but zero survivors still emits a 0 row
+  // rather than disappearing (which would read as "no launches").
+  const launchedByDecade = new Map(cohortLaunched.map((r) => [r.decade, r.n]));
+  const aliveByDecade = new Map(cohortAlive.map((r) => [r.decade, r.n]));
+  const cohortDecades = [...new Set([...launchedByDecade.keys(), ...aliveByDecade.keys()])].sort((a, b) => a - b);
+
   const analytics = {
     generated_at: new Date().toISOString(),
     citation: CITATION,
+    tracked: total ? total.n : 0,
+    by_type: Object.fromEntries(byType.map((r) => [r.k || 'UNKNOWN', r.n])),
+    by_regime: Object.fromEntries(byRegime.map((r) => [r.k || 'UNKNOWN', r.n])),
     launches_by_decade: byDecade.map((r) => ({ decade: r.k, n: r.n })),
-    top_launch_sites: bySite.map((r) => ({ site: r.k, n: r.n })),
+    launches_by_year: byYear.map((r) => ({ year: r.k, n: r.n })),
+    operator_by_year: [...operatorByYearMap.entries()].sort((a, b) => a[0] - b[0])
+      .map(([year, { top, other }]) => ({ year, top, other, derived: true })),
+    regime_by_year: years.map((year) => ({
+      year,
+      leo: regimeByYearMap.get(year)?.LEO || 0,
+      meo: regimeByYearMap.get(year)?.MEO || 0,
+      geo: regimeByYearMap.get(year)?.GEO || 0,
+      heo: regimeByYearMap.get(year)?.HEO || 0,
+    })),
+    cohort_on_orbit: cohortDecades.map((decade) => ({
+      decade,
+      launched: launchedByDecade.get(decade) || 0,
+      still_on_orbit: aliveByDecade.get(decade) || 0,
+    })),
+    top_launch_sites: bySite.map((r) => ({ site: r.k, name: nameOf.get(r.k) || null, n: r.n })),
     debris_families: byFamily.map((r) => ({ family: r.k, n: r.n })),
     country_by_decade: {
       decades,
@@ -558,6 +697,12 @@ export async function buildAnalytics(env) {
         by_decade: decades.map((d) => byCountryMap.get(c)?.[d] || 0),
       })),
     },
+    rcs_sizes: Object.fromEntries(rcsSizes.map((r) => [r.k || 'UNKNOWN', r.n])),
+    altitude_bins: altitudeBins,
+    inclination_bins: inclinationBins,
+    // events has no history before the ingest started running; DECAY_DATE on
+    // objects does, so decays_by_month sources from there, not from events.
+    decays_by_month: decaysByMonth.map((r) => ({ month: r.k, n: r.n })),
   };
 
   await env.ORBIT_R2.put('catalog/analytics.json', JSON.stringify(analytics), {

@@ -69,7 +69,7 @@ deploy-day step, not part of this task.
 
 ---
 
-## [ ] 3 — Extend `buildAnalytics` to the new artifact shape
+## [x] 3 — Extend `buildAnalytics` to the new artifact shape
 
 **Files:** `workers/orbit-ingest/src/derive.js:514`, `workers/orbit-ingest/test/derive.test.mjs`
 

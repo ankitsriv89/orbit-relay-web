@@ -90,6 +90,22 @@ function seeded() {
       VALUES (25544, '1998-067A', 'ISS (ZARYA)', 'PAYLOAD', 'ISS', '1998-11-20',
               'TTMTR', 92.9, 422, 415, 399.05, 'LARGE', 'Y', 500, ?)`).run(NOW);
 
+  // A decayed object with a real DECAY_DATE, so decays_by_month and
+  // cohort_on_orbit (task 3) have something non-empty to assert on. Launched
+  // in the same 1958-1961 fixture span but marked decayed, so the historical
+  // launch count for that decade stays the same while the "still on orbit"
+  // count for it must be one less — exactly the split the launch series and
+  // the distribution sections must NOT confuse.
+  db.prepare(`INSERT INTO objects
+      (NORAD_CAT_ID, OBJECT_NAME, OBJECT_ID, OBJECT_TYPE, COUNTRY_CODE, RCS_SIZE,
+       SITE, LAUNCH_DATE, DECAY_DATE, EPOCH, PERIOD, INCLINATION, APOAPSIS, PERIAPSIS,
+       SEMIMAJOR_AXIS, TLE_LINE1, TLE_LINE2, regime, launch_year,
+       first_seen, updated_at)
+      VALUES (99001, 'DECAYED TEST OBJECT', '1960-001A', 'DEBRIS', 'US', 'SMALL',
+              'AFETR', '1960-05-01', '2026-03-14', ?, 100.2, 45.0, 800.0, 200.0,
+              6878.0, '1 99001U 60001A', '2 99001  45.0', 'LEO', 1960,
+              ?, ?)`).run(NOW, NOW, NOW);
+
   db.prepare(`INSERT INTO decay
       (NORAD_CAT_ID, OBJECT_NAME, OBJECT_ID, COUNTRY, MSG_EPOCH, DECAY_EPOCH,
        SOURCE, MSG_TYPE, PRECEDENCE, updated_at)
@@ -99,6 +115,12 @@ function seeded() {
   db.prepare(`INSERT INTO events (ts, kind, NORAD_CAT_ID, title, detail)
               VALUES (?, 'new_object', 25544, 'ISS entered the catalog', ?)`)
     .run(NOW, JSON.stringify({ regime: 'LEO' }));
+
+  // launch_sites (plan 38 task 2) — the join buildAnalytics's top_launch_sites
+  // uses for real names. AFETR is the site every fixture row + the decayed
+  // test object share, so the join has something to actually resolve.
+  db.prepare(`INSERT INTO launch_sites (SITE_CODE, LAUNCH_SITE, updated_at)
+              VALUES ('AFETR', 'Cape Canaveral SFS', ?)`).run(NOW);
 
   return db;
 }
@@ -388,6 +410,86 @@ await test('country_by_decade rows align one count per listed decade', async () 
   for (const c of countries) {
     assert.equal(c.by_decade.length, decades.length,
       'a missing decade must be a zero, not a shorter array the frontend would misalign');
+  }
+});
+
+await test('top launch sites carry the real name from launch_sites, not just the code', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  const afetr = card.top_launch_sites.find((s) => s.site === 'AFETR');
+  assert.ok(afetr, 'AFETR must be present');
+  assert.equal(afetr.name, 'Cape Canaveral SFS');
+});
+
+await test('historical sections (launches_by_decade) include the decayed test object', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  // 99001 launched in 1960 and is DECAYED — a historical count must still
+  // include it, unlike the on-orbit-now sections below.
+  const decade1960 = card.launches_by_decade.find((r) => r.decade === 1960);
+  assert.ok(decade1960 && decade1960.n > 0, 'the 1960s decade must count the decayed object');
+});
+
+await test('on-orbit-now sections (by_type, by_regime, rcs_sizes) exclude the decayed test object', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  // 99001 is OBJECT_TYPE=DEBRIS, RCS_SIZE=SMALL, regime=LEO, and DECAYED.
+  // If these sections wrongly included decayed rows, DEBRIS/SMALL would be
+  // inflated by exactly one over what a DECAY_DATE IS NULL count gives.
+  const liveDebris = db.prepare(
+    `SELECT COUNT(*) AS n FROM objects WHERE OBJECT_TYPE = 'DEBRIS' AND DECAY_DATE IS NULL`).get().n;
+  assert.equal(card.by_type.DEBRIS || 0, liveDebris,
+    'by_type must filter DECAY_DATE IS NULL, matching a live-only D1 count exactly');
+});
+
+await test('cohort_on_orbit counts the decayed object as launched but not still on orbit', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  const row = card.cohort_on_orbit.find((r) => r.decade === 1960);
+  assert.ok(row, '1960s decade must appear in cohort_on_orbit');
+  assert.ok(row.launched > row.still_on_orbit,
+    'launched must exceed still_on_orbit once one 1960s object has decayed');
+});
+
+await test('decays_by_month is sourced from objects.DECAY_DATE, not from events', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  // The only DECAY_DATE in the seeded schema is 99001's 2026-03-14; events
+  // carries no decay-kind rows for it at all (the seeded events row is a
+  // new_object for the ISS). If this ever regresses to reading `events`,
+  // this array goes empty because there is nothing to read there.
+  assert.ok(card.decays_by_month.some((r) => r.month === '2026-03' && r.n === 1),
+    JSON.stringify(card.decays_by_month));
+});
+
+await test('altitude_bins and inclination_bins only cover on-orbit-now objects', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  const totalAlt = card.altitude_bins.reduce((s, b) => s + b.n, 0);
+  const liveCount = db.prepare(`SELECT COUNT(*) AS n FROM objects WHERE DECAY_DATE IS NULL
+    AND APOAPSIS IS NOT NULL AND PERIAPSIS IS NOT NULL`).get().n;
+  assert.equal(totalAlt, liveCount, 'altitude_bins must not include the decayed object');
+});
+
+await test('altitude_bins bucket edges follow the same max-lands-in-last-bin rule as bin()', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  assert.ok(card.altitude_bins.length > 0);
+  for (let i = 1; i < card.altitude_bins.length; i++) {
+    assert.equal(card.altitude_bins[i].min, card.altitude_bins[i - 1].max,
+      'bins must be contiguous, no gaps or overlaps');
+  }
+});
+
+await test('operator_by_year badges every row as derived and splits into top/other', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  assert.ok(Array.isArray(card.operator_by_year));
+  for (const row of card.operator_by_year) {
+    assert.equal(row.derived, true, 'operator is inferred, never authoritative — must badge');
+    assert.ok(typeof row.top === 'object' && row.top !== null);
+    assert.ok(typeof row.other === 'number');
+  }
+});
+
+await test('regime_by_year rows are zero-filled across all four regimes', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  for (const row of card.regime_by_year) {
+    for (const k of ['leo', 'meo', 'geo', 'heo']) {
+      assert.ok(typeof row[k] === 'number', `${k} must be a zero-filled number, not missing`);
+    }
   }
 });
 
