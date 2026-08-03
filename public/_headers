@@ -9,43 +9,63 @@
 /data/tle/*
   Cache-Control: public, max-age=21600
 
-# Shared globe engine — /orbit/ and /spacetrack/ both load it. Deliberately NOT
-# immutable: the vendored satellite.js is content-addressed by nothing, so a
-# version bump has to be able to reach both pages.
-/orbit-engine/*
-  Cache-Control: public, max-age=86400
-
+# Vendored third-party bytes. These are genuinely frozen — a satellite.js bump
+# lands under a new upload, not an edit — so a long TTL is safe here. The
+# engine's own source is revalidated with the app routes below.
 /orbit-engine/vendor/*
   Cache-Control: public, max-age=604800
 
-# App routes. These are hand-edited ES modules with un-hashed filenames, so a
-# flat 24h max-age meant a shipped fix could not reach a browser that had
-# already cached the broken file for a day — which is exactly how the
-# `Invalid URL` failure in spacetrack/shared/api.js survived its own fix.
-# Same stale-while-revalidate pattern as /css/* and /js/* below: served
-# instantly from cache, revalidated in the background.
+# App routes — HTML + hand-edited ES modules, filenames NOT content-hashed.
+#
+# `no-cache` here does not mean "do not cache". It means "cache it, but
+# revalidate before every reuse". Combined with the strong ETag Pages already
+# sends, a reload costs one conditional request per file and returns 304 with a
+# zero-byte body when nothing changed — so the bytes are still served from disk,
+# but a user can never be pinned to a stale build.
+#
+# This replaces a flat `max-age=86400`, under which a shipped fix could not
+# reach an already-cached browser for a day. That is not hypothetical: the
+# `Invalid URL` bug in spacetrack/shared/api.js survived its own fix this way,
+# and repeated hard reloads did not clear it.
+#
+# `stale-while-revalidate` is deliberately NOT used for these. It serves the
+# stale copy to the visitor who triggered the revalidation and only refreshes
+# for the *next* one — which for a broken deploy means the person hitting the
+# bug still sees the bug. It stays on /css/* and /js/* below, where a
+# one-load-late stylesheet is cosmetic rather than a dead page.
+#
+# Module imports (`import … from './shared/api.js'`) are resolved by the browser
+# and never pass through the HTML, so a `?v=` query on a <script src> would not
+# version them. Revalidation is what covers the whole graph.
 /orbit/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, no-cache, must-revalidate
 
 /spacetrack/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, no-cache, must-revalidate
 
 /starlink/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, no-cache, must-revalidate
 
 /about/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, no-cache, must-revalidate
 
 /wiki/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, no-cache, must-revalidate
 
-# Landing-page assets. Un-hashed filenames rule out immutable long-TTL caching;
-# stale-while-revalidate gets the latency without serving a stale file for a day.
+/orbit-engine/*
+  Cache-Control: public, no-cache, must-revalidate
+
+# Landing-page assets, un-hashed like everything else here.
+#
+# CSS keeps stale-while-revalidate: a stylesheet that is one load out of date
+# renders slightly differently, it does not break the page.
 /css/*
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
+# JS is executable and revalidates like the app routes above — landing.js and
+# hero-scene.js can fail the same way a stale catalog.js can.
 /js/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, no-cache, must-revalidate
 
 /icon.svg
   Cache-Control: public, max-age=86400
