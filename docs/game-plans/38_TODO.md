@@ -97,7 +97,7 @@ on-orbit-vs-historical filter on at least one section of each kind.
 
 ---
 
-## [ ] 4 — Rebuild `/spacetrack/analytics/` sections
+## [x] 4 — Rebuild `/spacetrack/analytics/` sections
 
 **Files:** `public/spacetrack/analytics/{index.html,analytics.js}`,
 `public/spacetrack/spacetrack.css`

@@ -1422,6 +1422,63 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     grid-column: 1 / -1;
 }
 
+/* .st-card's max-height + overflow-y:auto is right for a scrolling feed list
+ * and wrong for a chart: a growth curve gets clipped at an arbitrary height
+ * and the user scrolls a box inside a page to see the top of a line (plan 38
+ * A3). The <768px block below already drops the cap for every card on mobile
+ * (max-height: none) — this modifier does the same thing, deliberately,
+ * wherever a chart lives regardless of viewport. */
+.st-card--chart {
+    max-height: none;
+    overflow-y: visible;
+}
+
+/* KPI strip — full-width row of monospace stat tiles at the top of the
+ * Analytics grid (plan 38 A3 §1, open decision #1: tiles over a sidebar rail,
+ * since the auto-fit grid already handles full-width and a sidebar fights the
+ * single-column mobile collapse). */
+.st-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0;
+}
+
+.st-kpi {
+    padding: 4px 14px;
+    border-left: 1px solid rgba(0, 210, 255, 0.15);
+}
+
+.st-kpi:first-child {
+    border-left: none;
+    padding-left: 0;
+}
+
+.st-kpi__value {
+    display: block;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: rgba(0, 230, 255, 0.95);
+    font-variant-numeric: tabular-nums;
+}
+
+.st-kpi__label {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.5rem;
+    letter-spacing: 0.6px;
+    color: rgba(150, 200, 230, 0.6);
+}
+
+@media (max-width: 768px) {
+    .st-kpi-strip {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px 0;
+    }
+    .st-kpi:nth-child(2n+1) {
+        border-left: none;
+    }
+}
+
 @media (min-width: 769px) and (max-width: 1024px) {
     .st-card-grid {
         padding-top: calc(72px + var(--sa-top));

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
-    <meta name="description" content="Catalog analytics — launch history, debris families, and country-by-decade launch matrix.">
+    <meta name="description" content="Catalog analytics — launch history and growth, cohort survival, orbit distributions, debris families, and country-by-decade launch matrix.">
     <meta name="theme-color" content="#000000">
     <title>Analytics — Space-Track</title>
     <link rel="stylesheet" href="../../orbit/orbit.css">
@@ -54,6 +54,44 @@
 
     <main class="st-card-grid" id="analytics-grid">
         <p class="st-stale-note" id="an-stale-note" hidden></p>
+
+        <section class="st-card st-card--wide" id="kpi-card" aria-labelledby="kpi-card-title">
+            <h2 class="st-card__title" id="kpi-card-title">// CATALOG STATUS</h2>
+            <div class="st-kpi-strip" id="an-kpi-strip"></div>
+            <div class="st-hint" id="an-kpi-hint">loading…</div>
+        </section>
+
+        <section class="st-card st-card--wide st-card--chart" id="growth-card" aria-labelledby="growth-card-title">
+            <h2 class="st-card__title" id="growth-card-title">// CATALOG GROWTH</h2>
+            <div id="an-growth-chart"></div>
+            <div class="st-hint" id="an-growth-hint">loading…</div>
+        </section>
+
+        <section class="st-card st-card--chart" id="cohort-card" aria-labelledby="cohort-card-title">
+            <h2 class="st-card__title" id="cohort-card-title">// COHORT SURVIVAL (approx)</h2>
+            <div id="an-cohort-bars"></div>
+            <div class="st-hint" id="an-cohort-hint">loading…</div>
+        </section>
+
+        <section class="st-card st-card--chart" id="type-rcs-card" aria-labelledby="type-rcs-card-title">
+            <h2 class="st-card__title" id="type-rcs-card-title">// TYPE &amp; RCS (on orbit now)</h2>
+            <div class="st-bars" id="an-type-bars"></div>
+            <div class="st-bars" id="an-rcs-bars"></div>
+            <div class="st-hint" id="an-type-hint">loading…</div>
+        </section>
+
+        <section class="st-card st-card--chart" id="altitude-card" aria-labelledby="altitude-card-title">
+            <h2 class="st-card__title" id="altitude-card-title">// ALTITUDE DISTRIBUTION (approx, on orbit now)</h2>
+            <div id="an-altitude-chart"></div>
+            <div class="st-hint" id="an-altitude-hint">loading…</div>
+        </section>
+
+        <section class="st-card st-card--chart" id="inclination-card" aria-labelledby="inclination-card-title">
+            <h2 class="st-card__title" id="inclination-card-title">// INCLINATION DISTRIBUTION (approx, on orbit now)</h2>
+            <div id="an-inclination-chart"></div>
+            <div class="st-hint" id="an-inclination-hint">loading…</div>
+        </section>
+
         <section class="st-card" id="decade-card" aria-labelledby="decade-card-title">
             <h2 class="st-card__title" id="decade-card-title">// LAUNCHES BY DECADE</h2>
             <div class="st-bars" id="an-decade-bars"></div>
