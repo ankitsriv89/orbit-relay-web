@@ -3,6 +3,7 @@ import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
 import { initHamburgerMenu } from '/shared/hud.js';
 import { colorForBoxCode } from '/theme/palette.js';
+import { boxSegments } from '/shared/charts.js';
 
 initHamburgerMenu();
 
@@ -170,16 +171,6 @@ async function loadDecayWatch() {
 // every real row's bar look small by comparison, so both are dropped.
 const boxscoreRows = (countries) => (countries || []).filter(
     (c) => !['ALL', 'TBD'].includes((c.SPADOC_CD || '').toUpperCase()));
-
-function boxSegments(row, maxTotal) {
-    const total = row.COUNTRY_TOTAL || 0;
-    const orbital = row.ORBITAL_TOTAL_COUNT;
-    const decayed = row.DECAYED_TOTAL_COUNT;
-    const bar = total > 0 ? (total / maxTotal) * 100 : 0;
-    const base = Math.max(orbital, 0) + Math.max(decayed, 0);
-    const orbitalPct = base > 0 ? (Math.max(orbital, 0) / base) * 100 : 100;
-    return { bar, orbitalPct, decayedPct: 100 - orbitalPct };
-}
 
 async function loadBoxscore() {
     const bars = $('boxscore-bars');

@@ -830,6 +830,100 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     font-size: 0.5rem;
 }
 
+.st-bar__fill--stacked {
+    display: inline-block;
+    height: 100%;
+    float: left;
+}
+
+.st-bar__fill--stacked:first-child {
+    border-radius: 3px 0 0 3px;
+}
+
+.st-bar__fill--stacked:last-child {
+    border-radius: 0 3px 3px 0;
+}
+
+/* ── Charts (public/shared/charts.js) ──────────────────────────────────────
+ * Thin cyan hairline axes, monospace ticks matching .st-card__title, no heavy
+ * fills — charts read as instrument scopes, not app widgets (plan 38 A4). */
+.st-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.st-chart__grid {
+    stroke: rgba(0, 210, 255, 0.08);
+    stroke-width: 1;
+}
+
+.st-chart__tick {
+    fill: rgba(150, 200, 230, 0.6);
+    font-family: var(--font-mono, monospace);
+    font-size: 8px;
+}
+
+.st-chart__axis-label {
+    fill: rgba(150, 200, 230, 0.5);
+    font-family: var(--font-mono, monospace);
+    font-size: 8px;
+    letter-spacing: 0.4px;
+}
+
+.st-chart__line {
+    stroke: rgba(0, 210, 255, 0.85);
+    stroke-width: 1.5;
+    transition: d 0.3s;
+}
+
+.st-chart__bar {
+    fill: rgba(0, 210, 255, 0.4);
+    transition: height 0.3s, y 0.3s;
+}
+
+.st-chart__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+    font-size: 0.5rem;
+    color: rgba(200, 230, 250, 0.75);
+}
+
+.st-chart__legend-item {
+    position: relative;
+    padding-left: 14px;
+}
+
+.st-chart__legend-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 2px;
+    background: var(--legend-color, rgba(0, 210, 255, 0.85));
+}
+
+/* First reduced-motion handling in the repo (CLAUDE.md: charts are where it
+ * starts). charts.js detects the media query itself and adds this class to
+ * the container so transitions are gated in one place rather than per-page. */
+.charts-reduced-motion .st-chart__line,
+.charts-reduced-motion .st-chart__bar,
+.charts-reduced-motion .st-bar__fill {
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .st-chart__line,
+    .st-chart__bar,
+    .st-bar__fill {
+        transition: none;
+    }
+}
+
 .st-country-matrix {
     overflow-x: auto;
     font-size: 0.5rem;
