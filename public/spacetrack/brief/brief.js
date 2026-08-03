@@ -2,7 +2,7 @@ import { $, setText, num, relTime } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
 import { initHamburgerMenu } from '/shared/hud.js';
-import { colorForCountry } from '/theme/palette.js';
+import { colorForBoxCode } from '/theme/palette.js';
 
 initHamburgerMenu();
 
@@ -20,7 +20,7 @@ function renderBrief(card) {
     if (!section) return;
 
     if (!card || card.available === false || !card.facts) {
-        setText('brief-hint', 'no brief available');
+        setText('brief-hint', (card && card.note) ? card.note : 'no brief available');
         return;
     }
 
@@ -84,6 +84,17 @@ async function loadBrief() {
  * data with no interaction with the 3D view, so it belongs on the
  * informational pages (Brief/Analytics), not floating over the globe.
  */
+// Space-Track has no "what changed" feed; every kind below was derived by the
+// ingest diffing a run against the previous one. Render the raw key with a
+// human word and a semantic class so a scan picks up the shape of the day.
+const EVENT_KIND = {
+    new_object:       { label: 'NEW CATALOG ENTRY', c: 'kind-new' },
+    decay:            { label: 'DECAYED', c: 'kind-decay' },
+    reentry_predicted: { label: 'REENTRY PREDICTED', c: 'kind-predicted' },
+    satcat_change:    { label: 'CATALOG CHANGE', c: 'kind-change' },
+};
+const kindOf = (kind) => EVENT_KIND[kind] || { label: kind.toUpperCase(), c: 'kind-other' };
+
 async function loadFeed() {
     const list = $('feed-list');
     const hint = $('feed-hint');
@@ -99,14 +110,18 @@ async function loadFeed() {
         if (hint) hint.textContent = '';
         for (const e of events) {
             const li = document.createElement('li');
-            li.className = 'st-feed__item';
+            const { label, c } = kindOf(e.kind);
+            li.className = `st-feed__item ${c}`;
+            const tag = document.createElement('span');
+            tag.className = 'st-feed__tag';
+            tag.textContent = label;
             const title = document.createElement('span');
             title.className = 'st-feed__title';
-            title.textContent = e.title || e.kind;
+            title.textContent = e.title || `${e.kind}`;
             const meta = document.createElement('span');
             meta.className = 'st-feed__meta';
-            meta.textContent = `${relTime(e.ts)} · ${e.kind}`;
-            li.append(title, meta);
+            meta.textContent = relTime(e.ts);
+            li.append(tag, title, meta);
             list.appendChild(li);
         }
     } catch (err) {
@@ -127,7 +142,7 @@ async function loadDecayWatch() {
             if (hint) hint.textContent = 'no predicted reentries on file';
             return;
         }
-        if (hint) hint.textContent = '';
+        if (hint) hint.textContent = d.generated_at ? `built ${relTime(d.generated_at)}` : '';
         for (const w of watch) {
             const li = document.createElement('li');
             li.className = 'st-feed__item';
@@ -150,12 +165,28 @@ async function loadDecayWatch() {
 }
 
 /* ── Boxscore: country breakdown ──────────────────────────────────────────── */
+// The boxscore table aggregates pseudo-countries too (`ALL` total line, `TBD`
+// unknown). Neither is a country, and `ALL` would sit atop the ranking and make
+// every real row's bar look small by comparison, so both are dropped.
+const boxscoreRows = (countries) => (countries || []).filter(
+    (c) => !['ALL', 'TBD'].includes((c.SPADOC_CD || '').toUpperCase()));
+
+function boxSegments(row, maxTotal) {
+    const total = row.COUNTRY_TOTAL || 0;
+    const orbital = row.ORBITAL_TOTAL_COUNT;
+    const decayed = row.DECAYED_TOTAL_COUNT;
+    const bar = total > 0 ? (total / maxTotal) * 100 : 0;
+    const base = Math.max(orbital, 0) + Math.max(decayed, 0);
+    const orbitalPct = base > 0 ? (Math.max(orbital, 0) / base) * 100 : 100;
+    return { bar, orbitalPct, decayedPct: 100 - orbitalPct };
+}
+
 async function loadBoxscore() {
     const bars = $('boxscore-bars');
     const hint = $('boxscore-hint');
     try {
         const b = await API.boxscore();
-        const countries = (b.countries || []).slice(0, 10);
+        const countries = boxscoreRows(b?.countries).slice(0, 10);
         if (!bars) return;
         bars.textContent = '';
         if (!countries.length) {
@@ -173,15 +204,30 @@ async function loadBoxscore() {
             label.title = c.COUNTRY;
             const track = document.createElement('div');
             track.className = 'st-boxscore__track';
-            const fill = document.createElement('div');
-            fill.className = 'st-boxscore__fill';
-            const pct = (c.COUNTRY_TOTAL / maxTotal) * 100;
-            fill.style.width = `${pct}%`;
-            fill.style.background = colorForCountry(c.SPADOC_CD || c.COUNTRY);
-            track.appendChild(fill);
+            const { bar, orbitalPct, decayedPct } = boxSegments(c, maxTotal);
+            track.style.width = `${bar}%`;
+            if (orbitalPct < 100) {
+                const orbital = document.createElement('div');
+                orbital.className = 'st-boxscore__fill';
+                orbital.style.width = `${orbitalPct}%`;
+                orbital.style.background = colorForBoxCode(c.SPADOC_CD);
+                orbital.title = `orbital ${num(c.ORBITAL_TOTAL_COUNT)}`;
+                const decayed = document.createElement('div');
+                decayed.className = 'st-boxscore__fill st-boxscore__fill--decayed';
+                decayed.style.flex = '1 1 auto';
+                decayed.title = `decayed ${num(c.DECAYED_TOTAL_COUNT)}`;
+                track.append(orbital, decayed);
+            } else {
+                const fill = document.createElement('div');
+                fill.className = 'st-boxscore__fill';
+                fill.style.width = '100%';
+                fill.style.background = colorForBoxCode(c.SPADOC_CD);
+                track.appendChild(fill);
+            }
             const count = document.createElement('span');
             count.className = 'st-boxscore__count';
             count.textContent = num(c.COUNTRY_TOTAL);
+            count.title = `orbital ${num(c.ORBITAL_TOTAL_COUNT)} · decayed ${num(c.DECAYED_TOTAL_COUNT)}`;
             row.append(label, track, count);
             bars.appendChild(row);
         }

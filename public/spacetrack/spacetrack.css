@@ -525,6 +525,39 @@ body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scro
     color: rgba(225, 245, 255, 0.95);
 }
 
+/* Event-kind tag: the feed mixes four derived event kinds and the mix is the
+ * signal, so the tag is structural, not decoration. */
+.st-feed__tag {
+    display: inline-block;
+    margin-bottom: 2px;
+    padding: 1px 5px;
+    font-size: 0.47rem;
+    letter-spacing: 0.8px;
+    border-radius: 3px;
+    background: rgba(150, 200, 230, 0.12);
+    color: rgba(170, 215, 245, 0.9);
+}
+
+.st-feed__item.kind-new .st-feed__tag {
+    background: rgba(0, 210, 255, 0.18);
+    color: rgba(120, 235, 255, 0.98);
+}
+
+.st-feed__item.kind-decay .st-feed__tag {
+    background: rgba(245, 166, 35, 0.18);
+    color: rgba(255, 214, 120, 0.95);
+}
+
+.st-feed__item.kind-predict .st-feed__tag {
+    background: rgba(255, 95, 109, 0.16);
+    color: rgba(255, 170, 180, 0.95);
+}
+
+.st-feed__item.kind-change .st-feed__tag {
+    background: rgba(150, 200, 230, 0.1);
+    color: rgba(190, 220, 240, 0.9);
+}
+
 .st-feed__meta {
     display: block;
     font-size: 0.53rem;
@@ -810,6 +843,61 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     padding-right: 6px;
 }
 
+/* Heatmap cells: background scaled to `--heat` (0..1) against the global max,
+ * so the era that dominates a state reads before the number does. Zeros do not
+ * get ink — a bare dash is visually distinct from a real count. */
+.st-matrix__cell {
+    position: relative;
+    color: rgba(225, 245, 255, 0.95);
+    background: linear-gradient(
+        180deg,
+        rgba(0, 210, 255, calc(0.1 + var(--heat) * 0.55)),
+        rgba(0, 210, 255, calc(0.22 + var(--heat) * 0.72))
+    );
+}
+
+.st-matrix__zero {
+    color: rgba(150, 200, 230, 0.35);
+}
+
+.st-matrix__country {
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+
+.st-matrix__total {
+    color: rgba(120, 235, 255, 0.95);
+    border-left: 1px solid rgba(0, 210, 255, 0.15);
+}
+
+.st-matrix__grand {
+    font-weight: 700;
+}
+
+.st-country-matrix tfoot .st-matrix__total,
+.st-country-matrix tfoot .st-matrix__grand {
+    border-top: 1px solid rgba(0, 210, 255, 0.2);
+}
+
+/* Degraded-mode banner: artifact not built yet — data counts live from D1, so
+ * be honest about what the panels actually are. */
+.st-stale-note {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 0.5rem;
+    letter-spacing: 0.6px;
+    line-height: 1.5;
+    color: rgba(245, 190, 120, 0.9);
+    background: rgba(245, 166, 35, 0.08);
+    border: 1px solid rgba(245, 166, 35, 0.35);
+    border-radius: 4px;
+}
+
+.st-stale-note[hidden] {
+    display: none;
+}
+
 /* .mobile-bottom-nav (base rule) and .filter-drawer-overlay (base rule) are
  * shared with orbit.css and now live in css/chrome.css. */
 
@@ -1008,6 +1096,7 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     .st-signal-section__title,
     .st-result__meta,
     .st-feed__meta,
+    .st-feed__tag,
     .st-unofficial,
     .st-dossier__status,
     .st-dossier__id,
@@ -1105,6 +1194,9 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     background: rgba(0, 210, 255, 0.08);
     overflow: hidden;
     position: relative;
+    display: flex;
+    align-items: stretch;
+    max-width: 100%;
 }
 
 .st-boxscore__fill {
@@ -1113,11 +1205,48 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     transition: width 0.4s ease-out;
 }
 
+/* Decayed shares are always the right-hand residue of an orbital share — kept
+ * on one tonal grey so the reader reads "still up vs gone" rather than a
+ * second country colour. */
+.st-boxscore__fill--decayed {
+    background: rgba(150, 200, 230, 0.28);
+    border-radius: 3px;
+}
+
 .st-boxscore__count {
     color: rgba(150, 200, 230, 0.7);
     text-align: right;
     font-variant-numeric: tabular-nums;
     font-size: 0.5rem;
+}
+
+.st-boxscore__legend {
+    display: flex;
+    gap: 12px;
+    margin: 0 0 8px;
+    font-size: 0.48rem;
+    letter-spacing: 0.7px;
+    color: rgba(150, 200, 230, 0.7);
+}
+
+.st-boxscore__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.st-boxscore__legend-swatch {
+    width: 12px;
+    height: 6px;
+    border-radius: 2px;
+}
+
+.st-boxscore__legend-swatch--orbital {
+    background: rgba(0, 210, 255, 0.65);
+}
+
+.st-boxscore__legend-swatch--decayed {
+    background: rgba(150, 200, 230, 0.28);
 }
 
 /* ── Static card grid (Brief, Analytics) ──────────────────────────────────

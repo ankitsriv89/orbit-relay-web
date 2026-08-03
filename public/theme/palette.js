@@ -75,6 +75,26 @@ export function colorForCountry(country) {
 }
 
 /**
+ * Map a boxscore SPADOC_CD (e.g. `CIS`, `PRC`, `UK`) onto the country palette,
+ * whose keys are the two-letter codes used by GP's COUNTRY_CODE. The raw box
+ * table ships its own code set, so a direct lookup turns everything that is not
+ * `US`/`FR`/`IT`/`CA` into default grey. Aliasing keeps one color source.
+ */
+const BOX_CD = {
+    'US': 'US', 'USA': 'US', 'CIS': 'RU', 'RUS': 'RU', 'PRC': 'CN', 'CHN': 'CN',
+    'GB': 'GB', 'UK': 'GB', 'GBR': 'GB', 'JPN': 'JP', 'IND': 'IN', 'GER': 'DE',
+    'FR': 'FR', 'FRA': 'FR', 'IT': 'IT', 'ITA': 'IT', 'SKOR': 'KR', 'KOR': 'KR',
+    'AUS': 'AU', 'BRAZ': 'BR', 'ISRA': 'IL', 'UAE': 'AE', 'CA': 'CA',
+    'TBD': null, 'ALL': null, 'ORB': null,
+};
+
+export function colorForBoxCode(code) {
+    const key = (code || '').toUpperCase().trim();
+    const alias = BOX_CD[key] ?? key;
+    return alias ? colorForCountry(alias) : COUNTRY_DEFAULT;
+}
+
+/**
  * Derive a display color for a satellite row based on the current color mode.
  * @param {object} row  A catalog search result row
  * @param {'type'|'country'|'cb'} mode
