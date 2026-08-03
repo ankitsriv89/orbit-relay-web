@@ -87,6 +87,29 @@ export function status(elOrId, msg) {
     if (el) el.textContent = msg;
 }
 
+/**
+ * Turn a failed API call into a status line that says *why*.
+ *
+ * The filter form used to report every failure as the bare string "query
+ * failed", so a rejected filter value, an offline box, and a 500 were
+ * indistinguishable — the reason existed only in the console. `fetchJSON`
+ * attaches the API's own `{"error": …}` message as `err.detail`; prefer it,
+ * fall back to the shape of the failure.
+ */
+export function queryFailure(err) {
+    if (err && err.detail) return err.detail;
+    if (err && err.status) {
+        if (err.status === 400) return 'query rejected — check the filter values';
+        if (err.status === 404) return 'query failed — endpoint not found';
+        if (err.status >= 500) return `query failed — server error (${err.status})`;
+        return `query failed — HTTP ${err.status}`;
+    }
+    /* No status: fetch itself rejected (offline, DNS, CORS) or the URL was
+       malformed before the request was ever made. */
+    if (err instanceof TypeError) return 'query failed — could not reach the API';
+    return 'query failed';
+}
+
 export const $ = (id) => document.getElementById(id);
 
 /**

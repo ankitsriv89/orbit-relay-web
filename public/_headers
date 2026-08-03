@@ -18,20 +18,26 @@
 /orbit-engine/vendor/*
   Cache-Control: public, max-age=604800
 
+# App routes. These are hand-edited ES modules with un-hashed filenames, so a
+# flat 24h max-age meant a shipped fix could not reach a browser that had
+# already cached the broken file for a day — which is exactly how the
+# `Invalid URL` failure in spacetrack/shared/api.js survived its own fix.
+# Same stale-while-revalidate pattern as /css/* and /js/* below: served
+# instantly from cache, revalidated in the background.
 /orbit/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
 /spacetrack/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
 /starlink/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
 /about/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
 /wiki/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
 # Landing-page assets. Un-hashed filenames rule out immutable long-TTL caching;
 # stale-while-revalidate gets the latency without serving a stale file for a day.

@@ -27,18 +27,34 @@ async function fetchJSON(url, options = {}) {
         ...options,
     });
     if (!response.ok) {
-        throw new Error(`${url} ${response.status}`);
+        /* The API answers a rejected filter with {"error": "Unknown era. Use one
+           of: …"} — a message worth showing. Fall back to the status when the
+           body is empty or not JSON (a gateway error page, say). */
+        let detail = '';
+        try {
+            const body = await response.json();
+            if (body && typeof body.error === 'string') detail = body.error;
+        } catch (_) {}
+        const err = new Error(detail || `${url} ${response.status}`);
+        err.status = response.status;
+        err.detail = detail;
+        throw err;
     }
     return response.json();
 }
 
 export const API = {
     async search(params) {
-        const url = new URL(`${API_BASE}/search`, window.location.origin);
+        /* Build the query with URLSearchParams, not `new URL(…, location.origin)`:
+           on a file:// page `origin` is the string "null" and the URL constructor
+           throws "Invalid URL". fetch() resolves a relative path on its own, which
+           is what every other method here already relies on. */
+        const qs = new URLSearchParams();
         Object.entries(params).forEach(([k, v]) => {
-            if (v !== '' && v != null) url.searchParams.set(k, v);
+            if (v !== '' && v != null) qs.set(k, v);
         });
-        return fetchJSON(url);
+        const query = qs.toString();
+        return fetchJSON(`${API_BASE}/search${query ? `?${query}` : ''}`);
     },
 
     async summary() {

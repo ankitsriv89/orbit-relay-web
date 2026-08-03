@@ -11,7 +11,7 @@ import {
     wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds,
     wireRevsButton, syncRevsButtons, currentRevs,
 } from '/shared/hud.js';
-import { regimeSize, on } from './shared/utils.js';
+import { regimeSize, on, queryFailure } from './shared/utils.js';
 import { exposeDebug } from './shared/debug.js';
 import { createHeatmap } from './overlays/heatmap.js';
 import { createDebris } from './overlays/debris.js';
@@ -398,7 +398,7 @@ async function render() {
         data = await API.search(Object.fromEntries(params));
     } catch (err) {
         console.warn('[catalog] search failed:', err);
-        status('query failed');
+        status(queryFailure(err));
         return;
     }
 
@@ -544,7 +544,8 @@ function wirePresetBtns(precentId, decayId) {
             try {
                 data = await API.search(Object.fromEntries(params));
             } catch (err) {
-                status('query failed');
+                console.warn('[catalog] decay-preset search failed:', err);
+                status(queryFailure(err));
                 return;
             }
             const filtered = (data.results || []).filter(row => {
