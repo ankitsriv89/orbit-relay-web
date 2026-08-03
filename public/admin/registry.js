@@ -3,5 +3,6 @@ import runs from './panels/runs.js';
 import visitors from './panels/visitors.js';
 import cf from './panels/cf.js';
 import sql from './panels/sql.js';
+import briefEditor from './panels/brief-editor.js';
 
-export const PANELS = [health, runs, visitors, cf, sql];
+export const PANELS = [health, runs, visitors, cf, sql, briefEditor];

@@ -522,6 +522,15 @@ body[data-page-id="admin"] {
 }
 .admin-sql-input:focus { border-color: var(--c-signal); }
 
+/* Brief editor's date field — .admin-sql-input's textarea sizing (80px
+   min-height, resize:vertical) is wrong for a single-line date picker, but
+   the field still needs a >=44px touch target. */
+.admin-date-input {
+    min-height: 44px;
+    width: auto;
+    resize: none;
+}
+
 .admin-btn {
     padding: 8px 16px;
     font-family: var(--font-mono);

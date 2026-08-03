@@ -191,7 +191,7 @@ targets on the archive selector.
 
 ---
 
-## [ ] 8 — Admin brief editor
+## [x] 8 — Admin brief editor
 
 **Files:** `functions/api/admin/brief.js`, `public/admin/panels/brief-editor.js`,
 one line in `public/admin/registry.js`

@@ -14,6 +14,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nextRun, nextDue, ACTIONS_CRONS } from '../../../public/admin/cron.js';
 import { onRequest as hitOnRequest } from '../../../functions/api/hit.js';
+import { onRequestPost as briefEditPost } from '../../../functions/api/admin/brief.js';
+import { fakeR2 } from './fakes.mjs';
 
 // ── Inline the functions under test (they are pure, no bindings needed) ────
 
@@ -523,6 +525,174 @@ await testAsync('a bot UA is a 204 no-op, no row written', async () => {
   await Promise.all(ctx._pending);
   const row = db.prepare('SELECT COUNT(*) AS n FROM page_views').get();
   assert.equal(row.n, 0);
+});
+
+console.log('\n-- /api/admin/brief (manual editor, plan 38 task 8) --');
+
+function briefRequest(body) {
+  return new Request('https://x/api/admin/brief', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+function seedCard(r2, date, overrides = {}) {
+  const card = {
+    generated_at: `${date}T00:00:00.000Z`,
+    citation: 'Space-Track',
+    facts: { new_objects: 3, decays: 1 },
+    narrative: 'A prior AI narrative about three new objects.',
+    narrative_status: 'ok',
+    narrative_source: 'ai',
+    ...overrides,
+  };
+  r2.puts.set(`brief/${date}.json`, { body: JSON.stringify(card), opts: {} });
+  return card;
+}
+
+await testAsync('overwrites narrative, sets narrative_source manual, leaves facts untouched', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2026-08-01');
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: '2026-08-01', narrative: 'A'.repeat(65) }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.narrative_source, 'manual');
+
+  const stored = JSON.parse(r2.puts.get('brief/2026-08-01.json').body);
+  assert.equal(stored.narrative_source, 'manual');
+  assert.equal(stored.narrative, 'A'.repeat(65));
+  assert.deepEqual(stored.facts, { new_objects: 3, decays: 1 }, 'facts must be untouched by a manual edit');
+});
+
+await testAsync('defaults date to today when omitted', async () => {
+  const r2 = fakeR2();
+  const today = new Date().toISOString().slice(0, 10);
+  seedCard(r2, today);
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({ request: briefRequest({ narrative: 'B'.repeat(65) }), env });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.date, today);
+});
+
+await testAsync('missing day (no auto card yet) is rejected, not silently created', async () => {
+  const r2 = fakeR2();
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: '2026-01-01', narrative: 'C'.repeat(65) }),
+    env,
+  });
+  assert.equal(res.status, 404);
+});
+
+await testAsync('forbidden collision language is rejected on manual text too', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2026-08-01');
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({
+      date: '2026-08-01',
+      narrative: 'This object has a predicted conjunction with another satellite next week for sure.',
+    }),
+    env,
+  });
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.match(body.error, /conjunction|collision/i);
+});
+
+await testAsync('manual text may contain a number absent from the facts (no grounding gate)', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2026-08-01');
+  const env = { ORBIT_R2: r2 };
+  const narrative = 'A hand-written note about 42 objects that the automated facts never counted.'.padEnd(65, ' .');
+  const res = await briefEditPost({ request: briefRequest({ date: '2026-08-01', narrative }), env });
+  assert.equal(res.status, 200, 'manual narrative must skip the number-grounding gate entirely');
+});
+
+await testAsync('too-short narrative is rejected', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2026-08-01');
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({ request: briefRequest({ date: '2026-08-01', narrative: 'too short' }), env });
+  assert.equal(res.status, 400);
+});
+
+await testAsync('malformed date is rejected', async () => {
+  const r2 = fakeR2();
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: '08/01/2026', narrative: 'D'.repeat(65) }),
+    env,
+  });
+  assert.equal(res.status, 400);
+});
+
+await testAsync('rewrites the index after a manual save', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2026-08-01');
+  seedCard(r2, '2026-08-02', { narrative: null, narrative_status: 'skipped: nothing to report', narrative_source: 'none' });
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: '2026-08-01', narrative: 'E'.repeat(65) }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const index = JSON.parse(r2.puts.get('brief/index.json').body);
+  assert.equal(index.total, 2);
+  const day = index.days.find((d) => d.date === '2026-08-01');
+  assert.equal(day.narrative_source, 'manual');
+});
+
+await testAsync('editing today also refreshes brief/latest.json', async () => {
+  const r2 = fakeR2();
+  const today = new Date().toISOString().slice(0, 10);
+  seedCard(r2, today);
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: today, narrative: 'F'.repeat(65) }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const latest = JSON.parse(r2.puts.get('brief/latest.json').body);
+  assert.equal(latest.narrative_source, 'manual');
+  assert.equal(latest.narrative, 'F'.repeat(65));
+});
+
+await testAsync('editing a past day does not touch brief/latest.json', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2020-01-01');
+  r2.puts.set('brief/latest.json', { body: JSON.stringify({ narrative_source: 'ai', narrative: 'untouched' }), opts: {} });
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: '2020-01-01', narrative: 'G'.repeat(65) }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const latest = JSON.parse(r2.puts.get('brief/latest.json').body);
+  assert.equal(latest.narrative_source, 'ai', 'a past-day edit must not overwrite today\'s live card');
+});
+
+await testAsync('optional note is stored, capped at 500 chars', async () => {
+  const r2 = fakeR2();
+  seedCard(r2, '2026-08-01');
+  const env = { ORBIT_R2: r2 };
+  const res = await briefEditPost({
+    request: briefRequest({ date: '2026-08-01', narrative: 'H'.repeat(65), note: 'x'.repeat(600) }),
+    env,
+  });
+  assert.equal(res.status, 200);
+  const stored = JSON.parse(r2.puts.get('brief/2026-08-01.json').body);
+  assert.equal(stored.editor_note.length, 500);
+});
+
+await testAsync('missing ORBIT_R2 binding is a 503, not a crash', async () => {
+  const res = await briefEditPost({ request: briefRequest({ narrative: 'I'.repeat(65) }), env: {} });
+  assert.equal(res.status, 503);
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────
