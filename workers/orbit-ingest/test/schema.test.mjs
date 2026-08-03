@@ -174,6 +174,25 @@ for (const [table, need] of Object.entries(ADMIN_TABLES)) {
   });
 }
 
+console.log('\n-- launch_sites (plan 38 task 2) --');
+
+// No fixtures/modeldef_launch_site.json exists yet — pulling it needs a real
+// Space-Track session, which this suite's offline harness does not have (see
+// d1/orbit.sql's TODO on the table). Until that fixture lands, this asserts
+// the columns ingest-launch-sites.js and buildAnalytics's join actually use,
+// the same fallback the admin-only tables above use for the same reason.
+test('launch_sites declares every column the ingest and the analytics join read', () => {
+  const have = new Set(tableColumns('launch_sites'));
+  const missing = ['SITE_CODE', 'LAUNCH_SITE', 'updated_at'].filter(c => !have.has(c));
+  assert.deepEqual(missing, []);
+});
+
+test('launch_sites.SITE_CODE is the PRIMARY KEY (upsert target)', () => {
+  const m = sql.match(/CREATE TABLE IF NOT EXISTS launch_sites \(([\s\S]*?)\n\);/i);
+  assert.ok(m, 'no CREATE TABLE for launch_sites');
+  assert.ok(/SITE_CODE\s+TEXT\s+PRIMARY KEY/.test(m[1]), 'SITE_CODE must be PRIMARY KEY');
+});
+
 test('the admin queries the endpoints run are answerable by the schema', () => {
   // visitors.js runs these against page_views; runs.js and health.js read
   // ingest_runs. None of them may reference a column that does not exist.

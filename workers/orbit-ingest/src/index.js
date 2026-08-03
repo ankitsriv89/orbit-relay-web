@@ -21,6 +21,7 @@ import { ingestGP } from './ingest-gp.js';
 import { ingestSatcat } from './ingest-satcat.js';
 import { ingestDecay } from './ingest-decay.js';
 import { ingestBoxscore } from './ingest-boxscore.js';
+import { ingestLaunchSites } from './ingest-launch-sites.js';
 import { buildGroupArtifacts, buildFullCatalog, buildSummary, buildFeed, buildAnalytics } from './derive.js';
 import { buildBrief } from './brief.js';
 import { MAX_CALLS_PER_HOUR } from './spacetrack.js';
@@ -107,6 +108,9 @@ export async function runDaily(env) {
 export async function runWeekly(env) {
   const report = { job: 'weekly', ok: true, steps: [] };
   await step(report, 'ingest-decay-60day', () => ingestDecay(env, '60day'));
+  // Static ~60-row map, wrapped in step() like every other job: a failure here
+  // must not take down the 60-day decay predictions this job exists for.
+  await step(report, 'ingest-launch-sites', () => ingestLaunchSites(env));
   await step(report, 'feed', async () => { await buildFeed(env); return {}; });
   return report;
 }

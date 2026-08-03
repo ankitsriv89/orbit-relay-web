@@ -96,7 +96,12 @@ CREATE INDEX IF NOT EXISTS idx_objects_name      ON objects(OBJECT_NAME COLLATE 
 -- ── satcat ─────────────────────────────────────────────────────────────────
 -- The satellite catalogue proper. Pulled once a day, delta only, by FILE
 -- number — `class/satcat/file/>{lastFile}` — with the high-water mark kept in
--- KV. Carries the fields GP does not, chiefly the human-readable launch site.
+-- KV. Carries the fields GP does not, chiefly the DECAY date for objects that
+-- have left orbit. NOTE: satcat.SITE is the same opaque site CODE objects.SITE
+-- holds, and satcat.LAUNCH is a launch DATE, not a site name — despite this
+-- table's name, satcat does NOT carry a human-readable launch site (see
+-- `launch_sites` below for that; plan 38 task 2 corrected this comment after
+-- an earlier draft of that plan built on the wrong assumption).
 -- All 24 fields from modeldef/class/satcat. Note APOGEE/PERIGEE here vs
 -- APOAPSIS/PERIAPSIS in GP — same quantity, different class, and the reason
 -- this table does not simply reuse the objects column names.
@@ -129,6 +134,23 @@ CREATE TABLE IF NOT EXISTS satcat (
 );
 
 CREATE INDEX IF NOT EXISTS idx_satcat_file ON satcat(FILE);
+
+-- ── launch_sites ───────────────────────────────────────────────────────────
+-- Space-Track's own `launch_site` class: the authoritative SITE_CODE →
+-- LAUNCH_SITE name map (~60 static rows, e.g. AFETR → "Cape Canaveral SFS").
+-- Neither `objects.SITE` nor `satcat.SITE` (see the comment above) carries a
+-- name — this table is the one place that does. Pulled weekly, not daily: the
+-- data effectively never changes and the daily job is already the long one
+-- (plan 38 task 2). TODO: cross-check against fixtures/modeldef_launch_site.json
+-- once someone with Space-Track credentials pulls it (see AGENTS.md pattern
+-- for the other classes); this table is built from the public glossary's
+-- description of the class, not a live modeldef response, so it is not yet
+-- covered by schema.test.mjs's upstream-field cross-check.
+CREATE TABLE IF NOT EXISTS launch_sites (
+  SITE_CODE   TEXT PRIMARY KEY,
+  LAUNCH_SITE TEXT,
+  updated_at  TEXT
+);
 
 -- ── decay ──────────────────────────────────────────────────────────────────
 -- Decay and reentry messages. Two feeds land here: the daily current-messages

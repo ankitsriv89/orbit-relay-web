@@ -274,6 +274,10 @@ export const Q = {
   decay60Day: () => 'class/decay/MSG_EPOCH/%3Enow-8/source/60day_msg/format/json',
   boxscore:   () => 'class/boxscore/format/json',
   tipRecent:  () => 'class/tip/INSERT_EPOCH/%3Enow-0.042/format/json',
+  // ~60 static rows, SITE_CODE -> LAUNCH_SITE. Queried weekly (plan 38 task 2)
+  // via the plain, unfiltered class query since the whole table is small and
+  // effectively static — there is no delta cursor worth maintaining.
+  launchSites: () => 'class/launch_site/format/json',
   // GP_HISTORY is 1/lifetime and we never query it. Listed so the omission
   // reads as deliberate rather than forgotten.
 };

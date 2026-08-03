@@ -42,7 +42,7 @@ gone red has not been tested.
 
 ---
 
-## [ ] 2 — `launch_site` ingest (retires the AGENTS.md wart)
+## [x] 2 — `launch_site` ingest (retires the AGENTS.md wart)
 
 **Why:** `satcat.LAUNCH` is a launch **date**, not a site name — the first draft of this
 plan was wrong about this, and `d1/orbit.sql:98-99`'s comment is what misled it. The
