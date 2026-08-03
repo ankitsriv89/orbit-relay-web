@@ -81,8 +81,12 @@ export const API = {
         return fetchJSON(`${API_BASE}/boxscore`);
     },
 
-    async brief() {
-        return fetchJSON(`${API_BASE}/brief`);
+    async brief(date) {
+        return fetchJSON(`${API_BASE}/brief${date ? `?date=${date}` : ''}`);
+    },
+
+    async briefIndex() {
+        return fetchJSON(`${API_BASE}/brief?index`);
     },
 
     async analytics() {

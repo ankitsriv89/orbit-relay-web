@@ -168,7 +168,7 @@ round-trips `'manual'`; the index respects the 90-day cap.
 
 ---
 
-## [ ] 7 — Rebuild `/spacetrack/brief/`
+## [x] 7 — Rebuild `/spacetrack/brief/`
 
 **Files:** `public/spacetrack/brief/{index.html,brief.js}`, `spacetrack.css`
 

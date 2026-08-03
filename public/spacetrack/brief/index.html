@@ -52,44 +52,63 @@
         </div>
     </div>
 
-    <main class="st-card-grid" id="brief-grid">
-        <section class="st-card" id="brief-card" aria-labelledby="brief-card-title">
-            <h2 class="st-card__title" id="brief-card-title">// DAILY BRIEF</h2>
-            <div class="hud-row"><span class="hud-label">NEW OBJECTS</span><span id="brief-new" class="hud-val">—</span></div>
-            <div class="hud-row"><span class="hud-label">DECAYED</span><span id="brief-decayed" class="hud-val">—</span></div>
-            <div class="hud-row"><span class="hud-label">REENTRY WATCH</span><span id="brief-reentry" class="hud-val">—</span></div>
-            <div class="hud-row"><span class="hud-label">ON ORBIT</span><span id="brief-tracked" class="hud-val">—</span></div>
-            <div class="hud-row"><span class="hud-label">PAYLOADS</span><span id="brief-payloads" class="hud-val">—</span></div>
-            <div class="hud-row"><span class="hud-label">DEBRIS</span><span id="brief-debris" class="hud-val">—</span></div>
-            <hr class="hud-divider">
-            <div class="st-machine" id="brief-badge" hidden><strong>✦ AI NARRATIVE</strong> generated from computed facts — reviewed by fact-check</div>
-            <div class="st-brief__narrative" id="brief-narrative" hidden></div>
-            <hr class="hud-divider" id="brief-narrative-divider" hidden>
-            <div class="st-signal-section__title">REENTRY HIGHLIGHTS</div>
-            <ul class="st-feed" id="brief-highlights"></ul>
-            <div class="st-hint" id="brief-hint">loading…</div>
-        </section>
+    <main class="st-brief-grid" id="brief-grid">
+        <div class="st-brief-grid__main">
+            <section class="st-card st-card--chart" id="archive-card" aria-labelledby="archive-card-title">
+                <h2 class="st-card__title" id="archive-card-title">// ARCHIVE</h2>
+                <div class="st-archive-scroll">
+                    <div id="archive-sparkline"></div>
+                </div>
+                <div class="st-archive__selector" id="archive-selector" role="listbox" aria-label="Select a day"></div>
+                <div class="st-hint" id="archive-hint">loading…</div>
+            </section>
 
-        <section class="st-card" id="activity-card" aria-labelledby="activity-card-title">
-            <h2 class="st-card__title" id="activity-card-title">// ACTIVITY</h2>
-            <div class="st-signal-section__title">SIGNAL FEED</div>
-            <ul class="st-feed" id="feed-list"></ul>
-            <div class="st-hint" id="feed-hint">loading…</div>
-            <hr class="hud-divider">
-            <div class="st-signal-section__title">REENTRY WATCH</div>
-            <ul class="st-feed" id="decay-list"></ul>
-            <div class="st-hint" id="decay-hint">loading…</div>
-        </section>
+            <section class="st-card" id="brief-card" aria-labelledby="brief-card-title">
+                <h2 class="st-card__title" id="brief-card-title">// DAILY BRIEF <span id="brief-date"></span></h2>
+                <div class="hud-row"><span class="hud-label">NEW OBJECTS</span><span id="brief-new" class="hud-val">—</span></div>
+                <div class="hud-row"><span class="hud-label">DECAYED</span><span id="brief-decayed" class="hud-val">—</span></div>
+                <div class="hud-row"><span class="hud-label">REENTRY WATCH</span><span id="brief-reentry" class="hud-val">—</span></div>
+                <div class="hud-row"><span class="hud-label">ON ORBIT</span><span id="brief-tracked" class="hud-val">—</span></div>
+                <div class="hud-row"><span class="hud-label">PAYLOADS</span><span id="brief-payloads" class="hud-val">—</span></div>
+                <div class="hud-row"><span class="hud-label">DEBRIS</span><span id="brief-debris" class="hud-val">—</span></div>
+                <hr class="hud-divider">
+                <div class="st-machine" id="brief-badge" hidden><strong id="brief-badge-label">✦ AI NARRATIVE</strong> <span id="brief-badge-text">generated from computed facts — reviewed by fact-check</span></div>
+                <div class="st-brief__narrative" id="brief-narrative" hidden></div>
+                <hr class="hud-divider" id="brief-narrative-divider" hidden>
+                <div class="st-signal-section__title">REENTRY HIGHLIGHTS</div>
+                <ul class="st-feed" id="brief-highlights"></ul>
+                <div class="st-hint" id="brief-hint">loading…</div>
+            </section>
 
-        <section class="st-card" id="boxscore-card" aria-labelledby="boxscore-card-title">
-            <h2 class="st-card__title" id="boxscore-card-title">// BOXSCORE — TOP COUNTRIES</h2>
-            <div class="st-boxscore__legend" aria-hidden="true">
-                <span><i class="st-boxscore__legend-swatch st-boxscore__legend-swatch--orbital"></i>ORBITAL</span>
-                <span><i class="st-boxscore__legend-swatch st-boxscore__legend-swatch--decayed"></i>DECAYED</span>
-            </div>
-            <div class="st-boxscore" id="boxscore-bars"></div>
-            <div class="st-hint" id="boxscore-hint">loading…</div>
-        </section>
+            <section class="st-card" id="news-card" aria-labelledby="news-card-title">
+                <h2 class="st-card__title" id="news-card-title">// RECENT CATALOG ENTRIES</h2>
+                <ul class="st-feed" id="news-list"></ul>
+                <div class="st-hint" id="news-hint">loading…</div>
+            </section>
+        </div>
+
+        <div class="st-brief-grid__rail">
+            <section class="st-card" id="activity-card" aria-labelledby="activity-card-title">
+                <h2 class="st-card__title" id="activity-card-title">// ACTIVITY</h2>
+                <div class="st-signal-section__title">SIGNAL FEED</div>
+                <ul class="st-feed" id="feed-list"></ul>
+                <div class="st-hint" id="feed-hint">loading…</div>
+                <hr class="hud-divider">
+                <div class="st-signal-section__title">REENTRY WATCH</div>
+                <ul class="st-feed" id="decay-list"></ul>
+                <div class="st-hint" id="decay-hint">loading…</div>
+            </section>
+
+            <section class="st-card" id="boxscore-card" aria-labelledby="boxscore-card-title">
+                <h2 class="st-card__title" id="boxscore-card-title">// BOXSCORE — TOP COUNTRIES</h2>
+                <div class="st-boxscore__legend" aria-hidden="true">
+                    <span><i class="st-boxscore__legend-swatch st-boxscore__legend-swatch--orbital"></i>ORBITAL</span>
+                    <span><i class="st-boxscore__legend-swatch st-boxscore__legend-swatch--decayed"></i>DECAYED</span>
+                </div>
+                <div class="st-boxscore" id="boxscore-bars"></div>
+                <div class="st-hint" id="boxscore-hint">loading…</div>
+            </section>
+        </div>
     </main>
 
     <footer class="orbital-footer">

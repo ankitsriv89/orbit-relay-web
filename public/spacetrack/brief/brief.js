@@ -3,7 +3,7 @@ import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
 import { initHamburgerMenu } from '/shared/hud.js';
 import { colorForBoxCode } from '/theme/palette.js';
-import { boxSegments } from '/shared/charts.js';
+import { boxSegments, svgLine } from '/shared/charts.js';
 
 initHamburgerMenu();
 
@@ -14,14 +14,39 @@ initHamburgerMenu();
  * The facts render whether or not a narrative came with them. That ordering is
  * the feature: with generation switched off the panel is a digest of numbers
  * that are all still true.
+ *
+ * The page also carries an 90-day archive (plan 38 task 5/6): a sparkline +
+ * day selector drives which card is on screen, defaulting to today. Selecting
+ * an older day re-fetches that day's card via `?date=` — the same flat R2
+ * read `/api/brief` already serves for `latest.json`, there is no separate
+ * "archive" endpoint or synthesis on read (CLAUDE.md: brief.js has no D1
+ * fallback, deliberately, and that invariant extends to any archived day).
  */
 
-function renderBrief(card) {
+let selectedDate = null; // null = today / latest.json
+
+function renderBrief(card, dateLabel) {
     const section = $('brief-card');
     if (!section) return;
 
+    setText('brief-date', dateLabel ? `— ${dateLabel}` : '');
+
     if (!card || card.available === false || !card.facts) {
         setText('brief-hint', (card && card.note) ? card.note : 'no brief available');
+        setText('brief-new', '—');
+        setText('brief-decayed', '—');
+        setText('brief-reentry', '—');
+        setText('brief-tracked', '—');
+        setText('brief-payloads', '—');
+        setText('brief-debris', '—');
+        const el = $('brief-narrative');
+        if (el) el.hidden = true;
+        const badge = $('brief-badge');
+        if (badge) badge.hidden = true;
+        const divider = $('brief-narrative-divider');
+        if (divider) divider.hidden = true;
+        const list = $('brief-highlights');
+        if (list) list.textContent = '';
         return;
     }
 
@@ -35,10 +60,9 @@ function renderBrief(card) {
 
     const narrative = typeof card.narrative === 'string' ? card.narrative.trim() : '';
     const el = $('brief-narrative');
-    const badge = $('brief-badge');
     const divider = $('brief-narrative-divider');
     if (el) { el.textContent = narrative; el.hidden = !narrative; }
-    if (badge) badge.hidden = !narrative;
+    renderBadge(card, narrative);
     if (divider) divider.hidden = !narrative;
 
     const list = $('brief-highlights');
@@ -61,6 +85,29 @@ function renderBrief(card) {
     setText('brief-hint', briefHint(card));
 }
 
+/* The `.st-machine` badge asserts fact-checked AI provenance — a manual edit
+ * (plan 38 task 8's `/api/admin/brief`) must never pass under that claim, so
+ * `narrative_source: 'manual'` swaps both the label and the box's styling
+ * rather than reusing the AI copy with different words. */
+function renderBadge(card, narrative) {
+    const badge = $('brief-badge');
+    if (!badge) return;
+    badge.hidden = !narrative;
+    if (!narrative) return;
+
+    const label = $('brief-badge-label');
+    const text = $('brief-badge-text');
+    if (card.narrative_source === 'manual') {
+        badge.classList.add('st-machine--manual');
+        if (label) label.textContent = '✎ EDITED';
+        if (text) text.textContent = 'written by a human editor, not generated from the figures above';
+    } else {
+        badge.classList.remove('st-machine--manual');
+        if (label) label.textContent = '✦ AI NARRATIVE';
+        if (text) text.textContent = 'generated from computed facts — reviewed by fact-check';
+    }
+}
+
 function briefHint(card) {
     const when = card.generated_at ? relTime(card.generated_at) : 'unknown';
     const status = card.narrative_status || '';
@@ -71,13 +118,85 @@ function briefHint(card) {
     return `built ${when}`;
 }
 
-async function loadBrief() {
+async function loadBrief(date) {
     try {
-        renderBrief(await API.brief());
+        const card = await API.brief(date);
+        renderBrief(card, date);
     } catch (err) {
         console.warn('[brief] failed:', err);
         setText('brief-hint', 'brief unavailable');
     }
+}
+
+/* ── Archive: sparkline + day selector ────────────────────────────────────── */
+
+let archiveIndex = null;
+
+async function loadArchive() {
+    const hint = $('archive-hint');
+    try {
+        const idx = await API.briefIndex();
+        archiveIndex = idx;
+        const days = (idx.days || []).slice().reverse(); // oldest → newest for the chart
+        if (!days.length) {
+            if (hint) hint.textContent = idx.note || 'no archive yet';
+            const spark = $('archive-sparkline');
+            if (spark) spark.textContent = '';
+            renderSelector([]);
+            return;
+        }
+        if (hint) hint.textContent = `${idx.total} day${idx.total === 1 ? '' : 's'} on file`;
+
+        const spark = $('archive-sparkline');
+        if (spark) {
+            svgLine(spark, [
+                { label: 'new catalog entries', color: 'rgba(0, 210, 255, 0.85)',
+                  points: days.map((d, i) => ({ x: i, y: d.new_objects || 0 })) },
+                { label: 'decays', color: 'rgba(255, 120, 120, 0.85)',
+                  points: days.map((d, i) => ({ x: i, y: d.decays || 0 })) },
+            ], { xLabel: 'day (oldest → newest)', yLabel: 'events' });
+        }
+
+        renderSelector(days);
+    } catch (err) {
+        console.warn('[brief] archive failed:', err);
+        if (hint) hint.textContent = 'archive unavailable';
+    }
+}
+
+function renderSelector(days) {
+    const wrap = $('archive-selector');
+    if (!wrap) return;
+    wrap.textContent = '';
+
+    // Newest first for the button row — the sparkline reads oldest→newest as
+    // a timeline, but a picker is scanned top-down from "most recent".
+    for (const d of days.slice().reverse()) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'st-archive__day';
+        if (d.date === selectedDate) btn.classList.add('st-archive__day--active');
+        if (!selectedDate && d.date === days[days.length - 1]?.date) btn.classList.add('st-archive__day--active');
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', String(d.date === selectedDate));
+
+        const dateEl = document.createElement('span');
+        dateEl.textContent = d.date.slice(5); // MM-DD, year is implied by context
+        const countEl = document.createElement('span');
+        countEl.className = 'st-archive__day-count';
+        countEl.textContent = `+${num(d.new_objects || 0)}`;
+
+        btn.append(dateEl, countEl);
+        btn.title = d.headline || `${d.date}: +${d.new_objects || 0} new, ${d.decays || 0} decayed`;
+        btn.addEventListener('click', () => selectDay(d.date));
+        wrap.appendChild(btn);
+    }
+}
+
+function selectDay(date) {
+    selectedDate = date;
+    loadBrief(date);
+    if (archiveIndex) renderSelector(archiveIndex.days.slice().reverse());
 }
 
 /* ── Activity: signal feed / reentry watch ───────────────────────────────────
@@ -102,6 +221,7 @@ async function loadFeed() {
     try {
         const f = await API.feed(30);
         const events = f.events || [];
+        renderNews(events);
         if (!list) return;
         list.textContent = '';
         if (!events.length) {
@@ -128,6 +248,43 @@ async function loadFeed() {
     } catch (err) {
         console.warn('[brief] feed failed:', err);
         if (hint) hint.textContent = 'feed unavailable';
+        const newsHint = $('news-hint');
+        if (newsHint) newsHint.textContent = 'unavailable';
+    }
+}
+
+/* "Recent launches" proxy — `new_object` events whose OBJECT_TYPE is the
+ * uppercase Space-Track literal `PAYLOAD` (the title-case version of this
+ * check already bit the admin health panel once; see admin.test.mjs).
+ * Labelled "catalog entries", never "launches" — a catalog entry can lag its
+ * actual launch by days and this repo is not a launch-authoritative source. */
+function renderNews(events) {
+    const list = $('news-list');
+    const hint = $('news-hint');
+    if (!list) return;
+    list.textContent = '';
+
+    const entries = (events || []).filter(
+        (e) => e.kind === 'new_object' && e.detail && e.detail.type === 'PAYLOAD');
+
+    if (!entries.length) {
+        if (hint) hint.textContent = 'no new catalog entries in the recent feed';
+        return;
+    }
+    if (hint) hint.textContent = '';
+
+    for (const e of entries) {
+        const li = document.createElement('li');
+        li.className = 'st-feed__item kind-new';
+        const title = document.createElement('span');
+        title.className = 'st-feed__title';
+        title.textContent = e.title || 'Unnamed object entered the catalog';
+        const meta = document.createElement('span');
+        meta.className = 'st-feed__meta';
+        const country = e.detail.country ? ` · ${e.detail.country}` : '';
+        meta.textContent = `${relTime(e.ts)}${country}`;
+        li.append(title, meta);
+        list.appendChild(li);
     }
 }
 
@@ -229,12 +386,15 @@ async function loadBoxscore() {
 }
 
 loadBrief();
+loadArchive();
 loadFeed();
 loadDecayWatch();
 loadBoxscore();
 
-/* Refetch every 30 min to catch the daily ingest */
-setInterval(loadBrief, 30 * 60 * 1000);
+/* Refetch every 30 min to catch the daily ingest. Only re-polls `latest.json`
+ * while today's card is showing — a visitor reading an archived day should
+ * not have it swapped out from under them by a background timer. */
+setInterval(() => { if (!selectedDate) loadBrief(); }, 30 * 60 * 1000);
 setInterval(loadFeed, 5 * 60 * 1000);
 setInterval(loadDecayWatch, 5 * 60 * 1000);
 setInterval(loadBoxscore, 10 * 60 * 1000);
@@ -243,7 +403,10 @@ setInterval(loadBoxscore, 10 * 60 * 1000);
 exposeDebug('brief', {
     loadBrief,
     renderBrief,
+    loadArchive,
     loadFeed,
     loadDecayWatch,
     loadBoxscore,
+    renderNews,
+    selectDay,
 });

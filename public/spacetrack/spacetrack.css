@@ -1500,6 +1500,127 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     }
 }
 
+/* ── Brief's asymmetric grid (plan 38 task 7) ─────────────────────────────
+ * Brief is prose + feeds, not an instrument panel — Analytics keeps the
+ * symmetric auto-fit .st-card-grid, Brief diverges on purpose into a wider
+ * left column (archive, narrative+facts, news) and a narrower right rail
+ * (activity, boxscore), reading as a wire service rather than a dashboard. */
+.st-brief-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: calc(80px + var(--sa-top)) calc(24px + var(--sa-right)) calc(32px + var(--sa-bottom)) calc(24px + var(--sa-left));
+    align-items: start;
+}
+
+.st-brief-grid__main,
+.st-brief-grid__rail {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .st-brief-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .st-brief-grid {
+        padding-top: calc(72px + var(--sa-top));
+        gap: 16px;
+    }
+    .st-brief-grid__main,
+    .st-brief-grid__rail {
+        gap: 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    .st-brief-grid {
+        grid-template-columns: 1fr;
+        padding: calc(64px + var(--sa-top)) calc(12px + var(--sa-right)) calc(88px + var(--sa-bottom)) calc(12px + var(--sa-left));
+        gap: 14px;
+    }
+    .st-brief-grid__main,
+    .st-brief-grid__rail {
+        gap: 14px;
+    }
+}
+
+/* Sparkline sits in its own horizontal scroller — the SVG is drawn at a fixed
+ * intrinsic width so 90 days of ticks stay legible instead of squashing on a
+ * narrow phone; the *page* must never scroll, only this container. */
+.st-archive-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+.st-archive-scroll svg {
+    min-width: 480px;
+}
+
+/* One button per archived day. Touch target is 44px tall per CLAUDE.md's
+ * mobile rule even though the visible chip is small — padding does the work. */
+.st-archive__selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.st-archive__day {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 4px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    letter-spacing: 0.4px;
+    color: rgba(200, 230, 250, 0.85);
+    background: rgba(0, 210, 255, 0.06);
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.st-archive__day:hover {
+    background: rgba(0, 210, 255, 0.14);
+}
+
+.st-archive__day--active {
+    background: rgba(0, 210, 255, 0.22);
+    border-color: rgba(0, 210, 255, 0.7);
+    color: rgba(230, 250, 255, 1);
+}
+
+.st-archive__day-count {
+    font-variant-numeric: tabular-nums;
+    color: rgba(0, 230, 255, 0.9);
+    font-weight: 700;
+}
+
+/* Manual-edit provenance badge — same box as the AI narrative badge but a
+ * distinct label, so "Edited" never passes silently under the AI badge's
+ * fact-checked claim (plan 38 B2). */
+.st-machine--manual {
+    background: rgba(255, 180, 0, 0.08);
+    border-color: rgba(255, 180, 0, 0.35);
+}
+
+.st-machine--manual strong {
+    color: rgba(255, 200, 80, 0.98);
+}
+
 /* ── Age legend ─────────────────────────────────────────────────────────── */
 .st-age-legend {
     display: flex;
