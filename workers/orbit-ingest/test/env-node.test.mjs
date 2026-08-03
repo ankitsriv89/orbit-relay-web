@@ -358,6 +358,54 @@ await test('get() returns null on 404 rather than throwing', async () => {
   assert.equal(await r2.get('missing.json'), null);
 });
 
+await test('list() parses ListObjectsV2 XML into the Workers binding shape', async () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult>
+  <IsTruncated>true</IsTruncated>
+  <Contents><Key>brief/2026-08-01.json</Key></Contents>
+  <Contents><Key>brief/2026-08-02.json</Key></Contents>
+  <NextContinuationToken>tok-1</NextContinuationToken>
+</ListBucketResult>`;
+  const sent = [];
+  const r2 = new R2S3({
+    accountId: 'a', bucket: 'orbit-data', accessKeyId: 'ak', secretAccessKey: 'sk', sleep: nosleep,
+    fetch: async (url, init) => { sent.push({ url, init }); return new Response(xml, { status: 200 }); },
+  });
+
+  const page = await r2.list({ prefix: 'brief/' });
+  assert.deepEqual(page.objects, [{ key: 'brief/2026-08-01.json' }, { key: 'brief/2026-08-02.json' }]);
+  assert.equal(page.truncated, true);
+  assert.equal(page.cursor, 'tok-1');
+  assert.equal(sent[0].url, 'https://a.r2.cloudflarestorage.com/orbit-data/?list-type=2&prefix=brief%2F');
+});
+
+await test('list() omits cursor on the final page so rebuildIndex stops looping', async () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult>
+  <IsTruncated>false</IsTruncated>
+  <Contents><Key>brief/2026-08-03.json</Key></Contents>
+</ListBucketResult>`;
+  const r2 = new R2S3({
+    accountId: 'a', bucket: 'orbit-data', accessKeyId: 'ak', secretAccessKey: 'sk', sleep: nosleep,
+    fetch: async () => new Response(xml, { status: 200 }),
+  });
+  const page = await r2.list({ prefix: 'brief/' });
+  assert.equal(page.truncated, false);
+  assert.equal(page.cursor, undefined);
+});
+
+await test('list() sends the continuation-token cursor on the next request', async () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>`;
+  const sent = [];
+  const r2 = new R2S3({
+    accountId: 'a', bucket: 'orbit-data', accessKeyId: 'ak', secretAccessKey: 'sk', sleep: nosleep,
+    fetch: async (url) => { sent.push(url); return new Response(xml, { status: 200 }); },
+  });
+  await r2.list({ prefix: 'brief/', cursor: 'tok-1' });
+  assert.match(sent[0], /continuation-token=tok-1/);
+});
+
 /* ── KV ─────────────────────────────────────────────────────────────────── */
 
 console.log('\n-- KV is a Map, and that is enough --');

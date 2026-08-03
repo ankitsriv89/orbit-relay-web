@@ -10,8 +10,8 @@
  *
  * **This is a shim, not a port.** `src/*` is written against a deliberately
  * narrow slice of the bindings — `prepare().bind().run()/all()/first()`,
- * `batch()`, and R2 `put()/get()` — which is exactly why `test/fakes.mjs` can
- * stand in for them. Reimplementing that slice over the public HTTP APIs leaves
+ * `batch()`, and R2 `put()/get()/list()` — which is exactly why `test/fakes.mjs`
+ * can stand in for them. Reimplementing that slice over the public HTTP APIs leaves
  * every ingest module untouched, so the whole existing suite still covers the
  * code that runs in production.
  *
@@ -376,8 +376,29 @@ export class R2S3 {
     return { body: text, text: async () => text, json: async () => JSON.parse(text) };
   }
 
-  async send(method, key, headers, payload, { allow404 = false } = {}) {
-    const url = this.urlFor(key);
+  /**
+   * The Workers R2 binding's `list({prefix, cursor})` → `{objects, truncated,
+   * cursor}` shape, over S3's ListObjectsV2 — `brief.js`'s `rebuildIndex`
+   * scans the archive prefix through this same call in both the Pages
+   * Function and the Node ingest shim, so the two must agree.
+   */
+  async list({ prefix = '', cursor } = {}) {
+    const query = { 'list-type': '2', 'prefix': prefix };
+    if (cursor) query['continuation-token'] = cursor;
+    const resp = await this.send('GET', '', {}, '', { query });
+    const xml = await resp.text();
+    const objects = [...xml.matchAll(/<Contents>[\s\S]*?<Key>([\s\S]*?)<\/Key>[\s\S]*?<\/Contents>/g)]
+      .map(([, key]) => ({ key: decodeXml(key) }));
+    const truncated = /<IsTruncated>true<\/IsTruncated>/.test(xml);
+    const nextToken = /<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/.exec(xml);
+    return { objects, truncated, cursor: truncated && nextToken ? decodeXml(nextToken[1]) : undefined };
+  }
+
+  async send(method, key, headers, payload, { allow404 = false, query = null } = {}) {
+    let url = this.urlFor(key);
+    if (query) {
+      url = `${url}?${new URLSearchParams(query).toString()}`;
+    }
     let lastErr = null;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       if (attempt) await this.sleep(250 * 2 ** (attempt - 1));
@@ -404,6 +425,12 @@ export class R2S3 {
     }
     throw lastErr || new Error(`R2 ${method} ${key} failed`);
   }
+}
+
+function decodeXml(s) {
+  return s.replace(/&(lt|gt|amp|quot|apos|#39);/g, (_, e) => (
+    { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'", '#39': "'" }[e]
+  ));
 }
 
 /* ── KV as a Map ────────────────────────────────────────────────────────── */
