@@ -150,7 +150,7 @@ and `narrative_source` on all three paths.
 
 ---
 
-## [ ] 6 — `/api/brief?date=` and `?index`
+## [x] 6 — `/api/brief?date=` and `?index`
 
 **File:** `functions/api/brief.js` (+ `workers/orbit-ingest/test/brief-index.test.mjs`)
 
