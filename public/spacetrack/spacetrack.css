@@ -100,6 +100,25 @@ body[data-page-id="spacetrack-catalog"] #results-hud {
     flex-direction: column;
 }
 
+/* #filters-hud (top-right, grows down) and #results-hud (bottom-right,
+ * grows up) share the right edge. The viewport cap above lets each one
+ * individually reach the top/bottom of the screen — it doesn't know the
+ * other panel exists, so on a short viewport, or with both expanded at
+ * once, they can grow into each other from opposite ends.
+ *
+ * Fix: split the right edge into two disjoint regions at a fixed
+ * midpoint (55vh, clamped so a very short viewport still leaves each
+ * panel a usable minimum) with a gap between them. Each panel's max-height
+ * is capped to its own region, so neither can ever grow into the other's
+ * — independent of which one is expanded, or whether both are. */
+body[data-page-id="spacetrack-catalog"] #filters-hud {
+    max-height: max(160px, calc(55vh - 56px - 12px));
+}
+
+body[data-page-id="spacetrack-catalog"] #results-hud {
+    max-height: max(160px, calc(45vh - 74px - 12px));
+}
+
 body[data-page-id="spacetrack-catalog"] #catalog-hud .key-hud-body,
 body[data-page-id="spacetrack-signal"] #catalog-hud .key-hud-body,
 body[data-page-id="spacetrack-conjunctions"] #catalog-hud .key-hud-body,
