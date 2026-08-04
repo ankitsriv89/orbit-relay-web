@@ -1,3 +1,113 @@
+# Session Handoff — Plan 34 Phase 3.2 (constellation / orbital-plane view)
+
+> One task per session; commit after each task; read this file at the start of every
+> new session. Tasks C1–C4 are ordered so each commit leaves `main` in a working,
+> deployable state. The 3.1 batch below is complete and archived.
+
+## How to work this batch
+
+1. Pick the next task with `status: pending` from the todolist (C2 next).
+2. Read the linked plan docs (§References) and the "Load-bearing details" below —
+   they encode outages this repo has already had.
+3. Implement, then commit with a message matching repo style (see `git log`:
+   `fix:`, `feat:`, `test(e2e):`, `refactor:` + short imperative subject).
+4. Append "done / status" under the task below, and if anything surprising came up,
+   add it to "Surprises & decisions". Keep this file committed — it is the memory.
+
+## Task list
+
+- [x] **C1 Compute + tests** (commit `6b0d271a`): `public/constellations/compute.js` —
+      pure plane arithmetic (no satellite.js/Cesium/DOM, imports only
+      `../orbit-engine/astro.js`):
+      `smaKmFromMeanMotion` (Kepler, n rad/min→rad/s), `altKmFromSma`,
+      `planeElements({raanRad, inclRad, noRadPerMin})` → `{raanDeg, inclDeg, smaKm,
+      altKm, shell}` (shell via `orbitRegime`), `circularMeanDeg` (wrap-aware,
+      normalised to [0,360) with a 1e-6° wrap-residue collapse), `groupIntoPlanes`
+      (gap-clustering on circular RAAN, anchored at the largest gap so planes
+      straddling 0°/360° stay whole; returns planes sorted by RAAN with per-plane
+      mean incl/SMA/shell/count/members), `planeRingDeg({raanDeg, inclDeg,
+      radiusKm}, segments)` (great-circle ring as {lat,lon}° directions, frame
+      `r = Rz(RAAN)·Rx(incl)·v`, v = r·(cos u, sin u, 0); radius is a caller-side
+      altitude).
+      `workers/orbit-ingest/test/constellation-compute.test.mjs` — 15 checks against
+      synthetic constellations with known answers (Kepler closed form vs GPS/Starlink
+      periods, wrap-straddling planes, singletons, tolerance boundary, ring normal/
+      meridian/equatorial/closure). Wired into the orbit-ingest `npm test` chain
+      (after catalog-compute). `npm test` green: 71/71 syntax, 60 files resolve,
+      19 orbit-ingest suites.
+      **Test-authoring notes** (surprises that cost a few red runs):
+      (a) a plane mean slightly <0° is legitimately 359.9x° and sorts last — compare
+      planes by circular distance, never by array index; (b) `circularMeanDeg` needed
+      the wrap-residue collapse or a [358,2] mean renders as 359.9999999999999 and
+      sorts wrong; (c) planeRingDeg returns *directions*, radius is applied by the
+      caller as a Cesium altitude — assert on unit vectors.
+
+## Load-bearing details (from the 3.1 batch, still current)
+
+- **No build step.** Plain ES modules; a SyntaxError kills the whole page/module
+  tree. Cross-package refs are root-absolute (`/shared/…`, `/orbit-engine/…`),
+  intra-package relative. Verify by opening the pages, not by reading.
+- **Worker URL must stay absolute** (`/orbit-engine/propagate.worker.js`): a
+  relative URL resolves against the page and silently falls back to synchronous
+  SGP4.
+- **`X-Data-Source` citation**: every API response must carry it
+  (`functions/api/_orbit.js:17-19`) — unchanged by this batch, don't touch.
+- **Nav + filter drawer**: mobile drawer duplicates nav verbatim. Layer
+  checkboxes no longer need hand-duplication as of S11 — `public/orbit/layers.js`'s
+  `LAYERS` registry + `renderLayerList()` builds both `#layer-list` and
+  `#layer-list-drawer` from one source. The revs-toggle button (S6) and
+  hamburger/nav chrome are still hand-duplicated.
+- **State shape** (`public/spacetrack/shared/state.js`, key `spacetrack_state_v1`).
+  /orbit/, /starlink/ and (planned) /constellations/ do NOT use State except
+  `trajectory.revs` via `/shared/hud.js`.
+- **Overlay pattern** (plan 34 2.2): `public/spacetrack/overlays/*.js` are
+  factories `createX({viewer, engine, getRendered})`; every overlay entity must
+  route through `engine.addManagedEntity` or it escapes `destroy()`.
+- **serve.py**: `python3 tests/e2e/serve.py 8932` (no-store header, root = public/).
+  Chrome strays: `ps aux | grep chrome-linux64` before debugging a hang. SwiftShader
+  is slow — keyboard events, not `page.click`, and cache-bust with `?cb=<ts>`.
+- **Headless probes on this box**: `instanceof Cesium.*MaterialProperty` reads are
+  unreliable against the CDN build; `material.getType()` (`'PolylineDash'`/
+  `'PolylineGlow'`) is the reliable discriminator.
+- **Node/nvm**: `node` is not on PATH; source `~/.nvm/nvm.sh && nvm use 24` first.
+- `reports/orbit_wave0.png` is an uncommitted E2E artifact — leave it alone.
+
+## References
+
+- `docs/game-plans/34_unblock_landing_refactor_plan.md` — Phase 3.2 = this batch
+  (§3.2 lines 370-382: group by RAAN+incl+SMA, plane great-circle rings with the
+  shell they occupy, Starlink/OneWeb/GPS/Galileo/Iridium, pure client-side, verify
+  frame rate before raising caps; sequencing step 8; §0.6 says /starlink/ becomes a
+  preset).
+- `docs/game-plans/Orbital_Relay_Feature_Specification.md` — feature #7
+  (constellation view).
+- `CLAUDE.md` + `AGENTS.md` — invariants, mobile contract, commands.
+
+## Surprises & decisions
+
+- **Data path chosen: Celestrak group TLEs via existing `/api/tle`** (groups
+  `starlink`, `oneweb`, `gps-ops`, `galileo`, `iridium-NEXT` — all in
+  `functions/api/tle.js` ALLOWED_GROUPS), plane elements derived client-side from
+  `satrec` (`nodeo`/`inclo`/`no`). The plan's §3.2 text names `/api/search?tle=1`
+  + `/api/object/:norad`, but `search.js`'s `MAX_LIMIT = 500` can't return a full
+  Starlink shell and /api/search doesn't even return RAAN/SMA columns; the TLE path
+  is the established full-constellation pattern in this repo (starlink.js) and keeps
+  the "no backend work" promise literally. Baseline `starlink.txt` is trimmed to
+  600 sats (S12); live fetch gets all ~8000.
+- **Plane grouping is RAAN-clustering with per-plane mean incl/SMA** — within one
+  Celestrak group incl/SMA vary by fractions, so a pure RAAN gap-split (tolerance
+  5°) is exact; the plan's "RAAN + inclination + SMA" is realised via the means
+  carried on each plane.
+- **Cesium rings are Earth-fixed schematics** — RAAN is inertial, the drawn ring is
+  static like the GEO belt / regime shells; documented in compute.js header.
+- **/starlink/ redirect decision pending C3**: the 3.1 batch's `/starlink/` page
+  becomes a preset; plan is `public/_redirects` `/starlink/*` →
+  `/constellations/?c=starlink 302`, keeping the 13 existing `/starlink/` nav links
+  (renaming them in 13 places is churn; they redirect). `public/starlink/` files
+  become dead behind the redirect — delete in a future pure-deletion pass.
+
+---
+
 # Session Handoff — Plan 34 Phase 3.1 (step 7) batch
 
 > One task per session; commit after each task; read this file at the start of every
