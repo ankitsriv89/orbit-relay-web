@@ -14,6 +14,64 @@
 4. Append "done / status" under the task below, and if anything surprising came up,
    add it to "Surprises & decisions". Keep this file committed — it is the memory.
 
+## C2 prep notes (explored at end of the C1 session, not yet implemented)
+
+Page model: `public/starlink/index.html` + `starlink.js` + `starlink.css` — the
+exact template to copy for `public/constellations/`. Facts the next session needs:
+
+- **starlink.js layout map**: HUDs at `top: calc(90px + var(--sa-top))`, left/right
+  `24px`; mobile (max-width 600px) `76px + sa-top`, `12px` sides, `--hud-blur: 8px`,
+  `.orbital-hud` padding 12px 16px, `.key-hud-toggle` min-height 44px; time-warp
+  bottom `120px` desktop / `60px` mobile; `.sat-detail` bottom `72px` desktop /
+  `100px` mobile, max-width none; `.orbital-sat-bar` bottom `24px` centered;
+  landscape-short (max-height 500px) variant at `56px` with max-height + overflow-y
+  auto; 480px variant shrinks further. `wireHudToggle('stats-hud',
+  'stats-hud-toggle', 'stats-hud-body')` etc.
+- **Planned HUD set for /constellations/**: stats (LOADED/RENDERED/PLANES/AVG ALT/
+  AVG PERIOD), **planes list** (P01 · RAAN 212° · 48 · LEO, click → fly to that
+  plane's ring via `Cesium.BoundingSphere.fromPoints(ringPositions)` +
+  `viewer.camera.flyToBoundingSphere`), density slider (min 40 step 10,
+  max = full count — **no fetch-all button**: plane counts need the full TLE
+  bundle at boot anyway, so the slider max is the total from the start), sat-bar,
+  time-warp 0/1/10/100/1000, inspector with an extra PLANE row, footer citation,
+  mission clock.
+- **A constellation selector bar** (5 buttons: STARLINK/ONEWEB/GPS/GALILEO/IRIDIUM)
+  is the primary control and must stay visible — plan a fixed bar directly under
+  the topbar (`top: calc(52px + var(--sa-top))`, centered, nowrap horizontal
+  scroll on mobile), pushing the three HUDs down to ~`96px` desktop / ~`128px`
+  mobile (the mobile contract viewport table in
+  `tests/e2e/test_mobile_responsive.py` is the gate — HUDs must not overlap the
+  selector bar).
+- **Data**: `fetchTLE(group, {source:'celestrak'})` + `parseTLEChunked(text)`
+  (chunked matters for ~8000 Starlink TLEs; `parseTLE` is fine for the others).
+  Groups: `starlink`, `oneweb`, `gps-ops`, `galileo`, `iridium-NEXT` (all in
+  `ALLOWED_GROUPS`). Derive per sat: `planeElements({raanRad: satrec.nodeo,
+  inclRad: satrec.inclo, noRadPerMin: satrec.no})`; render order for the density
+  cap: iterate planes sorted by RAAN, then their members (progressive fill of
+  every plane). `groupIntoPlanes` tolerance 5° (default).
+- **Render**: rings as two polylines (width 1.2 glow 0.15 + width 0.6 glow 0.08,
+  `arcType: ArcType.NONE`, `positions: planeRingDeg(...) → Cartesian3.fromDegrees(lon,
+  lat, smaKm*1000)`) via `engine.addManagedEntity(viewer.entities.add(...))` —
+  regime-shells.js is the reference; sats via `engine.addSatellite(satrec,
+  shellColor, 3, false, {satrec, l1, l2, name, group, plane, norad, pulse:false})`.
+  Shell palette: LEO `#4ee2ff`, MEO `#8effa0`, GEO `#ffe066`, HEO `#ff6ec7`
+  (regime-shells.js values — re-declare in constellations.js view layer, they're
+  not exported).
+- **CSS**: `constellations.css` self-contained like starlink.css (own `:root` with
+  the `--font-mono`/`--sa-*`/`--hud-blur` tokens + scoped
+  `body[data-page-id="constellation-view"]`); do NOT link starlink.css. Link
+  order: `/css/tokens.css`, `/css/chrome.css` (covers `.vfx-overlay`/`.noise-layer`
+  and chrome), then `constellations.css`.
+- **JS wiring to copy**: viewer construction block (starlink.js:47-93), `initMobileListener`,
+  `syncRevsButtons(currentRevs())` + `wireRevsButton(revs-toggle)` (hud.js), the
+  `.tw-btn[data-rate]` handler, `engine.pickSat` click inspector (add `#sat-detail-norad`
+  like /orbit/ S8 — satrec.satnum), `window.__constellations` debug handle shaped
+  like `window.__starlink`, `beforeunload → engine.destroy()`. Preset param:
+  `new URLSearchParams(location.search).get('c')` — default `starlink`.
+- **Verification**: resolve.mjs will check the new HTML/JS refs (Cesium CDN URLs
+  are allowlisted); `npm test` then a custom Playwright probe like S8-S10 (the
+  shared E2E suites don't know /starlink/ and shouldn't be touched for this page).
+
 ## Task list
 
 - [x] **C1 Compute + tests** (commit `6b0d271a`): `public/constellations/compute.js` —
