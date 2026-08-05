@@ -156,10 +156,66 @@
         with no toggle anywhere; /spacetrack/ follows seeded
         low/off and high/on keys; zero console/page errors on all six
         pages.
-- [ ] **C4 Star skyBox**: procedural cubemap behind the toggle (no external
-      assets — the 3.2 MB lesson from plan 34 §1.3).
+- [x] **C4 Star skyBox** (commit `f6c858ba`): procedural cubemap behind the
+      toggle, zero external assets. New `public/orbit-engine/starfield.js` —
+      a deterministic 3D star field (mulberry32-seeded PRNG, uniform
+      directions on the unit sphere, brightness [0.15, 1], near-white tints)
+      projected onto six cube faces via right-handed frames (t1 × t2 = n),
+      drawn onto 512² canvases, exported as PNG data URLs (~78 KB binary
+      total) and handed to `Cesium.SkyBox` — replacing Cesium's built-in
+      Tycho-2 starfield, which Cesium 1.113 would otherwise lazily fetch as
+      six JPEGs from the Cesium CDN on every page's first render.
+      - **Engine**: `_applyCinematics()` builds the SkyBox once
+        (`this._skyBox`), assigns `scene.skyBox` in BOTH levels, and toggles
+        `.show` — the assignment-at-construction preempts Scene's lazy
+        default entirely (verified in the minified 1.113 source: Scene.update
+        creates the Tycho skyBox only when `scene.skyBox` is undefined), so
+        no page ever fetches the CDN starfield. 'low' = skyBox hidden (plain
+        black background — see Surprises for the product call). /orbit/'s
+        toggle, /spacetrack/'s follow-the-key and the stateless pages all
+        route through the existing flag; bloom keeps tracking the same level.
+      - **Tests**: `workers/orbit-ingest/test/starfield.test.mjs` (21st
+        suite, 20 checks) — PRNG determinism/divergence/range; unit-norm
+        stars, no NaN, brightness/tint bounds; right-handed + orthonormal
+        frames; cube corners project to the same (u,v) corner on every face
+        that sees them; every star inside its owning face square; interior
+        stars owned by EXACTLY one face (no double-draw); boundary directions
+        read the same edge coordinate on both neighbours; back-half and
+        zero-normal-dot rejections; all six faces covered; stub-2D-context
+        draw tests (no-throw + all faces draw stars); purity (no `Cesium.`,
+        no `document.` outside the single canvas sink).
+      - **Verified**: `npm test` green — 73/73 syntax, 63 files resolve,
+        21 suites. New probe `c4_skybox_probe.py` (serve.py 8932): **42/42**
+        — /orbit/ desktop high → shown (isOurs, all six sources PNG data
+        URLs, bloom on); toggle→low hidden / drawer→high shown; reload
+        persists; mobile first-boot low → hidden; /constellations/ +
+        /starlink/ engine-default high → shown with no toggle anywhere;
+        /spacetrack/ follows seeded low/hidden and high/shown keys; **no
+        `tycho2t3` request on ANY page** (request tracker); zero console/
+        page errors on all six pages. Boot regression found during probe
+        work: passing the face FRAME object where the face KEY belongs threw
+        inside `projectToFace` (pageerror → `engine` TDZ, page dead) — fixed
+        and pinned with the stub-context tests.
 - [ ] **C5 Batch close**: verification battery + build log / changelog /
       issues log + archive this batch.
+
+## C5 prep notes (for the batch-close session)
+
+- **Battery to run** (the 3.2 C4 pattern): `npm test` at batch head; the C4
+  probe again (`/tmp/opencode/c4_skybox_probe.py` — expect 42/42; it now
+  doubles as the C5 regression probe since it covers all six pages + the
+  toggle + the no-CDN-fetch invariant); `python3 tests/e2e/test_mobile_responsive.py`
+  + `test_mobile_dom.py` — the known pre-existing failures from the 3.2
+  battery (stale `/orbit/` `>=3` HUD threshold, stale resolutionScale
+  allowlist `0.85`, mobile citation gap, stale `/spacetrack/` HUD count 5→3
+  in the dom suite) are expected to persist; prove none are C4-caused with
+  `git diff 61a44192..HEAD` on `public/orbit`, `public/spacetrack`,
+  `public/orbit-engine`, `tests/e2e`.
+- **Docs to update**: this handoff (archive the 3.3 section like 3.2's),
+  `docs/build-logs/` (new build log entry: `f6c858ba` = C4),
+  `docs/changelog` or equivalent, `docs/issues-and-resolutions.md` — the 3.2
+  battery already logged the stale-suite items; C4 adds nothing new there.
+- **State**: repo is 15 commits ahead of origin — push when the user asks.
 
 ## Load-bearing details (from the 3.2 batch, still current)
 
@@ -206,6 +262,49 @@
 
 ## Surprises & decisions
 
+- **Cesium 1.113's default starfield is a LAZY Tycho-2 fetch, and it is
+  preemptable.** `Scene.update` creates the default SkyBox (six
+  `Assets/Textures/SkyBox/tycho2t3_80_*.jpg` from the Cesium CDN) only when
+  `scene.skyBox` is undefined at the first render. The engine therefore
+  assigns its procedural SkyBox at construction in BOTH toggle levels — the
+  constructor's `_applyCinematics()` runs before the first frame on all four
+  pages — so no page ever makes the CDN fetch (probe's request tracker saw
+  zero `tycho2t3` hits). Assigning only on 'high' would have left the
+  mobile-low path with the CDN starfield by accident.
+- **`'low'` now means NO skyBox (black background), not "the old CDN
+  starfield".** Product call: the toggle's 'low' side should save both the
+  render cost and the external fetch, and the horizon still glows via
+  `skyAtmosphere`. A sparse-default-stars-at-low mode would be a new
+  decision, not a regression.
+- **`dot()` takes array frames and OBJECT directions.** First version used
+  `b[0]` on a `{x,y,z}` star → NaN everywhere, and `faceForDir`'s
+  `|dot|`-max then silently assigned every star to the first face (NaN
+  comparisons never beat the initial -1). The unit tests caught it; the
+  deeper lesson is that "face ownership" must compare SIGNED dot (the sign
+  selects +/− face), which the NaN chase also got wrong first.
+- **The canvas draw path is the untested seam — and it broke the page.**
+  The pure tests can't see `drawSkyFace`'s internals; the frame-vs-key bug
+  (`projectToFace(s, frame)` where a KEY belongs) killed the whole page
+  (pageerror → `engine` TDZ, no `window.__orbit`). Fixed and then pinned
+  with a stub-2D-context test — `drawSkyFace(ctx, size, stars, key)` in Node
+  with a fake ctx is a cheap, runnable seam guard; do the same for any
+  future canvas code.
+- **Probe-authoring notes**: (a) the debug handles are `window.__orbit`
+  etc. — `page.evaluate(fn, '__orbit')` needs the leading underscores;
+  (b) the browser's "Failed to load resource: 404" console messages carry
+  NO URL — filter on `page.on('response')` only (the handoff already knew
+  this; adding a console-error listener in the probe re-broke it);
+  (c) `skyBox.sources` is a public field on the SkyBox instance (verified
+  in the minified source: `this.sources = e.sources`) — the probe asserts
+  `data:image/png` prefixes on all six keys; (d) SkyBox builds its cubeMap
+  only when `.show` is true AND the scene is SCENE3D — the 'low' state costs
+  no GPU work, just six data-URL strings (~312 KB total).
+- **Generated sky size: ~78 KB of binary PNGs** (six 512² faces, 600 stars,
+  seed 20260806) — well under the §1.3 "keep it small" bar. The SkyBox
+  instance is built once and cached, and Cesium builds its cubeMap only
+  when `sources` change (`this._sources !== this.sources` in `update`), so
+  the ~312 KB of data-URL strings decode to textures exactly once ever, on
+  the first shown frame — level flips only toggle `.show`.
 - **Bloom must be applied at CONSTRUCTION, not only on a setCinematics flip.**
   `setCinematics` early-returns when the level is unchanged, so a page that
   never calls it (or calls it with the engine default) would never touch the
