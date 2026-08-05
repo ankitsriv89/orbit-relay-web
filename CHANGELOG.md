@@ -3,6 +3,48 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-05 — Plan 34 Phase 3.2: constellation / orbital-plane view (spec #7)
+
+**Commits `6b0d271a` (C1 compute), `3fc91871` (C2 page), `3e6d5600` (C3 redirect)**
+
+### Added
+- **New page `/constellations/`** — group Starlink / OneWeb / GPS / Galileo / Iridium by
+  orbital plane and render each plane as a great-circle glow ring, satellites as colored
+  points on the shell they occupy. Pure client-side: TLEs via the existing `/api/tle`
+  proxy, plane elements derived from `satrec` (`nodeo`/`inclo`/`no`).
+- **Two-level plane grouping** (`groupConstellation`): inclination-band gap-split (1°)
+  first, then RAAN gap-split (5°) per band — live Starlink needs both; a pure RAAN
+  split merges the whole constellation into one plane.
+- **Controls**: 5-button constellation selector bar (primary control, stays visible),
+  stats HUD (LOADED/RENDERED/PLANES/AVG ALT/AVG PERIOD), planes HUD (click a row to
+  fly to that plane's ring), density slider (max = full count from boot, no fetch-all
+  button), sat-bar, time-warp 0/1/10/100/1000, inspector with GROUP/PLANE/NORAD rows.
+- **`?c=` preset param** (default `starlink`); `window.__constellations` debug handle.
+- **`public/constellations/compute.js`** — pure plane math (Kepler SMA/altitude,
+  `planeElements`, circular-RAAN gap clustering anchored at the largest gap,
+  `planeRingDeg`), unit-tested in Node (15 checks, closed-form answers).
+- **`/starlink/` is now a preset**: all `/starlink` spellings 302 →
+  `/constellations/?c=starlink`; the 13 existing nav links still work via the redirect.
+
+### Changed
+- `/starlink/` no longer served directly (302 to the preset); `public/starlink/` files
+  are dead behind the redirect, kept pending a pure-deletion pass.
+
+### Verification
+- `npm test` green throughout: 72/72 syntax, 62 files resolve, 23/23 constellation
+  checks.
+- Custom Playwright probe 57/57 at 1400×900 + 390×844 (boot, clearances, fly-to,
+  inspector, warp, REV, mobile menu, touch targets, zero console errors).
+- Redirect verified under `wrangler pages dev` (all three `/starlink` spellings 302).
+
+### Not built / follow-ups
+- C4 batch close: final verification battery + push to `main` (currently 6 commits
+  ahead of origin).
+- Delete dead `public/starlink/` files; plan 34 3.3 (cinematic) and 3.4 (space
+  weather / ground stations) are separate phases.
+
+---
+
 ## 2026-08-03 — Plan 38 batch 1: Brief & Analytics visualization fixes
 
 **Commit `aea6fc1a`** — *feat(spacetrack): color-coded boxscore segments, analytics heatmap matrix, stale banners (plan 38)*
