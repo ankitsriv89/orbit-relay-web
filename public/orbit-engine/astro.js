@@ -69,6 +69,62 @@ export function footprintRadiusM(altKm) {
     return theta * EARTH_R_KM * 1000;    // arc length on the surface
 }
 
+/** Sun's apparent angular radius as seen from Earth, radians (0.266°). */
+export const SUN_ANGULAR_RADIUS_RAD = 0.266 * Math.PI / 180;
+
+/**
+ * How sunlit a satellite is, in Earth's shadow (plan 34 §3.3 — eclipse shading).
+ *
+ * The cinematic pass needs satellites crossing Earth's shadow to dim: against
+ * the night side, a fully-bright dot is the one thing on screen that the
+ * day/night terminator does not explain. Cesium's built-in globe lighting
+ * shades the *surface*; nothing shades the PointPrimitives this engine renders.
+ *
+ * Model: the shadow cylinder (solar rays are effectively parallel at this
+ * scale), axis = the sun direction `sun` as seen from Earth's centre. A point
+ * `p` on the day side (`p·ŝ ≥ 0`) is lit. On the night side it is lit only
+ * outside the cylinder; inside the *umbra* (perpendicular distance from the
+ * axis less than `earthR − band`) it is eclipsed. The `band` between full
+ * umbra and full light is the penumbra, and it grows with `L`, the distance
+ * behind the terminator plane: the sun is a disk, not a point, so rays
+ * grazing Earth's limb converge at half-angle `SUN_ANGULAR_RADIUS_RAD`, and
+ * `band = L · tan(θ_sun)` (≈ 195 km for a satellite behind GEO, ≈ 5 km for a
+ * LEO sat 1,000 km past the terminator).
+ *
+ * Graded rather than binary on purpose, the same call `farSideFade` makes: a
+ * two-state fade pops every satellite crossing the shadow boundary, and with
+ * thousands of points there is always one crossing. The smoothstep across the
+ * penumbra is continuous at both edges.
+ *
+ * Units: `p` and `sun` must share a unit system; `earthR` is in that same
+ * system. The engine's positions are Earth-fixed metres, so the default is
+ * `EARTH_R_KM * 1000`. The cylinder model holds while the umbra radius
+ * `earthR − band` stays positive, i.e. `L < earthR / tan(θ_sun)` — ~1.37
+ * million km, far beyond any orbit these pages render (the camera itself is
+ * capped at 110,000 km).
+ *
+ * @param {{x:number,y:number,z:number}} p   satellite position from Earth's centre
+ * @param {{x:number,y:number,z:number}} sun sun position from Earth's centre
+ * @param {object} [o]
+ * @param {number} [o.earthR] Earth radius in the same unit system as `p`
+ * @returns {number} illumination factor in [0, 1]: 1 = fully sunlit,
+ *                   0 = fully inside the umbra, graded across the penumbra
+ */
+export function eclipseShadowFactor(p, sun, { earthR = EARTH_R_KM * 1000 } = {}) {
+    const sunMag = Math.hypot(sun.x, sun.y, sun.z);
+    if (sunMag === 0) return 1;                       // no sun → nothing casts a shadow
+    const sx = sun.x / sunMag, sy = sun.y / sunMag, sz = sun.z / sunMag;
+    const along = p.x * sx + p.y * sy + p.z * sz;
+    if (along >= 0) return 1;                         // day side, incl. the terminator
+    const perp2 = Math.max(0, p.x * p.x + p.y * p.y + p.z * p.z - along * along);
+    const perp  = Math.sqrt(perp2);                   // distance from the shadow axis
+    const band  = -along * Math.tan(SUN_ANGULAR_RADIUS_RAD);
+    if (perp >= earthR + band) return 1;              // outside the penumbra
+    if (perp <= earthR - band) return 0;              // full umbra
+    const t = (perp - (earthR - band)) / (2 * band);
+    return t * t * (3 - 2 * t);                       // smoothstep across the penumbra
+}
+
 export const fmtLat = (lat) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'}`;
 export const fmtLon = (lon) => `${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'W'}`;
 
