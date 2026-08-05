@@ -131,7 +131,31 @@
         confirmed /spacetrack/ boots with `engine.cinematics === 'high'` and no
         errors. `window.__orbit.state` added to the debug handle (module scope
         isn't global — the probe couldn't reach `State` otherwise).
-- [ ] **C3 Bloom**: `scene.postProcessStages.bloom` behind the toggle.
+- [x] **C3 Bloom** (commit `04554f20`): `scene.postProcessStages.bloom` behind
+      the same `quality.cinematics` toggle. The engine owns it: new private
+      `_applyCinematics()` in sat-engine.js sets `bloom.enabled =
+      (cinematics === 'high')`, called from the CONSTRUCTOR as well as
+      `setCinematics()` — the constructor call is load-bearing, because a page
+      that never calls setCinematics (engine default 'high', early-return
+      otherwise) would silently never see bloom; /starlink/ + /constellations/
+      inherit it that way, exactly like the eclipse pass. All three
+      `postProcessStages`/`bloom` accesses are guarded (post-processing needs
+      WebGL2; the bloom stage is a lazy getter some renderers may not
+      provide) — same discipline as the worker's sync fallback. Uniforms left
+      at Cesium defaults: the canvas renders black in this sandbox, so visual
+      tuning (glowOnly/contrast/sigma) is deferred until a real renderer can
+      be eyeballed. No page changes — /orbit/'s toggle, /spacetrack/'s
+      follow-the-key, and the stateless pages all route through the engine.
+      - **Verified**: `npm test` green — 72/72 syntax, 62 files resolve, 528
+        checks / 20 suites (occlusion slice untouched: edits landed in the
+        constructor + after `setSatColor`). New probe
+        `c3_bloom_probe.py` (serve.py 8932): **28/28** — bloom stage exists
+        under SwiftShader WebGL2; /orbit/ desktop high→on, toggle→low off,
+        drawer→high on, reload persists; mobile first-boot low→off, cycles,
+        reload persists; /constellations/ + /starlink/ on via engine default
+        with no toggle anywhere; /spacetrack/ follows seeded
+        low/off and high/on keys; zero console/page errors on all six
+        pages.
 - [ ] **C4 Star skyBox**: procedural cubemap behind the toggle (no external
       assets — the 3.2 MB lesson from plan 34 §1.3).
 - [ ] **C5 Batch close**: verification battery + build log / changelog /
@@ -182,6 +206,26 @@
 
 ## Surprises & decisions
 
+- **Bloom must be applied at CONSTRUCTION, not only on a setCinematics flip.**
+  `setCinematics` early-returns when the level is unchanged, so a page that
+  never calls it (or calls it with the engine default) would never touch the
+  stage — /starlink/ + /constellations/ are exactly that case. `_applyCinematics()`
+  runs in the constructor against the initial `cinematics = 'high'`, so the
+  no-toggle pages inherit bloom exactly as they inherit the eclipse pass.
+  /spacetrack/'s globe.js calling `setCinematics('high')` when the saved key
+  is unset/high would otherwise have been a silent no-bloom path.
+- **Post-processing guards are per-access, not once.** `scene.postProcessStages`
+  exists on WebGL2 contexts and `bloom` is a lazy getter on the collection —
+  either can be missing on restricted renderers, so `_applyCinematics` checks
+  both every time rather than caching a stage handle. Verified present under
+  SwiftShader (the probe's "bloom stage available" check passed on all six
+  pages), so the guard is defensive, not load-bearing here.
+- **Bloom uniforms are Cesium defaults, deliberately.** The dev sandbox canvas
+  is black (Ion 403), so nothing about glowOnly/contrast/sigma could be
+  verified by eye — same discipline as C2's sun constants, which were pinned
+  by closed-form tests before use. C4 (skyBox) lands next and shares the
+  toggle; a follow-up session with a real renderer can tune both visually.
+  (See the C2 batch below for the sun-position findings — unchanged here.)
 - **Cesium 1.113 has no `SunPosition` — the prep notes' suggested API is gone.**
   Verified live: `Cesium.SunPosition` is undefined, and `scene.sun` exposes no
   positionWC in the classic build. The sun direction is now a pure
