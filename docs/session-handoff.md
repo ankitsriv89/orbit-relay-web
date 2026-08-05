@@ -74,7 +74,21 @@ exact template to copy for `public/constellations/`. Facts the next session need
 
 ## Task list
 
-- [x] **C2 Page** (commit `TBD`): the `/constellations/` view page —
+- [x] **C3 /starlink/ redirect** (commit `TBD`): `public/_redirects` now maps every
+      `/starlink` spelling (`/starlink`, `/starlink/`, `/starlink/*`) to
+      `/constellations/?c=starlink` with **302** (the old `/starlink → /starlink/`
+      301 line is replaced, not stacked). The 13 nav links were deliberately left
+      pointing at `/starlink/` — they redirect; renaming them in 13 places was the
+      rejected churn option. `public/starlink/` files are dead behind the redirect
+      but kept (delete in a future pure-deletion pass, after the rewrite is old
+      enough to trust). Verified with `wrangler pages dev public` (local dev server
+      honors `_redirects`, unlike serve.py): `/starlink`, `/starlink/`,
+      `/starlink/foo` all 302 → `.../constellations/?c=starlink`; target serves 200
+      and the `?c=` preset defaults to `starlink` (constellations.js:515-516).
+      `npm test` green (72/72 syntax, 62 files resolve — the HTML hrefs to
+      `/starlink/` still resolve while the files exist; no suite navigates to
+      `/starlink/` so no E2E impact). No changes beyond `_redirects` + this file.
+- [x] **C2 Page** (commit `3fc91871`): the `/constellations/` view page —
       `public/constellations/{index.html,constellations.css,constellations.js}`
       (all new), plus `groupConstellation` (two-level) + 8 tests added to
       `compute.js` / `constellation-compute.test.mjs` (uncommitted from the C1
