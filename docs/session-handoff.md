@@ -1,3 +1,154 @@
+# Session Handoff — Plan 34 Phase 3.3 (cinematic pass, spec #20)
+
+> One task per session; commit after each task; read this file at the start of every
+> new session. Tasks C1–C5 are ordered so each commit leaves `main` in a working,
+> deployable state. **The 3.2 batch (C1–C4) is complete and archived** below.
+
+## How to work this batch
+
+1. Pick the next task with `status: pending` from the todolist (C2 next).
+2. Read the linked plan docs (§References) and the "Load-bearing details" below —
+   they encode outages this repo has already had.
+3. Implement, then commit with a message matching repo style (see `git log`:
+   `fix:`, `feat:`, `test(e2e):`, `refactor:` + short imperative subject).
+4. Append "done / status" under the task below, and if anything surprising came up,
+   add it to "Surprises & decisions". Keep this file committed — it is the memory.
+
+## C2 prep notes (explored at end of the C1 session, not yet implemented)
+
+- **Engine hook**: `sat-engine.js` `_refreshOcclusion()` (line ~591) runs on
+  `scene.preRender` — once per drawn frame, NOT in the 280 ms propagation tick.
+  It computes `fade = farSideFade(prim.position, cam)` (both ECEF metres) and
+  writes `prim.color` rebuilt from the `baseColor` snapshot, only when
+  `|fade − _appliedFade| ≥ 0.01` (every write dirties the collection's packed
+  buffer; a parked camera must settle to zero writes). Eclipse multiplies into
+  the same alpha: `b.a * fade * eclipse`. **`occlusion.test.mjs`'s purity test
+  slices sat-engine.js from the literal `_refreshOcclusion()` to `setSatColor(`
+  and asserts `baseColor` appears and `= prim.color` does not** — keep both
+  invariants intact while editing inside that slice.
+- **Sun position**: the vendored satellite.min.js (v5.0.0, 22 KB trimmed build)
+  has **no `sunPosition`** — don't try to reuse it. Cesium provides ECEF sun
+  positions: `Cesium.SunPosition.compute(viewer.clock.currentTime, scratch)`
+  (one call per frame is the budget, matching the "deliberately does NOT call
+  requestRender()" discipline) or `viewer.scene.sun.positionWC` (already updated
+  by Scene.update each frame). Same ECEF-metre frame as `prim.position`.
+- **Gating**: the plan (§3.3, line 394-396) says the whole pass ships behind a
+  quality toggle persisted via `shared/state.js`. /orbit/ already imports
+  `State` (`/spacetrack/shared/state.js`, orbital-relay.js:29) and subscribes to
+  `trajectory.revs`. Suggest a new key (e.g. `quality: { cinematics: 'high' |
+  'low' }`) in `spacetrack_state_v1`. The engine needs a setter (a field the
+  page flips, or `engine.setCinematics(...)`) — the eclipse pass lives in the
+  SHARED engine, so /spacetrack/, /starlink/ and /constellations/ inherit it
+  once wired; the latter two don't import State, so they keep the engine
+  default. Plan text centers on /orbit/ — keep C2's UI work there.
+- **UI**: /orbit/'s HUDs are `iss-hud` + `layers-hud` via `wireHudToggle`.
+  A cinematic-quality row belongs in the layers HUD following the revs-toggle
+  precedent — authored TWICE (`#revs-toggle` desktop + `#revs-toggle-drawer`),
+  kept in sync by `syncRevsButtons()` querying `[data-revs-label]` globally.
+  A quality control will need the same double-authoring + a global-sync pattern
+  unless it lives somewhere not duplicated. Read `public/orbit/index.html`'s
+  layers-hud markup in C2.
+- **Defaults**: plan warns this box renders ~5 fps under SwiftShader and bloom
+  on mobile is expensive. Suggest: no saved key → default `low` on mobile /
+  `high` on desktop at first boot, persisted thereafter. Decide in C2.
+- **Verification**: `npm test` (now 20 orbit-ingest suites) + a custom headless
+  Playwright probe like the 3.2 pattern. The canvas renders black in this
+  sandbox (Cesium Ion 403), so eclipse *visuals* can't be eyeballed — assert
+  toggle/DOM state, the engine flag, sun-position plumbing and zero console
+  errors, and trust C1's unit tests for the math.
+
+## Task list
+
+- [x] **C1 Shadow math + tests** (commit `b276191a`): `eclipseShadowFactor(p,
+      sun, { earthR })` + `SUN_ANGULAR_RADIUS_RAD` (0.266°) added to
+      `public/orbit-engine/astro.js` beside `footprintRadiusM()`. Cylinder
+      model: lit when `p·ŝ ≥ 0` (incl. the terminator), graded smoothstep across
+      the penumbra between umbra radius `earthR − band` and `earthR + band`,
+      `band = L·tan(θ_sun)` growing with depth L behind the terminator plane
+      (~195 km at GEO depth, ~4.6 km at 1,000 km). Degenerate sun/origin → 1
+      (lit, never NaN); scale-invariant (metres vs km). **Not called anywhere
+      yet — inert until C2.** New suite
+      `workers/orbit-ingest/test/eclipse-compute.test.mjs` (14 checks, all
+      closed-form geometry: mid-penumbra at perp=R is exactly 0.5, exact umbra/
+      penumbra boundaries, monotone ramp, GEO equinox eclipse, off-axis sun,
+      unit invariance, domain `L < R/tanθ` pinned across the whole camera range)
+      wired as suite #20 in the orbit-ingest `npm test` chain. `npm test` green:
+      72/72 syntax, 62 files resolve, 20 suites. Repo is now 9 commits ahead of
+      origin — push when the user asks.
+- [ ] **C2 Quality toggle + eclipse wiring**: state key, /orbit/ HUD control
+      (desktop + drawer sync), engine sun-position per frame + multiply into
+      `_refreshOcclusion`'s alpha behind the toggle.
+- [ ] **C3 Bloom**: `scene.postProcessStages.bloom` behind the toggle.
+- [ ] **C4 Star skyBox**: procedural cubemap behind the toggle (no external
+      assets — the 3.2 MB lesson from plan 34 §1.3).
+- [ ] **C5 Batch close**: verification battery + build log / changelog /
+      issues log + archive this batch.
+
+## Load-bearing details (from the 3.2 batch, still current)
+
+- **No build step.** Plain ES modules; a SyntaxError kills the whole page/module
+  tree. Cross-package refs are root-absolute (`/shared/…`, `/orbit-engine/…`),
+  intra-package relative. Verify by opening the pages, not by reading.
+- **Worker URL must stay absolute** (`/orbit-engine/propagate.worker.js`): a
+  relative URL resolves against the page and silently falls back to synchronous
+  SGP4.
+- **`X-Data-Source` citation**: every API response must carry it
+  (`functions/api/_orbit.js:17-19`) — unchanged by this batch, don't touch.
+- **Nav + filter drawer**: mobile drawer duplicates nav verbatim. Layer
+  checkboxes no longer need hand-duplication as of S11 — `public/orbit/layers.js`'s
+  `LAYERS` registry + `renderLayerList()` builds both `#layer-list` and
+  `#layer-list-drawer` from one source. The revs-toggle button (S6) and
+  hamburger/nav chrome are still hand-duplicated.
+- **State shape** (`public/spacetrack/shared/state.js`, key `spacetrack_state_v1`).
+  /orbit/ uses it ONLY for `trajectory.revs`; /starlink/ and /constellations/
+  do NOT use State at all.
+- **Overlay pattern** (plan 34 2.2): `public/spacetrack/overlays/*.js` are
+  factories `createX({viewer, engine, getRendered})`; every overlay entity must
+  route through `engine.addManagedEntity` or it escapes `destroy()`.
+- **serve.py**: `python3 tests/e2e/serve.py 8932` (no-store header, root = public/).
+  Chrome strays: `ps aux | grep chrome-linux64` before debugging a hang. SwiftShader
+  is slow — keyboard events, not `page.click`, and cache-bust with `?cb=<ts>`.
+- **Headless probes on this box**: `instanceof Cesium.*MaterialProperty` reads are
+  unreliable against the CDN build; `material.getType()` (`'PolylineDash'`/
+  `'PolylineGlow'`) is the reliable discriminator. Canvas renders black (Cesium
+  Ion 403 in this sandbox) — verify DOM/console behavior, not pixels.
+- **Node/nvm**: `node` is not on PATH; source `~/.nvm/nvm.sh && nvm use 24` first.
+- `reports/orbit_wave0.png` is an uncommitted E2E artifact — leave it alone.
+
+## References
+
+- `docs/game-plans/34_unblock_landing_refactor_plan.md` — Phase 3.3 = this batch
+  (§3.3 lines 384-396: bloom via `scene.postProcessStages.bloom`; star skyBox
+  cubemap, keep small; eclipse shadow cylinder test "fits naturally in astro.js
+  beside footprintRadiusM()"; all behind a quality toggle persisted via
+  `shared/state.js`; sequencing step 9+).
+- `docs/game-plans/Orbital_Relay_Feature_Specification.md` — feature #20
+  (cinematic effects, lines 107-109: glow, bloom, HDR stars, atmospheric
+  scattering, orbit pulses, sunlight terminator, eclipse shadows).
+- `CLAUDE.md` + `AGENTS.md` — invariants, mobile contract, commands.
+
+## Surprises & decisions
+
+- **The vendored satellite.js has no sun position.** v5.0.0 trimmed build (22
+  KB) exposes no `sunPosition` — the standard library's sun module wasn't
+  vendored in. C2 must take the sun from Cesium (`SunPosition.compute` or
+  `scene.sun.positionWC`), not from satellite.js.
+- **Units: metres by default.** `eclipseShadowFactor` defaults `earthR` to
+  `EARTH_R_KM * 1000` to match `farSideFade` and the ECEF-metre `prim.position`
+  the engine feeds it; the function itself is unit-agnostic (scale-invariance
+  is pinned by a test) as long as p/sun/earthR agree.
+- **Cylinder + graded penumbra, not binary.** The plan asks for the cheap
+  cylinder test; the penumbra smoothstep (band = L·tanθ) keeps a satellite
+  crossing the shadow edge from popping between two brightnesses — the same
+  call `farSideFade`'s grading makes (see its doc comment).
+- **Boundary placement is the loaded decision in C1's tests**: umbra radius
+  `earthR − band`, penumbra outer `earthR + band`, and perp = R exactly ⇒
+  factor = 0.5 (a closed form, pinned by smoothstep(0.5) = 0.5). Tests
+  recompute `band` from the exported constant rather than re-deriving the
+  implementation's formula verbatim.
+
+---
+
 # Session Handoff — Plan 34 Phase 3.2 (constellation / orbital-plane view)
 
 > One task per session; commit after each task; read this file at the start of every
