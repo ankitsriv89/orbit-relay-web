@@ -49,6 +49,12 @@ export function initGlobe(containerId = 'cesium-container', viewerOptions = {}) 
 
     engine = new SatEngine({ viewer });
 
+    // Cinematic quality (plan 34 §3.3): the eclipse pass lives in the shared
+    // engine. /spacetrack/ has no toggle of its own — /orbit/ owns the control
+    // and persists it under quality.cinematics — so these pages follow the
+    // saved level and keep the engine default ('high') when it was never set.
+    engine.setCinematics(State.get('quality.cinematics') === 'low' ? 'low' : 'high');
+
     viewer.camera.changed.addEventListener(() => {
         const pos = viewer.camera.positionCartographic;
         if (pos) {

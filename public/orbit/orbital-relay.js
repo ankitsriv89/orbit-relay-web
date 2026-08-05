@@ -24,6 +24,7 @@ import {
 import {
     wireHudToggle, initMobileListener, initHamburgerMenu,
     wireRevsButton, syncRevsButtons, currentRevs, REVS_STATE_PATH,
+    isMobile,
 } from '/shared/hud.js';
 import { syncCheckboxes } from '/shared/sync-checkbox.js';
 import { State } from '/spacetrack/shared/state.js';
@@ -207,6 +208,65 @@ clock.multiplier    = 1;
 
 /* ── Engine ────────────────────────────────────────────────────────────── */
 const engine = new SatEngine({ viewer });
+
+/* ── Cinematic quality (plan 34 §3.3, C2) ─────────────────────────────────
+ * Eclipse/umbra shading lives in the SHARED engine, gated by
+ * quality.cinematics in the persisted State. This page owns the toggle —
+ * authored twice like revs-toggle (desktop panel + mobile drawer), kept in
+ * sync by the [data-cinematics-label] global query below. First boot picks a
+ * device-appropriate level and persists it: the plan warns bloom (C3, same
+ * toggle) is expensive on mobile, so a phone that never opens the toggle
+ * must not inherit the desktop default. */
+const CINEMATICS_STATE_PATH = 'quality.cinematics';
+
+function cinematicsLabel(level) {
+    return `CINE ${level === 'high' ? 'HIGH' : 'LOW'}`;
+}
+
+function syncCinematicsButtons(level, root = document) {
+    const active = level === 'high';
+    root.querySelectorAll('[data-cinematics]').forEach(btn => {
+        btn.classList.toggle('st-toggle-btn--on', active);
+        btn.setAttribute('aria-pressed', String(active));
+    });
+    root.querySelectorAll('[data-cinematics-label]').forEach(el => { el.textContent = cinematicsLabel(level); });
+    return level;
+}
+
+function cycleCinematics() {
+    State.set(CINEMATICS_STATE_PATH,
+        State.get(CINEMATICS_STATE_PATH) === 'high' ? 'low' : 'high');
+}
+
+function wireCinematicsButton(button) {
+    if (!button) return;
+    button.addEventListener('click', cycleCinematics);
+}
+
+/* First boot (no saved key — the default in state.js is a placeholder, not a
+ * user decision): 'low' on phones, 'high' on desktop, persisted so it sticks. */
+function resolveCinematics() {
+    let saved = null;
+    try {
+        const stored = JSON.parse(localStorage.getItem(State.STORAGE_KEY) || 'null');
+        const v = stored && stored.quality && stored.quality.cinematics;
+        if (v === 'high' || v === 'low') saved = v;
+    } catch { /* corrupt storage → device default below */ }
+    if (saved) return saved;
+    const level = isMobile() ? 'low' : 'high';
+    State.set(CINEMATICS_STATE_PATH, level);
+    return level;
+}
+
+const cinematics = resolveCinematics();
+engine.setCinematics(cinematics);
+syncCinematicsButtons(cinematics);
+wireCinematicsButton(document.getElementById('cinematics-toggle'));
+wireCinematicsButton(document.getElementById('cinematics-toggle-drawer'));
+State.subscribe(CINEMATICS_STATE_PATH, (level) => {
+    engine.setCinematics(level);
+    syncCinematicsButtons(level);
+});
 
 /**
  * React to crossing the mobile breakpoint (a rotation, usually) rather than
@@ -523,6 +583,7 @@ if (refreshBtn) {
 window.__orbit = {
     viewer,
     engine,
+    state: State,
     satCollection: engine.satCollection,
     allSats: engine.allSats,
     layerState,
@@ -535,6 +596,7 @@ window.__orbit = {
     get registered()    { return engine.registered; },
     get tickCount()     { return engine.tickCount; },
     get source()        { return SOURCE; },
+    get cinematics()    { return engine.cinematics; },
     disableWorker:      (why) => engine.disableWorker(why),
     propagateAllSats:     () => engine.propagate(),
     propagateAllSatsSync: () => engine.propagateSync(),

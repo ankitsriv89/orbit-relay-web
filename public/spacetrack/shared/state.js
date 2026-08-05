@@ -31,6 +31,12 @@ const defaultState = {
     trajectory: {
         revs: 1,   // orbital revolutions shown for past + future path arcs
     },
+    quality: {
+        cinematics: 'high',   // plan 34 §3.3 — 'high' | 'low'; the eclipse pass
+                              // (C2) and bloom (C3) gate on it. 'high' is the
+                              // engine default; /orbit/ overrides it by device
+                              // at first boot and persists the decision.
+    },
 };
 
 let state = { ...defaultState };
@@ -130,4 +136,5 @@ export const State = {
         const set = listeners.get(path);
         if (set) set.delete(callback);
     },
+    STORAGE_KEY,   // for callers that must distinguish "saved" from "default"
 };

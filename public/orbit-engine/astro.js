@@ -73,6 +73,50 @@ export function footprintRadiusM(altKm) {
 export const SUN_ANGULAR_RADIUS_RAD = 0.266 * Math.PI / 180;
 
 /**
+ * Sun direction in the Earth-fixed (ECEF) frame, as a unit vector from Earth's
+ * centre — the axis of the shadow cylinder `eclipseShadowFactor` tests against.
+ *
+ * Why this lives here instead of asking Cesium: the vendored satellite.js
+ * (v5.0.0 trimmed build) has no sun module, and Cesium dropped `SunPosition`
+ * from the classic build after 1.106 (verified against 1.113 — the export is
+ * gone). The eclipse pass needs one sun direction per drawn frame, so it is
+ * computed here: pure, Node-testable, no Cesium — the same arrangement as
+ * `footprintRadiusM` and `farSideFade`.
+ *
+ * Meeus' solar position (the formulation behind the NOAA solar calculator):
+ * mean orbit + equation of centre + nutation/aberration corrections, then a
+ * GMST rotation from the J2000 frame into ECEF. Accurate to ~0.01° over the
+ * ±century span these pages render — far inside the ~4 km LEO penumbra band,
+ * and the eclipse pass writes alpha in 0.01 steps anyway.
+ *
+ * @param {Date} date the clock time (engine.now()) — the sun is a function of
+ *        time, so time-warp moves it, exactly like the satellites
+ * @returns {{x:number,y:number,z:number}} unit vector, ECEF metres-frame
+ */
+export function sunDirectionEcef(date) {
+    const DEG = Math.PI / 180;
+    const d = (date.getTime() / 86400000 + 2440587.5) - 2451545.0;   // days since J2000
+    const T = d / 36525;                                             // Julian centuries
+    const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;      // mean longitude
+    const M = (357.52911 + 35999.05029 * T - 0.0001537 * T * T) * DEG;   // mean anomaly
+    const C = ((1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(M)
+            + (0.019993 - 0.000101 * T) * Math.sin(2 * M)
+            + 0.000289 * Math.sin(3 * M)) * DEG;                     // equation of centre
+    const lam = L0 + C / DEG;
+    const om = (125.04 - 1934.136 * T) * DEG;
+    const lamApp = (lam - 0.00569 - 0.00478 * Math.sin(om)) * DEG;   // apparent longitude
+    const obl = (23.439291 - 0.0130042 * T) * DEG;                   // obliquity
+    const xe = Math.cos(lamApp);                                     // inertial, ecliptic
+    const ye = Math.sin(lamApp) * Math.cos(obl);
+    const ze = Math.sin(lamApp) * Math.sin(obl);
+    const g = ((280.46061837 + 360.98564736629 * d) % 360) * DEG;    // GMST
+    const x = xe * Math.cos(g) + ye * Math.sin(g);
+    const y = -xe * Math.sin(g) + ye * Math.cos(g);
+    const m = Math.hypot(x, y, ze);
+    return { x: x / m, y: y / m, z: ze / m };
+}
+
+/**
  * How sunlit a satellite is, in Earth's shadow (plan 34 §3.3 — eclipse shading).
  *
  * The cinematic pass needs satellites crossing Earth's shadow to dim: against

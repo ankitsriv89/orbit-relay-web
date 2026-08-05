@@ -75,9 +75,62 @@
       wired as suite #20 in the orbit-ingest `npm test` chain. `npm test` green:
       72/72 syntax, 62 files resolve, 20 suites. Repo is now 9 commits ahead of
       origin — push when the user asks.
-- [ ] **C2 Quality toggle + eclipse wiring**: state key, /orbit/ HUD control
-      (desktop + drawer sync), engine sun-position per frame + multiply into
-      `_refreshOcclusion`'s alpha behind the toggle.
+- [x] **C2 Quality toggle + eclipse wiring** (commit pending): state key,
+      /orbit/ HUD control (desktop + drawer), engine sun per frame + multiply
+      into `_refreshOcclusion`'s alpha behind the toggle.
+      - **State**: `quality.cinematics` ('high'|'low', default 'high') added to
+        `spacetrack_state_v1`; `State.STORAGE_KEY` now exported so callers can
+        distinguish "saved" from "default".
+      - **Engine**: `SatEngine.cinematics` field (default 'high') +
+        `setCinematics(level)` (validates, no-ops on same, `requestRender()` on
+        flip — the first frame after a change rewrites every visible point).
+        `_refreshOcclusion()` computes ONE `sunDirectionEcef(this.now())` per
+        drawn frame in 'high' and multiplies `alpha = fade × eclipseShadowFactor`,
+        skipping it in 'low' — a day-side sat is exactly the old behaviour, and
+        the 0.01 no-op threshold applies to the combined multiplier. Both
+        occlusion.test.mjs purity invariants held (baseColor rebuild, no read
+        back off the live primitive, no fade in the tick slice).
+      - **New pure function `sunDirectionEcef(date)` in astro.js** (Meeus/NOAA
+        solar position: mean longitude + equation of centre + nutation/
+        aberration + GMST → ECEF unit vector, ~0.01° accuracy). **Why**: the
+        prep notes' `Cesium.SunPosition.compute` does NOT exist in Cesium
+        1.113's classic build — verified live (`Cesium.SunPosition` is
+        undefined; scene.sun has no positionWC either). First attempt used the
+        Schlyter constant set, whose epoch bias put the equinox ~1.4 days late
+        (decl −0.589° at the true instant) — caught by the new closed-form
+        tests; Meeus constants are exact (equinox −0.010°, solstices ±23.436°,
+        J2000 −23.03°).
+      - **/orbit/ UI**: CINEMATICS row in the layers HUD + mobile drawer
+        (authored twice like revs-toggle; `data-cinematics`/`data-cinematics-label`,
+        synced by a global query). **First-boot device default**: no saved key →
+        'low' on mobile / 'high' on desktop, persisted immediately (the plan
+        warns bloom — C3, same toggle — is expensive on mobile). Boot wiring:
+        resolve → `engine.setCinematics` → sync buttons → wire both buttons →
+        `State.subscribe` (engine + buttons on change). `isMobile` had to be
+        added to orbital-relay.js's hud.js import (it was not imported; the
+        ReferenceError aborted module eval and left `stationEntities` in TDZ —
+        the probe's second pageerror was that downstream symptom).
+      - **/spacetrack/** (all 5 pages): `globe.js` applies
+        `State.get('quality.cinematics')` to the engine at init — no toggle UI,
+        follows the persisted key, engine default when unset. /starlink/ +
+        /constellations/ don't import State → engine default 'high'.
+      - **Verified**: `npm test` green — 72/72 syntax, 62 files resolve, 528
+        checks / 20 suites (eclipse suite now 24: the 14 C1 checks + 6 new
+        sun-direction tests: unit norm, solstice/equinox declination anchors
+        ±0.5°, seasonality, and an integration test feeding the real sun axis
+        into `eclipseShadowFactor` — antipode eclipsed, sub-solar point lit).
+        New probe `c2_cinematics_probe.py` (serve.py 8932, pattern from the
+        c4_constellations probe): **26/26** at 1400×900 + 390×844 — first-boot
+        default (desktop high / mobile low) persisted to storage; button text/
+        aria-pressed/--on; desktop + drawer stay in sync through both clicks;
+        reload keeps the level; **deterministic sun-plumbing proof**: sat
+        parked at the true sun's antipode (6,800 km, camera on the same ray) —
+        'low' leaves alpha ≈ 1 (camera fade only), 'high' multiplies the
+        eclipse factor to 0.000; pass invariant `prim.color.alpha ==
+        baseColor.a × _appliedFade` holds; zero console/page errors. Also
+        confirmed /spacetrack/ boots with `engine.cinematics === 'high'` and no
+        errors. `window.__orbit.state` added to the debug handle (module scope
+        isn't global — the probe couldn't reach `State` otherwise).
 - [ ] **C3 Bloom**: `scene.postProcessStages.bloom` behind the toggle.
 - [ ] **C4 Star skyBox**: procedural cubemap behind the toggle (no external
       assets — the 3.2 MB lesson from plan 34 §1.3).
@@ -129,10 +182,40 @@
 
 ## Surprises & decisions
 
+- **Cesium 1.113 has no `SunPosition` — the prep notes' suggested API is gone.**
+  Verified live: `Cesium.SunPosition` is undefined, and `scene.sun` exposes no
+  positionWC in the classic build. The sun direction is now a pure
+  `sunDirectionEcef(date)` in astro.js (Meeus/NOAA formulation, GMST rotation
+  to ECEF, ~0.01°), unit-tested with astronomy-given anchors. This is the
+  same "don't rely on the vendored library for the sun" trap the prep notes
+  flagged for satellite.js — Cesium turned out to be the same trap in 1.113.
+- **Schlyter's sun constants carry an epoch bias that the solstice anchors
+  cannot catch.** The first implementation (the classic "Position of the Sun"
+  constant set) passed June/December ±0.5° but put the 2026 equinox ~1.4 days
+  late (decl −0.589° at the true instant) — a phase error in the mean
+  longitude that vanishes at the solstices and shows up at the crossings.
+  Swapped to the Meeus/NOAA constants (equinox −0.010°, J2000 −23.03°). The
+  four-anchor declination suite (both solstices AND both equinoxes) is what
+  made the swap testable at all.
+- **First-boot device default needs the raw storage, not `State.get`.** The
+  state.js default 'high' is indistinguishable from a saved 'high', so the
+  "no saved key → mobile low" rule reads `localStorage` via the newly exported
+  `State.STORAGE_KEY`. `State` is a plain module export — module scope is not
+  global, so the headless probe drives state through the new
+  `window.__orbit.state` debug handle.
+- **`isMobile` was not imported by orbital-relay.js** — the C2 code was the
+  first caller. The ReferenceError aborted module evaluation and the probe's
+  second pageerror (`stationEntities` TDZ) was the downstream symptom, which
+  is why the probe reported two errors for one root cause.
+- **The eclipse pass is provable without pixels** (canvas renders black here):
+  park one sat at the antipode of the REAL sun direction (imported from
+  astro.js in the page via dynamic `import()`), put the camera on the same
+  ray, diff alpha between 'low' and 'high' — 1.0 vs 0.000. Deterministic
+  closed-form geometry, no reliance on which sats happen to be in shadow.
 - **The vendored satellite.js has no sun position.** v5.0.0 trimmed build (22
   KB) exposes no `sunPosition` — the standard library's sun module wasn't
-  vendored in. C2 must take the sun from Cesium (`SunPosition.compute` or
-  `scene.sun.positionWC`), not from satellite.js.
+  vendored in. Resolved (with the Cesium 1.113 gap above) by the pure
+  `sunDirectionEcef` in astro.js.
 - **Units: metres by default.** `eclipseShadowFactor` defaults `earthR` to
   `EARTH_R_KM * 1000` to match `farSideFade` and the ECEF-metre `prim.position`
   the engine feeds it; the function itself is unit-agnostic (scale-invariance

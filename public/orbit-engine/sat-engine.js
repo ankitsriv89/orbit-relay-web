@@ -30,7 +30,8 @@
  */
 
 import {
-    geoAt, orbitalPeriodMin, footprintRadiusM, farSideFade,
+    geoAt, orbitalPeriodMin, footprintRadiusM, farSideFade, eclipseShadowFactor,
+    sunDirectionEcef,
 } from './astro.js';
 
 const SAT_TICK_MS   = 280;   // position refresh (a sat moves ~metres in this time)
@@ -236,6 +237,11 @@ export class SatEngine {
         this._managedEntities = [];
         this._posScratch = new Cesium.Cartesian3();
         this._geoScratch = { lat: 0, lon: 0, alt: 0 };
+        /** Cinematic quality (plan 34 §3.3): 'high' shades satellites inside
+         *  Earth's umbra via eclipseShadowFactor (the eclipse pass below);
+         *  'low' keeps only the camera-based far-side fade. /orbit/ owns the
+         *  persisted toggle; pages without one keep the engine default. */
+        this.cinematics = 'high';
 
         try {
             this.worker = new Worker(workerUrl);
@@ -591,19 +597,36 @@ export class SatEngine {
     _refreshOcclusion() {
         const cam = this.viewer.camera.positionWC;
         if (!cam) return;
+        // Eclipse shading (plan 34 §3.3, quality gate): the sun direction is a
+        // function of the clock, not of the camera, so it is computed ONCE per
+        // drawn frame and shared by every sat. sunDirectionEcef returns a unit
+        // ECEF vector — the same metres-frame as prim.position — and is pure
+        // math from astro.js (satellite.js has no sun module and Cesium 1.113
+        // dropped SunPosition; see its doc comment). One call per frame is the
+        // whole budget of the pass, matching the "deliberately does NOT call
+        // requestRender()" discipline above.
+        const sun = this.cinematics === 'high'
+            ? sunDirectionEcef(this.now())
+            : null;
         for (let i = 0; i < this.allSats.length; i++) {
             const s = this.allSats[i];
             const prim = s.primitive;
             if (!prim.show) continue;
             const fade = farSideFade(prim.position, cam);
+            // The two occluders multiply: the camera fades far-side dots, the
+            // sun dims dots inside the shadow cylinder. eclipseShadowFactor is
+            // 1 for every day-side sat, so 'low' (sun = null) is exactly the
+            // old behaviour and the sunlit majority of 'high' costs one extra
+            // multiply plus a dot product per sat.
+            const alpha = sun ? fade * eclipseShadowFactor(prim.position, sun) : fade;
             s.farSide = fade < 1;
-            if (Math.abs(fade - s._appliedFade) < 0.01) continue;
-            s._appliedFade = fade;
+            if (Math.abs(alpha - s._appliedFade) < 0.01) continue;
+            s._appliedFade = alpha;
             // Rebuild from the base snapshot, never from prim.color: the getter
             // can return a reference the page shares across a whole layer.
             // Assigning a fresh Color is also what marks the buffer dirty.
             const b = s.baseColor;
-            prim.color = new Cesium.Color(b.r, b.g, b.b, b.a * fade);
+            prim.color = new Cesium.Color(b.r, b.g, b.b, b.a * alpha);
         }
     }
 
@@ -626,6 +649,25 @@ export class SatEngine {
         sat.primitive.color = fade < 1
             ? new Cesium.Color(color.red, color.green, color.blue, color.alpha * fade)
             : color;
+    }
+
+    /**
+     * Set the cinematic quality (plan 34 §3.3 — the eclipse shading pass).
+     *
+     * 'high' shades satellites inside Earth's umbra via eclipseShadowFactor;
+     * 'low' skips the per-frame sun work and leaves the far-side fade alone.
+     * The first frame after a change rewrites every visible point — the pass
+     * compares against the last applied multiplier, which the flip invalidates —
+     * so requestRender() makes the change visible immediately rather than
+     * waiting for the next propagation tick.
+     *
+     * @param {'high'|'low'} level
+     */
+    setCinematics(level) {
+        if (level !== 'high' && level !== 'low') return;
+        if (this.cinematics === level) return;
+        this.cinematics = level;
+        this.requestRender();
     }
 
     /**

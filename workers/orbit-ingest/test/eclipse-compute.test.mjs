@@ -38,7 +38,7 @@
  */
 import assert from 'node:assert/strict';
 
-import { eclipseShadowFactor, SUN_ANGULAR_RADIUS_RAD, EARTH_R_KM } from '../../../public/orbit-engine/astro.js';
+import { eclipseShadowFactor, sunDirectionEcef, SUN_ANGULAR_RADIUS_RAD, EARTH_R_KM } from '../../../public/orbit-engine/astro.js';
 
 const results = [];
 async function test(name, fn) {
@@ -174,5 +174,62 @@ await test('the umbra stays open across every orbit this repo renders', () => {
   // hold is inside the domain — pin the whole range rather than one spot.
   for (const Lkm of [100, 1000, 42000, 1.1e5]) {
     assert.ok(bandAt(Lkm) < R, `L=${Lkm} km: band ${bandAt(Lkm)} m must stay under ${R} m`);
+  }
+});
+
+/* ── sunDirectionEcef: the shadow axis, in the Earth-fixed frame ──────────
+ * C2 wiring: the engine computes one sun direction per drawn frame from the
+ * clock. satellite.js (vendored v5.0.0) has no sun module and Cesium 1.113
+ * dropped SunPosition, so the direction is computed in astro.js. Declination
+ * anchors are genuinely closed-form astronomy (solstices ±23.44°, equinoxes
+ * 0°), tolerant to ±0.5° for the low-precision algorithm and the few-hours
+ * uncertainty in the published 2026 event instants. The ECEF longitude (GMST
+ * rotation) has no independent closed form at this precision — its
+ * correctness is proven end-to-end by the C2 headless probe's in-umbra
+ * geometry check, which parks a sat at the antipode of this direction. */
+
+const DEC = (s) => Math.asin(Math.max(-1, Math.min(1, s.z))) / Math.PI * 180;
+
+await test('sunDirectionEcef returns a unit vector in 2026', () => {
+  for (const [y, m, d, h] of [[2026, 3, 20, 12], [2026, 6, 21, 12], [2026, 12, 21, 12]]) {
+    const s = sunDirectionEcef(new Date(Date.UTC(y, m, d, h)));
+    approx(Math.hypot(s.x, s.y, s.z), 1, 1e-12);
+  }
+});
+
+await test('June solstice 2026 declination ≈ +23.44°', () => {
+  const s = sunDirectionEcef(new Date(Date.UTC(2026, 5, 21, 8, 24)));
+  approx(DEC(s), 23.44, 0.5);
+});
+
+await test('December solstice 2026 declination ≈ −23.44°', () => {
+  const s = sunDirectionEcef(new Date(Date.UTC(2026, 11, 21, 20, 50)));
+  approx(DEC(s), -23.44, 0.5);
+});
+
+await test('equinoxes 2026 cross the equator (|decl| < 0.5°)', () => {
+  const mar = sunDirectionEcef(new Date(Date.UTC(2026, 2, 20, 14, 46)));
+  const sep = sunDirectionEcef(new Date(Date.UTC(2026, 8, 23, 0, 5)));
+  assert.ok(Math.abs(DEC(mar)) < 0.5, `March decl ${DEC(mar).toFixed(3)}°`);
+  assert.ok(Math.abs(DEC(sep)) < 0.5, `September decl ${DEC(sep).toFixed(3)}°`);
+});
+
+await test('seasonality: northern summer sun is over the north pole half', () => {
+  const jun = sunDirectionEcef(new Date(Date.UTC(2026, 5, 21, 12)));
+  const dec = sunDirectionEcef(new Date(Date.UTC(2026, 11, 21, 12)));
+  assert.ok(jun.z > 0.35, `June z ${jun.z.toFixed(4)}`);
+  assert.ok(dec.z < -0.35, `December z ${dec.z.toFixed(4)}`);
+});
+
+await test('the real sun axis eclipses its own antipode and lights its sub-solar point', () => {
+  // Integration: feed sunDirectionEcef into eclipseShadowFactor at real
+  // times — a GEO sat parked exactly opposite the sun is in full umbra, a
+  // sat at the sub-solar point is fully lit. This is what the engine does
+  // per frame; a sign error anywhere in the axis would flip both.
+  for (const t of [new Date(Date.UTC(2026, 2, 20, 12)), new Date(Date.UTC(2026, 5, 21, 12))]) {
+    const sun = sunDirectionEcef(t);
+    const geo = 42164e3;
+    assert.equal(eclipseShadowFactor(v(-sun.x * geo, -sun.y * geo, -sun.z * geo), sun), 0);
+    assert.equal(eclipseShadowFactor(v(sun.x * geo, sun.y * geo, sun.z * geo), sun), 1);
   }
 });
