@@ -74,7 +74,7 @@ exact template to copy for `public/constellations/`. Facts the next session need
 
 ## Task list
 
-- [x] **C3 /starlink/ redirect** (commit `TBD`): `public/_redirects` now maps every
+- [x] **C3 /starlink/ redirect** (commit `3e6d5600`): `public/_redirects` now maps every
       `/starlink` spelling (`/starlink`, `/starlink/`, `/starlink/*`) to
       `/constellations/?c=starlink` with **302** (the old `/starlink → /starlink/`
       301 line is replaced, not stacked). The 13 nav links were deliberately left
