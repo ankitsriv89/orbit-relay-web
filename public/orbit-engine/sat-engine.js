@@ -33,6 +33,7 @@ import {
     geoAt, orbitalPeriodMin, footprintRadiusM, farSideFade, eclipseShadowFactor,
     sunDirectionEcef,
 } from './astro.js';
+import { buildSkyFaceSources } from './starfield.js';
 
 const SAT_TICK_MS   = 280;   // position refresh (a sat moves ~metres in this time)
 // The pulse rides the position cadence on purpose. At 90 ms it forced a full
@@ -238,11 +239,16 @@ export class SatEngine {
         this._posScratch = new Cesium.Cartesian3();
         this._geoScratch = { lat: 0, lon: 0, alt: 0 };
         /** Cinematic quality (plan 34 §3.3): 'high' shades satellites inside
-         *  Earth's umbra via eclipseShadowFactor (the eclipse pass below) AND
-         *  enables the bloom post-process stage (C3); 'low' keeps only the
-         *  camera-based far-side fade. /orbit/ owns the persisted toggle;
-         *  pages without one keep the engine default. */
+         *  Earth's umbra via eclipseShadowFactor (the eclipse pass below),
+         *  enables the bloom post-process stage (C3) AND replaces the scene
+         *  skyBox with the procedural starfield (C4); 'low' keeps only the
+         *  camera-based far-side fade, bloom off and the skyBox hidden.
+         *  /orbit/ owns the persisted toggle; pages without one keep the
+         *  engine default. */
         this.cinematics = 'high';
+        /** The procedural star skyBox (C4), built lazily on the first
+         *  _applyCinematics call — see _buildSkyBox(). Recreated never. */
+        this._skyBox = null;
 
         try {
             this.worker = new Worker(workerUrl);
@@ -659,14 +665,25 @@ export class SatEngine {
     }
 
     /**
-     * Apply the scene-level half of the cinematic quality (plan 34 §3.3 C3).
+     * Apply the scene-level half of the cinematic quality (plan 34 §3.3 C3+C4).
      *
      * 'high' enables `scene.postProcessStages.bloom`, the built-in bloom
-     * stage; 'low' disables it. The uniforms are left at Cesium's defaults —
-     * the canvas renders black in the dev sandbox (Cesium Ion 403), so visual
-     * tuning (glowOnly / contrast / sigma) is deliberately deferred until a
-     * real renderer can be eyeballed, same discipline as C2's sun constants
-     * being pinned by tests before they were trusted.
+     * stage, and shows the procedural star skyBox (built once, then cached —
+     * see _buildSkyBox). 'low' disables bloom and hides the skyBox, leaving a
+     * plain black background behind the atmosphere.
+     *
+     * The bloom uniforms are left at Cesium's defaults — the canvas renders
+     * black in the dev sandbox (Cesium Ion 403), so visual tuning (glowOnly /
+     * contrast / sigma) is deliberately deferred until a real renderer can be
+     * eyeballed, same discipline as C2's sun constants being pinned by tests
+     * before they were trusted.
+     *
+     * The skyBox is assigned in BOTH levels, not just 'high'. Cesium 1.113's
+     * Scene lazily constructs its default Tycho-2 skyBox on the first render
+     * when `scene.skyBox` is undefined — six JPEG fetches from the Cesium CDN
+     * per page. This constructor-time call runs before the first frame, so
+     * assigning ours (even hidden) preempts the default entirely and every
+     * page ships the procedural sky or a plain black one, never a CDN asset.
      *
      * Post-processing is guarded at every level: it needs a WebGL2 context,
      * and even where the collection exists the bloom stage is a lazy getter
@@ -676,17 +693,30 @@ export class SatEngine {
      */
     _applyCinematics() {
         const scene = this.viewer.scene;
+        if (!this._skyBox) this._skyBox = this._buildSkyBox();
+        if (scene.skyBox !== this._skyBox) scene.skyBox = this._skyBox;
+        this._skyBox.show = this.cinematics === 'high';
+
         if (!scene.postProcessStages || !scene.postProcessStages.bloom) return;
         scene.postProcessStages.bloom.enabled = this.cinematics === 'high';
     }
 
+    /** The procedural star skyBox (C4): six canvas faces of a deterministic
+     *  3D star field, encoded as PNG data URLs — a few KB of generated image
+     *  strings, no external assets (the plan §1.3 lesson). See
+     *  starfield.js for the pure math. */
+    _buildSkyBox() {
+        return new Cesium.SkyBox({ sources: buildSkyFaceSources(), show: true });
+    }
+
     /**
      * Set the cinematic quality (plan 34 §3.3 — the eclipse shading + bloom
-     * passes).
+     * passes + star skyBox).
      *
-     * 'high' shades satellites inside Earth's umbra via eclipseShadowFactor
-     * and enables the bloom post-process stage; 'low' disables both and leaves
-     * the far-side fade alone. The first frame after a change rewrites every
+     * 'high' shades satellites inside Earth's umbra via eclipseShadowFactor,
+     * enables the bloom post-process stage and shows the procedural star
+     * skyBox; 'low' disables all three and leaves the far-side fade alone.
+     * The first frame after a change rewrites every
      * visible point — the pass compares against the last applied multiplier,
      * which the flip invalidates — so requestRender() makes the change visible
      * immediately rather than waiting for the next propagation tick.
