@@ -15,7 +15,12 @@
  *   - a ring whose points are not on the orbital plane (bad rotation
  *     matrix), not at the requested radius, or not closed;
  *   - compute.js drifting back to referencing satellite.js/Cesium/DOM,
- *     which would silently break the very Node import this file exists for.
+ *     which would silently break the very Node import this file exists for;
+ *   - groupConstellation merging multi-shell groups (Starlink's live 43°/
+ *     53°/70°/97.5° shells interleave RAANs so densely that a RAAN-only
+ *     split collapses them into one plane — inclination banding must come
+ *     first), or remapping band-local member indices onto the wrong
+ *     entries array.
  */
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -23,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
     smaKmFromMeanMotion, altKmFromSma, planeElements, circularMeanDeg,
-    groupIntoPlanes, planeRingDeg,
+    groupIntoPlanes, groupConstellation, planeRingDeg,
 } from '../../../public/constellations/compute.js';
 import { EARTH_R_KM, GM_EARTH, orbitRegime } from '../../../public/orbit-engine/astro.js';
 
@@ -177,6 +182,105 @@ await test('gap exactly at the tolerance does not split; larger does', () => {
 
 await test('empty input yields no planes', () => {
   assert.deepEqual(groupIntoPlanes([]), []);
+});
+
+/* ── Two-level grouping: inclination bands, then RAAN per band ────────── */
+
+console.log('\n-- groupConstellation --');
+
+await test('multi-shell group (Starlink-like) keeps shells separate', () => {
+  // Three shells whose RAANs interleave densely — a RAAN-only split sees
+  // one continuous sequence (this is the live Starlink failure mode) while
+  // inclination separates them by 10°+.
+  const mk = (inclDeg, raanDeg) => ({ raanDeg, inclDeg, smaKm: 6921 });
+  const entries = [
+    // 53° shell, quasi-continuous RAANs
+    ...Array.from({ length: 20 }, (_, i) => mk(53.0 + 0.02 * (i % 5), (i * 4.9) % 360)),
+    // 43° shell, same RAAN range
+    ...Array.from({ length: 10 }, (_, i) => mk(43.1 + 0.02 * (i % 3), (i * 9.8) % 360)),
+    // 70° shell, wide spacing (real gaps)
+    ...Array.from({ length: 9 }, (_, i) => mk(70.2, (i * 40) % 360)),
+  ];
+  const planes = groupConstellation(entries);
+  const inclMeans = planes.map(p => p.inclDeg).sort((a, b) => a - b);
+  assert.ok(planes.length >= 3, `expected >=3 planes, got ${planes.length}`);
+  // every plane's mean inclination matches one of the three shells
+  for (const m of inclMeans) {
+    assert.ok(
+      Math.abs(m - 43.1) < 0.5 || Math.abs(m - 53.0) < 0.5 || Math.abs(m - 70.2) < 0.5,
+      `plane mean incl ${m} matches no shell`);
+  }
+  const total = planes.reduce((s, p) => s + p.count, 0);
+  assert.equal(total, entries.length);
+});
+
+await test('a pure RAAN split WOULD merge the multi-shell group (contrast)', () => {
+  const mk = (inclDeg, raanDeg) => ({ raanDeg, inclDeg, smaKm: 6921 });
+  const entries = [
+    ...Array.from({ length: 20 }, (_, i) => mk(53.0, (i * 4.9) % 360)),
+    ...Array.from({ length: 10 }, (_, i) => mk(43.1, (i * 9.8) % 360)),
+  ];
+  assert.equal(groupIntoPlanes(entries, { raanTolDeg: 5 }).length, 1,
+    'RAAN-only split merges interleaved shells — this is why banding exists');
+});
+
+await test('single-shell group equals groupIntoPlanes on the same entries', () => {
+  const mk = (raanDeg) => ({ raanDeg, inclDeg: 55, smaKm: 26562 });
+  const entries = [mk(10), mk(12), mk(70), mk(130), mk(132), mk(250)];
+  const viaBands = groupConstellation(entries);
+  const direct = groupIntoPlanes(entries, { raanTolDeg: 5 });
+  assert.equal(viaBands.length, direct.length);
+  viaBands.forEach((p, i) => {
+    approx(p.raanDeg, direct[i].raanDeg, 1e-9);
+    assert.equal(p.count, direct[i].count);
+  });
+});
+
+await test('inclination gap exactly at the tolerance does not split; larger does', () => {
+  const mk = incl => ({ raanDeg: 100, inclDeg: incl, smaKm: 6921 });
+  assert.equal(groupConstellation([mk(53), mk(54)]).length, 1);
+  assert.equal(groupConstellation([mk(53), mk(54.1)]).length, 2);
+});
+
+await test('members are indices into the ORIGINAL entries array', () => {
+  const entries = [
+    { raanDeg: 200, inclDeg: 43, smaKm: 6921 },   // 0
+    { raanDeg: 5,   inclDeg: 53, smaKm: 6921 },   // 1
+    { raanDeg: 9,   inclDeg: 53, smaKm: 6921 },   // 2
+    { raanDeg: 40,  inclDeg: 70, smaKm: 6921 },   // 3
+  ];
+  const planes = groupConstellation(entries);
+  const planeOf = i => planes.find(p => p.members.includes(i));
+  assert.equal(planeOf(0).inclDeg, 43);
+  assert.equal(planeOf(1).inclDeg, 53);
+  assert.equal(planeOf(2).inclDeg, 53);
+  assert.equal(planeOf(3).inclDeg, 70);
+  assert.equal(planeOf(1).count, 2);
+});
+
+await test('a wrap-straddling plane inside one inclination band stays whole', () => {
+  const mk = raan => ({ raanDeg: raan, inclDeg: 53, smaKm: 6921 });
+  const entries = [mk(358.5), mk(359.8), mk(1.2), mk(120), mk(240)];
+  const planes = groupConstellation(entries);
+  assert.equal(planes.length, 3);
+  // mean of [358.5, 359.8, 1.2] is ~359.83° — one plane, and it sorts LAST
+  // (the earlier C1 test's 0.4° mean came from a [2.1] member; here it's 359.83)
+  approx(planes[2].raanDeg, 359.83, 0.1);
+  assert.equal(planes[2].count, 3);
+});
+
+await test('empty input yields no planes', () => {
+  assert.deepEqual(groupConstellation([]), []);
+});
+
+await test('planes come back sorted by RAAN with circular ordering', () => {
+  const mk = (incl, raan) => ({ raanDeg: raan, inclDeg: incl, smaKm: 6921 });
+  const entries = [mk(43, 300), mk(43, 50), mk(70, 30), mk(53, 200), mk(43, 310), mk(70, 120)];
+  const planes = groupConstellation(entries);
+  const raans = planes.map(p => p.raanDeg);
+  const sorted = [...raans].sort((a, b) => a - b);
+  assert.deepEqual(raans, sorted);
+  assert.equal(planes.length, 6);
 });
 
 /* ── Ring geometry ────────────────────────────────────────────────────── */

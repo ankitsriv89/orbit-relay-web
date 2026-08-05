@@ -1,0 +1,751 @@
+/* ==========================================================================
+   CONSTELLATION VIEW — Starlink / OneWeb / GPS / Galileo / Iridium orbital
+   planes (plan 34 §3.2, spec #7). Self-contained like starlink.css: owns its
+   own :root token block (--font-mono / --sa-* / --hud-blur), scoped under
+   body[data-page-id="constellation-view"], and every rule is scoped so this
+   file can never leak into another page if it is ever linked there.
+
+   Link order on the page: /css/tokens.css, /css/chrome.css (nav chrome,
+   mobile-menu overlay, mission clock, .vfx-overlay/.noise-layer), then this
+   file. Do NOT link starlink.css or orbit.css.
+   ========================================================================== */
+
+:root {
+    --font-mono: "SFMono-Regular", "JetBrains Mono", "Roboto Mono", "Courier New", monospace;
+    --sa-top:    env(safe-area-inset-top, 0px);
+    --sa-right:  env(safe-area-inset-right, 0px);
+    --sa-bottom: env(safe-area-inset-bottom, 0px);
+    --sa-left:   env(safe-area-inset-left, 0px);
+    --hud-blur: 16px;
+}
+
+body[data-page-id="constellation-view"] {
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body[data-page-id="constellation-view"] #cesium-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    touch-action: none;
+    cursor: grab;
+}
+
+body[data-page-id="constellation-view"] #cesium-container:active {
+    cursor: grabbing;
+}
+
+body[data-page-id="constellation-view"] #cesium-container .cesium-widget-credits { display: none !important; }
+body[data-page-id="constellation-view"] #cesium-container .cesium-viewer-toolbar,
+body[data-page-id="constellation-view"] #cesium-container .cesium-viewer-animationContainer,
+body[data-page-id="constellation-view"] #cesium-container .cesium-viewer-timelineContainer,
+body[data-page-id="constellation-view"] #cesium-container .cesium-viewer-bottom { display: none !important; }
+
+/* ── Constellation selector bar ──────────────────────────────────────────
+   The primary control — always visible, fixed directly under the top nav.
+   Desktop: centered pill. Mobile: full-width strip with horizontal scroll
+   (nowrap, no wrap). HUD tops below are measured from this bar's bottom:
+   96px desktop / 128px mobile. */
+
+body[data-page-id="constellation-view"] .constellation-selector {
+    position: fixed;
+    top: calc(52px + var(--sa-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    background: rgba(0, 12, 24, 0.82);
+    border: 1px solid rgba(0, 210, 255, 0.3);
+    border-radius: 8px;
+    backdrop-filter: blur(var(--hud-blur));
+    -webkit-backdrop-filter: blur(var(--hud-blur));
+    box-shadow:
+        0 0 20px rgba(0, 210, 255, 0.08),
+        0 4px 24px rgba(0, 0, 0, 0.6);
+}
+body[data-page-id="constellation-view"] .constellation-selector::-webkit-scrollbar { display: none; }
+
+body[data-page-id="constellation-view"] .constellation-selector__btn {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 6px 12px;
+    color: rgba(160, 210, 240, 0.6);
+    background: rgba(0, 210, 255, 0.06);
+    border: 1px solid rgba(0, 210, 255, 0.22);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+}
+@media (hover: hover) {
+    body[data-page-id="constellation-view"] .constellation-selector__btn:hover {
+        color: rgba(200, 240, 255, 0.85);
+        background: rgba(0, 210, 255, 0.2);
+    }
+}
+body[data-page-id="constellation-view"] .constellation-selector__btn--active {
+    color: #001018;
+    background: rgba(0, 210, 255, 0.85);
+    border-color: rgba(0, 210, 255, 0.85);
+    box-shadow: 0 0 12px rgba(0, 210, 255, 0.45);
+}
+
+/* ── Shared HUD card ──────────────────────────────────────────────────── */
+
+body[data-page-id="constellation-view"] .orbital-hud {
+    position: fixed;
+    z-index: 15;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 1.4px;
+    color: rgba(200, 240, 255, 0.95);
+    background: linear-gradient(145deg, rgba(0, 12, 24, 0.92) 0%, rgba(0, 25, 45, 0.88) 100%);
+    border: 1px solid rgba(0, 210, 255, 0.45);
+    border-radius: 8px;
+    padding: 18px 22px;
+    backdrop-filter: blur(var(--hud-blur));
+    -webkit-backdrop-filter: blur(var(--hud-blur));
+    min-width: 210px;
+    box-shadow:
+        0 0 30px rgba(0, 210, 255, 0.08),
+        0 4px 24px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body[data-page-id="constellation-view"] .orbital-hud input,
+body[data-page-id="constellation-view"] .orbital-hud textarea,
+body[data-page-id="constellation-view"] .orbital-hud .hud-val {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+body[data-page-id="constellation-view"] .hud-title {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: rgba(0, 210, 255, 0.6);
+    border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+body[data-page-id="constellation-view"] .hud-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 6px;
+}
+
+body[data-page-id="constellation-view"] .hud-label {
+    color: rgba(200, 240, 255, 0.45);
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+}
+
+body[data-page-id="constellation-view"] .hud-row--toggle {
+    align-items: center;
+}
+
+body[data-page-id="constellation-view"] .st-toggle-btn {
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(150, 200, 230, 0.55);
+    background: rgba(0, 20, 32, 0.75);
+    border: 1px solid rgba(0, 210, 255, 0.32);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+body[data-page-id="constellation-view"] .st-toggle-btn--on {
+    color: #00d2ff;
+    border-color: rgba(0, 210, 255, 0.6);
+    background: rgba(0, 210, 255, 0.12);
+}
+
+body[data-page-id="constellation-view"] .hud-val {
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+body[data-page-id="constellation-view"] .hud-live {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 204, 255, 0.2);
+    color: #00ccff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    animation: tv-signal-blink 1.6s infinite;
+}
+
+@keyframes tv-signal-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ── HUD placement ─────────────────────────────────────────────────────
+   Three corners, so two expanded panels never collide on desktop:
+   stats top-left, planes top-right, density bottom-right. Mobile stacks
+   the top two (see the 768px block) and keeps them apart by position AND
+   by hud.js's mobile exclusivity (only one panel expands below 768px).
+   All tops clear the selector bar: 96px desktop / 136px mobile (bar
+   bottom ≈ 89px / 126px). */
+
+body[data-page-id="constellation-view"] #stats-hud {
+    top: calc(96px + var(--sa-top));
+    left: calc(24px + var(--sa-left));
+    border-color: rgba(0, 204, 255, 0.55);
+    box-shadow:
+        0 0 30px rgba(0, 204, 255, 0.12),
+        0 4px 24px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+body[data-page-id="constellation-view"] #stats-hud .hud-title { color: rgba(0, 204, 255, 0.75); }
+body[data-page-id="constellation-view"] #stats-hud .key-hud-toggle-arrow { color: rgba(0, 204, 255, 0.75); }
+
+body[data-page-id="constellation-view"] #planes-hud {
+    top: calc(96px + var(--sa-top));
+    right: calc(24px + var(--sa-right));
+    min-width: 0;
+    /* Cap to the viewport so a 48-plane list can't crop off the bottom.
+       border-box so padding counts inside the cap. */
+    box-sizing: border-box;
+    max-height: calc(100vh - 140px - 24px);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scroll the plane list inside the panel rather than overflowing the viewport */
+body[data-page-id="constellation-view"] #planes-hud .key-hud-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+body[data-page-id="constellation-view"] #planes-hud .key-hud-body::-webkit-scrollbar {
+    width: 6px;
+}
+body[data-page-id="constellation-view"] #planes-hud .key-hud-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 210, 255, 0.4);
+    border-radius: 3px;
+}
+
+body[data-page-id="constellation-view"] #density-hud {
+    bottom: calc(96px + var(--sa-bottom));
+    right: calc(24px + var(--sa-right));
+    min-width: 0;
+}
+
+body[data-page-id="constellation-view"] #density-hud .hud-title { color: rgba(0, 204, 255, 0.75); }
+body[data-page-id="constellation-view"] #density-hud .key-hud-toggle-arrow { color: rgba(0, 204, 255, 0.75); }
+
+/* ── Plane list rows ─────────────────────────────────────────────────── */
+
+body[data-page-id="constellation-view"] .planes-list {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+}
+
+body[data-page-id="constellation-view"] .plane-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 8px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1.2px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+    body[data-page-id="constellation-view"] .plane-row:hover {
+        background: rgba(0, 210, 255, 0.1);
+        color: rgba(220, 245, 255, 0.95);
+    }
+}
+
+body[data-page-id="constellation-view"] .plane-row__id {
+    color: rgba(0, 210, 255, 0.8);
+    font-weight: 700;
+    white-space: nowrap;
+}
+body[data-page-id="constellation-view"] .plane-row__raan {
+    color: rgba(220, 245, 255, 0.9);
+    font-weight: 600;
+    white-space: nowrap;
+}
+body[data-page-id="constellation-view"] .plane-row__meta {
+    color: rgba(200, 240, 255, 0.45);
+    white-space: nowrap;
+}
+
+/* ── Key HUD toggle (collapsible panel header) ───────────────────────── */
+
+body[data-page-id="constellation-view"] .key-hud-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    width: 100%;
+    text-align: left;
+}
+
+body[data-page-id="constellation-view"] .key-hud-toggle-arrow {
+    font-size: 0.55rem;
+    color: rgba(0, 210, 255, 0.6);
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+body[data-page-id="constellation-view"] .key-hud-body { margin-top: 12px; }
+
+body[data-page-id="constellation-view"] .key-hud--collapsed { min-width: 0; }
+
+/* ── Density slider ──────────────────────────────────────────────────── */
+
+body[data-page-id="constellation-view"] .sl-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 4px;
+}
+
+body[data-page-id="constellation-view"] .sl-label-min,
+body[data-page-id="constellation-view"] .sl-label-max {
+    white-space: nowrap;
+    font-size: 0.58rem;
+    color: rgba(200, 240, 255, 0.4);
+    letter-spacing: 1px;
+    min-width: 24px;
+}
+
+body[data-page-id="constellation-view"] .sl-label-max { text-align: right; }
+
+body[data-page-id="constellation-view"] .sl-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(0, 210, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+body[data-page-id="constellation-view"] .sl-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    background-clip: content-box;
+    border: 9px solid transparent;
+    border-radius: 50%;
+    background: #00ccff;
+    box-shadow: 0 0 6px rgba(0, 204, 255, 0.6);
+    cursor: pointer;
+}
+
+body[data-page-id="constellation-view"] .sl-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: #00ccff;
+    box-shadow: 0 0 6px rgba(0, 204, 255, 0.6);
+    cursor: pointer;
+}
+
+body[data-page-id="constellation-view"] .sl-slider-val {
+    font-size: 0.6rem;
+    color: rgba(200, 240, 255, 0.5);
+    letter-spacing: 1.5px;
+    text-align: center;
+}
+
+body[data-page-id="constellation-view"] .sl-slider-val span {
+    color: #00ccff;
+    font-weight: 700;
+}
+
+/* ── Time-warp controls ──────────────────────────────────────────────── */
+
+body[data-page-id="constellation-view"] .time-warp {
+    bottom: calc(120px + var(--sa-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    min-width: 0;
+}
+body[data-page-id="constellation-view"] .tw-label {
+    font-size: 0.58rem;
+    letter-spacing: 2px;
+    color: rgba(0, 210, 255, 0.6);
+    font-weight: 700;
+}
+body[data-page-id="constellation-view"] .tw-btns { display: flex; gap: 4px; }
+
+/* ── Camera altitude readout — sits inline with the time-warp control ── */
+body[data-page-id="constellation-view"] .cam-alt {
+    font-size: 0.58rem;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    color: rgba(160, 200, 230, 0.6);
+    padding-left: 10px;
+    border-left: 1px solid rgba(0, 210, 255, 0.2);
+    white-space: nowrap;
+}
+
+body[data-page-id="constellation-view"] .tw-btn {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    min-width: 38px;
+    padding: 5px 8px;
+    background: rgba(0, 210, 255, 0.08);
+    color: rgba(200, 240, 255, 0.7);
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+@media (hover: hover) {
+    body[data-page-id="constellation-view"] .tw-btn:hover { background: rgba(0, 210, 255, 0.2); color: #fff; }
+}
+body[data-page-id="constellation-view"] .tw-btn--active {
+    background: rgba(0, 210, 255, 0.85);
+    color: #001018;
+    box-shadow: 0 0 12px rgba(0, 210, 255, 0.45);
+}
+
+/* ── Satellite inspector card ──────────────────────────────────────────
+   Desktop: bottom-LEFT — the density HUD owns the bottom-right corner, and
+   the centered time-warp owns the bottom-middle, so left is the only
+   corner an expanded card never collides with. Mobile: full-width above
+   the sat-bar. */
+
+body[data-page-id="constellation-view"] .sat-detail {
+    bottom: calc(120px + var(--sa-bottom));
+    left: calc(24px + var(--sa-left));
+    min-width: 210px;
+    max-width: 250px;
+    z-index: 16;
+}
+body[data-page-id="constellation-view"] .sat-detail-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+    background: none;
+    border: none;
+    color: rgba(200, 240, 255, 0.5);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+@media (hover: hover) {
+    body[data-page-id="constellation-view"] .sat-detail-close:hover { color: #00d2ff; }
+}
+body[data-page-id="constellation-view"] .sat-detail .hud-title { color: rgba(0, 210, 255, 0.85); padding-right: 24px; }
+
+/* ── Bottom satellite count bar ──────────────────────────────────────── */
+
+body[data-page-id="constellation-view"] .orbital-sat-bar {
+    position: fixed;
+    bottom: calc(24px + var(--sa-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(200, 240, 255, 0.7);
+    background: rgba(0, 12, 24, 0.82);
+    border: 1px solid rgba(0, 210, 255, 0.3);
+    border-radius: 20px;
+    padding: 8px 20px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    white-space: nowrap;
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.06);
+}
+
+body[data-page-id="constellation-view"] .orbital-sat-bar span {
+    color: #00ccff;
+    font-weight: 700;
+}
+
+/* ── Footer (citation + mission clock) ───────────────────────────────── */
+
+body[data-page-id="constellation-view"] .orbital-footer {
+    position: fixed;
+    bottom: calc(8px + var(--sa-bottom));
+    right: calc(16px + var(--sa-right));
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0 6px;
+    max-width: min(72vw, 640px);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 1px;
+    color: rgba(160, 200, 230, 0.55);
+    pointer-events: none;
+}
+
+body[data-page-id="constellation-view"] .orbital-footer span + span::before {
+    content: "· ";
+    color: rgba(160, 200, 230, 0.35);
+}
+
+body[data-page-id="constellation-view"] .orbital-footer__cite {
+    color: rgba(160, 200, 230, 0.7);
+}
+
+/* ── Hamburger button (mobile nav). Not in chrome.css — it stays in the
+   source files because /orbit/ and /spacetrack/ diverge on it. This page
+   uses the /orbit/ variant (full button, revealed under 768px). ───────── */
+
+body[data-page-id="constellation-view"] .hamburger-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: border-color 0.15s;
+    margin-left: auto;
+}
+
+body[data-page-id="constellation-view"] .hamburger-line {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: rgba(200, 240, 255, 0.85);
+    border-radius: 1px;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+body[data-page-id="constellation-view"] .hamburger-btn.hamburger--open .hamburger-line:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+}
+body[data-page-id="constellation-view"] .hamburger-btn.hamburger--open .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+body[data-page-id="constellation-view"] .hamburger-btn.hamburger--open .hamburger-line:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+}
+
+/* ── Focus ───────────────────────────────────────────────────────────── */
+
+body[data-page-id="constellation-view"] .orbital-hud button:focus-visible,
+body[data-page-id="constellation-view"] .orbital-hud input:focus-visible,
+body[data-page-id="constellation-view"] .orbital-hud a:focus-visible,
+body[data-page-id="constellation-view"] .tw-btn:focus-visible,
+body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visible {
+    outline: 2px solid rgba(0, 210, 255, 0.95);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* ==========================================================================
+   MOBILE
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    :root { --hud-blur: 8px; }
+
+    /* ── Hamburger menu: visible on mobile (the /orbit/ variant — chrome.css
+       deliberately holds no .hamburger-btn rules because /orbit/ and
+       /spacetrack/ diverge on them). Revealing it grows the nav from 34px to
+       64px tall, so every offset below is measured from that: nav 64,
+       selector bar 68..126, HUD tops 136. */
+
+    body[data-page-id="constellation-view"] .hamburger-btn {
+        display: flex;
+    }
+
+    /* Selector bar: full-width strip under the nav, horizontal scroll
+       instead of centering. */
+    body[data-page-id="constellation-view"] .constellation-selector {
+        top: calc(68px + var(--sa-top));
+        left: calc(12px + var(--sa-left));
+        right: calc(12px + var(--sa-right));
+        transform: none;
+        justify-content: flex-start;
+        padding: 6px;
+        max-width: none;
+    }
+
+    body[data-page-id="constellation-view"] .constellation-selector__btn {
+        min-height: 44px;
+        padding: 10px 14px;
+        font-size: max(0.68rem, 11px);
+    }
+
+    /* Top HUDs stack rather than share a row: stats at 136, planes at 208.
+       Side-by-side toggles (each ~200px wide) physically overlap on a 390px
+       screen, and the two-column desktop corner layout has no room there. */
+    body[data-page-id="constellation-view"] #stats-hud {
+        top: calc(136px + var(--sa-top));
+        left: calc(12px + var(--sa-left));
+    }
+    body[data-page-id="constellation-view"] #planes-hud {
+        top: calc(208px + var(--sa-top));
+        left: calc(12px + var(--sa-left));
+        right: auto;
+        max-height: calc(100vh - 220px - 12px);
+    }
+    body[data-page-id="constellation-view"] #density-hud {
+        bottom: calc(112px + var(--sa-bottom));
+        right: calc(12px + var(--sa-right));
+    }
+    body[data-page-id="constellation-view"] #density-hud:not(.key-hud--collapsed),
+    body[data-page-id="constellation-view"] #stats-hud:not(.key-hud--collapsed) {
+        max-width: min(74vw, 280px);
+        z-index: 18;
+    }
+
+    body[data-page-id="constellation-view"] .orbital-sat-bar { font-size: 0.58rem; }
+
+    body[data-page-id="constellation-view"] .time-warp { bottom: calc(60px + var(--sa-bottom)); }
+
+    body[data-page-id="constellation-view"] .sat-detail {
+        left: calc(12px + var(--sa-left));
+        right: calc(12px + var(--sa-right));
+        bottom: calc(100px + var(--sa-bottom));
+        max-width: none;
+    }
+
+    body[data-page-id="constellation-view"] .orbital-hud {
+        font-size: 0.64rem;
+        padding: 12px 16px;
+        min-width: 0;
+    }
+
+    body[data-page-id="constellation-view"] .tw-btn {
+        min-height: 44px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    body[data-page-id="constellation-view"] .sat-detail-close {
+        width: 44px;
+        height: 44px;
+        top: 4px;
+        right: 4px;
+        font-size: 1.1rem;
+    }
+
+    body[data-page-id="constellation-view"] .key-hud-toggle { min-height: 44px; }
+
+    body[data-page-id="constellation-view"] .hud-label,
+    body[data-page-id="constellation-view"] .orbital-footer {
+        font-size: max(0.68rem, 11px);
+    }
+    body[data-page-id="constellation-view"] .hud-val { font-size: max(0.8rem, 13px); }
+    body[data-page-id="constellation-view"] .hud-title { font-size: max(0.75rem, 12px); }
+    body[data-page-id="constellation-view"] .key-hud-toggle-arrow { font-size: max(0.7rem, 11px); }
+    body[data-page-id="constellation-view"] .sl-label-min,
+    body[data-page-id="constellation-view"] .sl-label-max,
+    body[data-page-id="constellation-view"] .tw-label,
+    body[data-page-id="constellation-view"] .tw-btn {
+        font-size: max(0.68rem, 11px);
+    }
+    body[data-page-id="constellation-view"] .plane-row {
+        font-size: max(0.66rem, 11px);
+    }
+}
+
+/* Short landscape: recover vertical room by tightening the top HUD stack
+   and dropping the sat bar. Tops stay at 136/208 so the stack clears both
+   nav shapes (34px desktop nav + centered pill at 52, 64px nav + full-width
+   strip at 68). */
+@media (max-height: 500px) and (orientation: landscape) {
+    body[data-page-id="constellation-view"] #stats-hud,
+    body[data-page-id="constellation-view"] #planes-hud {
+        max-height: calc(100vh - 220px - 12px);
+        overflow-y: auto;
+    }
+    body[data-page-id="constellation-view"] .orbital-sat-bar { display: none; }
+    body[data-page-id="constellation-view"] .orbital-hud { padding: 10px 14px; }
+}
+
+@media (max-width: 480px) {
+    body[data-page-id="constellation-view"] .orbital-hud {
+        font-size: 0.58rem;
+        padding: 8px 10px;
+    }
+
+    /* The time-warp wraps to two rows below 480px; raise density clear of it */
+    body[data-page-id="constellation-view"] #density-hud {
+        bottom: calc(168px + var(--sa-bottom));
+    }
+
+    body[data-page-id="constellation-view"] .time-warp {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    body[data-page-id="constellation-view"] .cam-alt {
+        padding-left: 0;
+        border-left: none;
+        flex-basis: 100%;
+        text-align: center;
+    }
+}

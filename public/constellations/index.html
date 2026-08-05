@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <meta name="description" content="Constellation view — Starlink, OneWeb, GPS, Galileo and Iridium orbital planes on a 3D globe.">
+    <meta name="theme-color" content="#000000">
+    <title>Constellations — Orbital Plane View</title>
+    <!-- CesiumJS -->
+    <script src="/orbit-engine/cesium-base.js"></script>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/chrome.css">
+    <link rel="stylesheet" href="constellations.css">
+</head>
+
+<body data-page-id="constellation-view">
+
+    <!-- VFX Layer -->
+    <div class="vfx-overlay" aria-hidden="true">
+        <div class="noise-layer"></div>
+    </div>
+
+    <!-- Cesium globe container -->
+    <div id="cesium-container" aria-hidden="true"></div>
+
+    <!-- Navigation -->
+    <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="Constellation view navigation">
+        <a href="/" class="spacetrack-nav__brand" aria-label="Home">◂ HOME</a>
+        <ul class="spacetrack-nav__list" role="menubar">
+            <li><a href="/constellations/" class="spacetrack-nav__link spacetrack-nav__link--active" role="menuitem">CONSTELLATIONS</a></li>
+            <li><a href="/orbit/" class="spacetrack-nav__link" role="menuitem">ORBITAL RELAY</a></li>
+            <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">SPACETRACK</a></li>
+        </ul>
+        <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
+        <a href="/spacetrack/" class="spacetrack-nav__source-link" title="Space-Track catalog">SPACE-TRACK ↗</a>
+        <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+    </nav>
+
+    <!-- Mobile navigation menu (hamburger) -->
+    <div id="mobile-menu" class="mobile-menu" hidden role="navigation" aria-label="Navigation menu">
+        <button id="mobile-menu-close" class="mobile-menu__close" aria-label="Close navigation menu" type="button">&#10005;</button>
+        <a href="/constellations/" class="mobile-menu__link mobile-menu__link--active">CONSTELLATIONS</a>
+        <a href="/orbit/" class="mobile-menu__link">ORBITAL RELAY</a>
+        <a href="/spacetrack/" class="mobile-menu__link">SPACETRACK</a>
+        <hr class="mobile-menu__divider">
+        <a href="/starlink/" class="mobile-menu__link mobile-menu__source">STARLINK ↗</a>
+        <a href="/spacetrack/" class="mobile-menu__link mobile-menu__source">SPACE-TRACK ↗</a>
+    </div>
+
+    <!-- Constellation selector bar — primary control, always visible -->
+    <div id="constellation-selector" class="constellation-selector" role="group" aria-label="Constellation selector">
+        <button class="constellation-selector__btn constellation-selector__btn--active" data-constellation="starlink" type="button" aria-pressed="true">STARLINK</button>
+        <button class="constellation-selector__btn" data-constellation="oneweb" type="button" aria-pressed="false">ONEWEB</button>
+        <button class="constellation-selector__btn" data-constellation="gps" type="button" aria-pressed="false">GPS</button>
+        <button class="constellation-selector__btn" data-constellation="galileo" type="button" aria-pressed="false">GALILEO</button>
+        <button class="constellation-selector__btn" data-constellation="iridium" type="button" aria-pressed="false">IRIDIUM</button>
+    </div>
+
+    <!-- Stats HUD — top left -->
+    <div id="stats-hud" class="orbital-hud key-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="stats-hud-toggle" aria-expanded="false" aria-controls="stats-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title" style="margin:0;border:none;padding:0;">// CONSTELLATION STATS</span>
+        </button>
+        <div id="stats-hud-body" class="key-hud-body" hidden>
+            <div class="hud-row">
+                <span class="hud-label">LOADED</span>
+                <span id="ct-loaded" class="hud-val">—</span>
+            </div>
+            <div class="hud-row">
+                <span class="hud-label">RENDERED</span>
+                <span id="ct-rendered" class="hud-val">—</span>
+            </div>
+            <div class="hud-row">
+                <span class="hud-label">PLANES</span>
+                <span id="ct-planes" class="hud-val">—</span>
+            </div>
+            <div class="hud-row">
+                <span class="hud-label">AVG ALT</span>
+                <span id="ct-avg-alt" class="hud-val">—</span>
+            </div>
+            <div class="hud-row">
+                <span class="hud-label">AVG PERIOD</span>
+                <span id="ct-avg-period" class="hud-val">—</span>
+            </div>
+            <div class="hud-live">&#9679; LIVE</div>
+        </div>
+    </div>
+
+    <!-- Planes list HUD — top right -->
+    <div id="planes-hud" class="orbital-hud key-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="planes-hud-toggle" aria-expanded="false" aria-controls="planes-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title" style="margin:0;border:none;padding:0;">// ORBITAL PLANES</span>
+        </button>
+        <div id="planes-hud-body" class="key-hud-body" hidden>
+            <div class="planes-list" id="planes-list" role="listbox" aria-label="Orbital planes"></div>
+        </div>
+    </div>
+
+    <!-- Density controls — bottom right -->
+    <div id="density-hud" class="orbital-hud key-hud key-hud--collapsed">
+        <button class="key-hud-toggle" id="density-hud-toggle" aria-expanded="false" aria-controls="density-hud-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title" style="margin:0;border:none;padding:0;">// DENSITY</span>
+        </button>
+        <div id="density-hud-body" class="key-hud-body" hidden>
+            <div class="sl-slider-row">
+                <span class="hud-label sl-label-min">40</span>
+                <input type="range" id="ct-slider" class="sl-slider"
+                       min="40" step="10" value="40"
+                       aria-label="Satellite render count">
+                <span class="hud-label sl-label-max" id="ct-label-max">—</span>
+            </div>
+            <div class="sl-slider-val">
+                <span id="ct-count-display">40</span>&nbsp;/&nbsp;<span id="ct-total-display">—</span>&nbsp;SATS
+            </div>
+            <div class="hud-row hud-row--toggle">
+                <span class="hud-label">ORBIT</span>
+                <button type="button" id="revs-toggle" class="st-toggle-btn" data-revs-label aria-label="Cycle orbit revolution count">REV 1×</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom satellite count bar -->
+    <div id="sat-bar" class="orbital-sat-bar">
+        TRACKING&nbsp;<span id="hud-sat-count">—</span>&nbsp;<span id="hud-sat-label">STARLINK</span>&nbsp;SATELLITES
+    </div>
+
+    <!-- Time-warp controls -->
+    <div id="time-warp" class="orbital-hud time-warp" role="group" aria-label="Time warp controls">
+        <span class="tw-label">⏱ TIME</span>
+        <div class="tw-btns">
+            <button class="tw-btn" data-rate="0"    title="Pause">❚❚</button>
+            <button class="tw-btn tw-btn--active" data-rate="1"    title="Real time">1×</button>
+            <button class="tw-btn" data-rate="10"   title="10× speed">10×</button>
+            <button class="tw-btn" data-rate="100"  title="100× speed">100×</button>
+            <button class="tw-btn" data-rate="1000" title="1000× speed">1000×</button>
+        </div>
+        <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
+        <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
+    </div>
+
+    <!-- Satellite inspector card -->
+    <div id="sat-detail" class="orbital-hud sat-detail" hidden>
+        <button id="sat-detail-close" class="sat-detail-close" aria-label="Close">✕</button>
+        <div class="hud-title" id="sat-detail-name">// SATELLITE</div>
+        <div class="hud-row"><span class="hud-label">GROUP</span><span id="sat-detail-group" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PLANE</span><span id="sat-detail-plane" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">NORAD</span><span id="sat-detail-norad" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">LAT</span><span id="sat-detail-lat" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">LON</span><span id="sat-detail-lon" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">ALT</span><span id="sat-detail-alt" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">VEL</span><span id="sat-detail-vel" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">PERIOD</span><span id="sat-detail-period" class="hud-val">—</span></div>
+        <div class="hud-row"><span class="hud-label">REGIME</span><span id="sat-detail-regime" class="hud-val">—</span></div>
+    </div>
+
+    <footer class="orbital-footer">
+        <span>Live data: Celestrak</span>
+        <span class="orbital-footer__cite">Orbital data courtesy of Space-Track.org (USSPACECOM / 18th Space Defense Squadron)</span>
+        <span>rendered with CesiumJS</span>
+        <span id="mission-clock" class="mission-clock" title="Mission year — 2026 to 2061" aria-hidden="true"></span>
+    </footer>
+
+    <script src="/orbit-engine/vendor/satellite.min.js"></script>
+    <script type="module" src="constellations.js"></script>
+    <script type="module">
+        import { mountMissionClock } from '/shared/mission-clock.js';
+        mountMissionClock(document.getElementById('mission-clock'));
+    </script>
+    <script src="/js/beacon.js" defer></script>
+</body>
+
+</html>

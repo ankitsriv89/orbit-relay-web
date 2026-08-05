@@ -6,7 +6,7 @@
 
 ## How to work this batch
 
-1. Pick the next task with `status: pending` from the todolist (C2 next).
+1. Pick the next task with `status: pending` from the todolist (C3 next).
 2. Read the linked plan docs (§References) and the "Load-bearing details" below —
    they encode outages this repo has already had.
 3. Implement, then commit with a message matching repo style (see `git log`:
@@ -74,6 +74,51 @@ exact template to copy for `public/constellations/`. Facts the next session need
 
 ## Task list
 
+- [x] **C2 Page** (commit `TBD`): the `/constellations/` view page —
+      `public/constellations/{index.html,constellations.css,constellations.js}`
+      (all new), plus `groupConstellation` (two-level) + 8 tests added to
+      `compute.js` / `constellation-compute.test.mjs` (uncommitted from the C1
+      session — they now ride in this commit; see "Surprises").
+      - **Data/grouping**: `fetchTLE(group, {source:'celestrak', live:true})` per
+        constellation; starlink via `parseTLEChunked`, others `parseTLE`;
+        `planeElements({raanRad: satrec.nodeo, inclRad: satrec.inclo, noRadPerMin:
+        satrec.no})`; `groupConstellation(entries, {inclTolDeg:1, raanTolDeg:5})`
+        (inclination band gap-split, then RAAN gap-split per band). Cache keyed per
+        constellation — switching never refetches. Every constellation loads fully at
+        boot (density slider max = total; NO fetch-all button).
+      - **Render**: `buildRings` — two-ring glow per plane (width 1.2/glow 0.15/alpha
+        0.25 + width 0.6/glow 0.08/alpha 0.12, `arcType: ArcType.NONE`, 180 segments
+        via `planeRingDeg`, `engine.addManagedEntity`); `renderSats` — `addSatellite(
+        satrec, shellColor, 3, false, meta)` with `show` toggling for the density cap,
+        progressive fill plane-major (planes sorted by RAAN, then members).
+      - **UI**: selector bar (5 buttons, primary control), stats HUD (LOADED/RENDERED/
+        PLANES/AVG ALT/AVG PERIOD + LIVE), planes HUD (rows `P01 · RAAN 44° · 155 ·
+        LEO`, click → `flyToPlane` via `BoundingSphere.fromPoints(ringPositions)` +
+        `flyToBoundingSphere`, offset `{0, -55°, radius*3}`), density HUD (slider min
+        40 step 10 + `revs-toggle`), sat-bar, time-warp 0/1/10/100/1000 + recenter +
+        cam-alt, inspector (GROUP/PLANE/NORAD/LAT/LON/ALT/VEL/PERIOD/REGIME), footer
+        citation + mission clock. HUD wiring: `wireHudToggle` ×3,
+        `initMobileListener`, `initHamburgerMenu`, `syncRevsButtons` +
+        `wireRevsButton`. `?c=` preset param, default `starlink`;
+        `window.__constellations` debug handle.
+      - **Verified**: live bundles all five constellations (starlink 47 planes,
+        oneweb 16, gps 8, galileo 4, iridium 7; member totals exact); `npm test`
+        green (72/72 syntax, 62 files resolve, 23/23 constellation checks);
+        custom Playwright probe (S8-S10 workaround, `serve.py 8932`) 57/57 at
+        1400×900 + 390×844: boot, bar/HUD clearances, no collapsed-panel
+        overlaps, slider max = total, plane list + fly-to, inspector fields,
+        REV cycle, warp rates, oneweb switch (651/16/32 rings), mission clock,
+        citation, hamburger reveal + mobile menu, HUD exclusivity, touch
+        targets ≥32, fonts ≥11px, no page scroll, orientation change, zero
+        console/page errors.
+      - **Layout decisions** (deviations from C2 prep notes, see Surprises):
+        mobile breakpoint is **768px** (was 600px) and the hamburger reveal
+        lives in this file (orbit.css variant) — prep notes hadn't accounted
+        for the nav growing 34→64px when the hamburger shows; HUD tops
+        desktop 96px / mobile 136px; mobile top HUDs **stack** (stats 136,
+        planes 208) because side-by-side toggles (~200px each) overlap at
+        390px; inspector desktop bottom-LEFT (density owns bottom-right);
+        landscape-short keeps the 136/208 stack (clears both nav shapes).
 - [x] **C1 Compute + tests** (commit `6b0d271a`): `public/constellations/compute.js` —
       pure plane arithmetic (no satellite.js/Cesium/DOM, imports only
       `../orbit-engine/astro.js`):
@@ -143,6 +188,50 @@ exact template to copy for `public/constellations/`. Facts the next session need
 
 ## Surprises & decisions
 
+- **RAAN-only grouping fails on live Starlink — the plan's §3.2 "group by
+  RAAN+incl+SMA" needs two levels.** Live bundle (10,766 sats) spans 4 shells
+  (43°/53°/70°/97.5°) whose RAAN ranges interleave; within the 53° shell
+  TLE-epoch scatter makes RAANs quasi-continuous (max gap 2.08° vs 5° design
+  spacing), so a pure RAAN gap-split merges the whole constellation into ONE
+  plane. Fixed with `groupConstellation`: inclination-band gap-split
+  (`inclTolDeg: 1.0` — GPS spread 53.16–57.02° bounds it) FIRST, then
+  `groupIntoPlanes` per band. Honest limits: Starlink's dense 43°/53° shells
+  each collapse to one plane (design slots unrecoverable from epochs); the
+  70°/97.5° shells and all four other constellations split exactly (48/16/8/4/7
+  planes live; oneweb 16 vs 18 design — fine). Only `starlink.txt` baseline is
+  trimmed (600 sats, RAANs degenerate ≈53° — grouped as one plane in the
+  baseline, which the page probe confirmed: 4 planes); the other four baseline
+  files are untrimmed. C1's committed `groupIntoPlanes` (RAAN-only) + its tests
+  are superseded by this — keep the RAAN-only function (compute.js exports both;
+  the contrast test "a pure RAAN split WOULD merge the multi-shell group" pins
+  the reason it exists).
+- **Mobile breakpoint is 768px, not 600px, and the hamburger reveal was the
+  missing piece.** Prep notes assumed the 600px selector strip with HUD tops at
+  128px, but chrome.css has NO `.hamburger-btn` rules (deliberate drift between
+  /orbit/ and /spacetrack/) — the page's own CSS must both style it and reveal
+  it (`@media (max-width:768px) { display:flex }`, orbit variant). Revealing it
+  grows the nav 34→64px tall, which invalidates every prep-note offset: selector
+  top 68, HUD tops 136. The probe caught this exactly backwards (nav bottom 34 =
+  hamburger hidden — measured against the buggy state, the offsets looked fine).
+- **Mobile top HUDs stack instead of sharing a row.** The two collapsed toggles
+  (~252px + ~203px wide at 390px) physically overlap side-by-side. Stacked:
+  stats top 136, planes top 208, both left-anchored. hud.js mobile exclusivity
+  still applies (expanded stats covers the planes toggle — close first, then
+  open).
+- **Plane-row separators are text nodes, not CSS** — the probe's textContent
+  assertion caught the row reading `P01RAAN 44°155 · LEO`; separators are now
+  ` · ` spans in the DOM (`P01 · RAAN 44° · 155 · LEO`) so screen readers and
+  the probe contract agree with the visual.
+- **Probe-authoring notes** (cost a few red runs): (a) `page.evaluate` takes
+  exactly one arg — pass `[a, b]` and destructure; (b) passing a state object
+  where a position belongs gives NaN distances (measured `{flight, alt}` against
+  `cam_before`); (c) `fmtLat` yields `48.60° S` (hemisphere suffix) — assert
+  `'°' in lat`, not `endswith('°')`; (d) SwiftShader cold starts make fixed
+  sleeps lie — poll for the expected state (oneweb 651 sats took 1–5s);
+  (e) on mobile the fly-to first poll at t=0 is legitimately 0.0 — the flight
+  completes by the second poll (altitude 28,374→39,541 km); (f) a vacuous
+  assertion (`entityCount >= planes.length*2` with planes=0) masked a timing
+  failure — assert against `ringEntities.length` directly.
 - **Data path chosen: Celestrak group TLEs via existing `/api/tle`** (groups
   `starlink`, `oneweb`, `gps-ops`, `galileo`, `iridium-NEXT` — all in
   `functions/api/tle.js` ALLOWED_GROUPS), plane elements derived client-side from

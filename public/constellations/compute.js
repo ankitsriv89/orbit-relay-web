@@ -26,10 +26,24 @@
  *    points at the RAAN reference.
  *
  * The plan's "group by RAAN + inclination + semi-major axis" is realised as
- * RAAN clustering (the element that actually separates planes — inclination
- * and SMA are nearly constant within a constellation) with the per-plane
- * mean inclination and semi-major axis carried on each plane so the ring
- * inherits the shell it occupies.
+ * TWO-level clustering (`groupConstellation`): split members into shells by
+ * inclination, then cluster each shell's RAANs into planes, with the
+ * per-plane mean inclination and semi-major axis carried on each plane so
+ * the ring inherits the shell it occupies.
+ *
+ * The second level exists because the first is NOT sufficient: the Celestrak
+ * `starlink` group spans several shells (43°/53°/70°/97.5° — verified live
+ * 2026-08-05) whose RAAN ranges interleave densely. Within the 53° shell,
+ * TLE-epoch scatter (nodal precession between updates) is ~±2.5° against a
+ * 5° design spacing, so the sorted RAANs are quasi-continuous — max gap
+ * 2.08° across 5061 sats — and a pure RAAN gap-split merges all four shells
+ * into one plane with a mean inclination that matches none of them.
+ * Inclination, which the shells keep 10-27° apart, is a hard separator;
+ * `groupConstellation` splits on it first, then `groupIntoPlanes` recovers
+ * the per-shell planes (exact for the well-separated OneWeb/GPS/Galileo/
+ * Iridium designs, and for Starlink's 70°/97.5° shells; the dense 43°/53°
+ * shells honestly collapse to one plane each — their design slots are not
+ * recoverable from TLE epochs).
  */
 
 import { EARTH_R_KM, GM_EARTH, orbitRegime } from '../orbit-engine/astro.js';
@@ -150,6 +164,48 @@ export function groupIntoPlanes(entries, { raanTolDeg = 5 } = {}) {
     }
     planes.push(closePlane(entries, members));
 
+    return planes.sort((a, b) => a.raanDeg - b.raanDeg);
+}
+
+/**
+ * Two-level constellation grouping: split members into shells by
+ * inclination (single-linkage gap-split, anchored at the sorted sequence
+ * like `groupIntoPlanes`), then cluster each shell's RAANs into planes with
+ * `groupIntoPlanes`. See the file header for why inclination must come
+ * first. `members` on every returned plane are indices into the ORIGINAL
+ * `entries` array (remapped from the band-local ones groupIntoPlanes
+ * returns).
+ *
+ * @param {Array<{raanDeg:number, inclDeg:number, smaKm:number}>} entries
+ * @param {{inclTolDeg?:number, raanTolDeg?:number}} [opts]
+ * @returns same shape as groupIntoPlanes
+ */
+export function groupConstellation(entries, { inclTolDeg = 1.0, raanTolDeg = 5 } = {}) {
+    if (entries.length === 0) return [];
+
+    const byIncl = entries
+        .map((e, i) => ({ e, i }))
+        .sort((a, b) => a.e.inclDeg - b.e.inclDeg);
+
+    const bands = [];
+    let cur = [byIncl[0]];
+    for (let i = 1; i < byIncl.length; i++) {
+        if (byIncl[i].e.inclDeg - byIncl[i - 1].e.inclDeg > inclTolDeg) {
+            bands.push(cur);
+            cur = [];
+        }
+        cur.push(byIncl[i]);
+    }
+    bands.push(cur);
+
+    const planes = [];
+    for (const band of bands) {
+        const bandPlanes = groupIntoPlanes(band.map(m => m.e), { raanTolDeg });
+        for (const p of bandPlanes) {
+            p.members = p.members.map(k => band[k].i);
+            planes.push(p);
+        }
+    }
     return planes.sort((a, b) => a.raanDeg - b.raanDeg);
 }
 
