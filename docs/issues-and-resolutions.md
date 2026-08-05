@@ -3,6 +3,14 @@
 Running log of bugs and their resolutions. Newest day on top. One row per issue:
 Issue | Root Cause | Resolution | Commit.
 
+## 2026-08-06 (plan 34 3.3 — C5 batch close: verification battery)
+
+| Issue | Root Cause | Resolution | Commit |
+|---|---|---|---|
+| The C5 battery re-ran the mobile suites at batch head: `test_mobile_responsive.py` **125/136** (11 fails) and `test_mobile_dom.py` **27/29** (2 fails) | The failures are the SAME four categories the 3.2 battery already logged on 2026-08-05 — stale `/orbit/` `>=3` HUD threshold (2 key-huds by design; fails on all 5 viewports incl. desktop), stale resolutionScale allowlist (`0.85` is the deliberate mobile audit value; fails at 390/412px), the mobile citation surface gap (footer `display:none` on mobile by design, no mobile surface; fails at 390/412px on `/orbit/` + `/spacetrack/`), and `test_mobile_dom.py`'s stale `/spacetrack/` HUD exact count (wants 5, has 3 since `25ab2721` moved activity/boxscore to Brief; fails mobile + tablet) | All 13 proven NOT C4/C1–C5 regressions: `git diff 61a44192..HEAD` on `public/orbit`, `public/spacetrack`, `tests/e2e` is empty — the batch's only code touches are `public/orbit-engine/sat-engine.js` + `starfield.js`, which none of the failing assertions read. Pre-existing, logged, fixes are one-line suite updates for the next bug-fixing session | n/a (re-confirmed) |
+| The C4 skybox probe (re-run as the C5 regression probe) initially refused to start against the E2E server | The probe's `BASE` hardcodes `http://127.0.0.1:8932` (the handoff's serve.py port), while `test_mobile_*.py` expect serve.py on **8931** — starting only the 8931 server (what the suites need) leaves the probe pointing at a dead port | Started a second `serve.py 8932` alongside the 8931 one for the battery; probe ran **42/42**. (The two serve instances serve the same `public/` root — no interference.) | n/a (ops) |
+| The mobile suites' "crash on ... ERR_CONNECTION_REFUSED" at every viewport on the first battery attempt | The suites expect serve.py on port 8931; the battery had only started 8932 (the probe's port) | Started `serve.py 8931`; suites then ran (125/136 + 27/29). Both ports needed for a full battery — the suites and the probes use different hardcoded ports | n/a (ops) |
+
 ## 2026-08-05 (plan 34 3.2 — C4 batch close: verification battery)
 
 | Issue | Root Cause | Resolution | Commit |

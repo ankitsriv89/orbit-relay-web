@@ -3,6 +3,63 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-06 — Plan 34 Phase 3.3: cinematic pass (spec #20)
+
+**Commits `b276191a` (C1 shadow math), `b0e545ab` (C2 toggle + eclipse), `04554f20` (C3 bloom), `f6c858ba` (C4 skyBox), C5 docs close**
+
+### Added
+- **Cinematic quality toggle** (`quality.cinematics` state key, persisted):
+  'high' | 'low', first-boot default 'low' on mobile / 'high' on desktop.
+  /orbit/ owns the HUD control (desktop + mobile drawer, kept in sync);
+  /spacetrack/ follows the saved key; /starlink/ + /constellations/ keep the
+  engine default. This is the repo's first quality/reduced-motion gate — it
+  handles all new effects in one place.
+- **Eclipse shading** (`public/orbit-engine/astro.js`): pure
+  `eclipseShadowFactor(p, sun, {earthR})` — cylinder umbra/penumbra model
+  with a graded smoothstep penumbra (`band = L·tan θ_sun`, ~195 km at GEO
+  depth), plus `sunDirectionEcef(date)` (Meeus/NOAA, ~0.01°). Satellites in
+  Earth's shadow darken in 'high' (alpha = fade × eclipse factor, one sun
+  computation per drawn frame), unit-tested with closed-form geometry.
+- **Bloom post-process** (`scene.postProcessStages.bloom`), enabled in 'high'
+  — applied at engine construction so the no-toggle pages inherit it;
+  guarded at every level (WebGL2 + lazy getter). Uniforms at Cesium defaults
+  pending real-renderer tuning.
+- **Procedural star skyBox** (`public/orbit-engine/starfield.js`): a
+  deterministic 3D star field (seeded PRNG, ~78 KB of PNG data URLs, zero
+  external assets) replacing Cesium's default starfield — which 1.113 would
+  otherwise lazily fetch as six JPEGs from the Cesium CDN on every page's
+  first render. Assigned at construction in both levels, so **no page ever
+  fetches the CDN starfield**; 'low' shows a plain black background.
+
+### Verification
+- `npm test` green throughout: 73/73 syntax, 63 files resolve, 21 suites
+  (~568 checks) at batch close — two new suites (eclipse 14, starfield 20).
+- Three custom Playwright probes at 1400×900 + 390×844: C2 26/26, C3 28/28,
+  C4 **42/42** — toggle/DOM state, engine flag, sun-plumbing (sat parked at
+  the true sun's antipode: alpha 1.0 vs 0.000), bloom stage under
+  SwiftShader WebGL2, procedural skyBox shown/hidden per level on all six
+  pages, zero `tycho2t3` requests anywhere, zero console/page errors.
+- **C5 batch-close battery**: `npm test` green; C4 probe re-run **42/42**
+  (doubles as the regression probe); `test_mobile_responsive.py` 125/136 and
+  `test_mobile_dom.py` 27/29 — the 13 failures are all **known pre-existing**
+  (batch touched only `public/orbit-engine/`; `git diff 61a44192..HEAD` on
+  orbit/spacetrack/e2e is empty): stale `/orbit/` `>=3` HUD threshold (2 by
+  design), stale resolutionScale allowlist (`0.85` deliberate), mobile
+  citation surface gap (by design, open task), stale `/spacetrack/` HUD
+  count in the dom suite (5→3 since `25ab2721`).
+
+### Not built / follow-ups
+- **Not pushed**: 16 commits ahead of origin at close (user request; deploy is
+  automatic on push — push when ready).
+- Bloom/skyBox visual tuning with a real renderer (dev sandbox canvas is
+  black — Cesium Ion 403); 'low' = black background is a product call, a
+  sparse-stars-at-low mode would be a new decision.
+- Stale mobile-suite expectations and the mobile citation surface gap are
+  logged in `docs/issues-and-resolutions.md` for the next bug-fixing session.
+- Plan 34 3.4 (space weather / ground stations) is a separate phase.
+
+---
+
 ## 2026-08-05 — Plan 34 Phase 3.2: constellation / orbital-plane view (spec #7)
 
 **Commits `6b0d271a` (C1 compute), `3fc91871` (C2 page), `3e6d5600` (C3 redirect), C4 docs close**

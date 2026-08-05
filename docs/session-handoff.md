@@ -2,7 +2,8 @@
 
 > One task per session; commit after each task; read this file at the start of every
 > new session. Tasks C1–C5 are ordered so each commit leaves `main` in a working,
-> deployable state. **The 3.2 batch (C1–C4) is complete and archived** below.
+> deployable state. **The 3.3 batch (C1–C5) is complete and archived** (see the
+> archived 3.2 batch below for the same format).
 
 ## How to work this batch
 
@@ -196,8 +197,28 @@
         work: passing the face FRAME object where the face KEY belongs threw
         inside `projectToFace` (pageerror → `engine` TDZ, page dead) — fixed
         and pinned with the stub-context tests.
-- [ ] **C5 Batch close**: verification battery + build log / changelog /
-      issues log + archive this batch.
+- [x] **C5 Batch close** (this session's docs commit): verification battery +
+      build log / changelog / issues log + archive this batch.
+      - **Battery**: `npm test` green — 73/73 syntax, 63 files resolve, 21
+        suites (~568 checks). C4 probe re-run (`serve.py 8932`): **42/42** —
+        doubles as the C5 regression probe (all six pages + toggle + the
+        no-CDN-fetch invariant). `test_mobile_responsive.py`: 125/136;
+        `test_mobile_dom.py`: 27/29. The 13 failures are the same four
+        pre-existing categories the 3.2 battery logged (stale `/orbit/`
+        `>=3` HUD threshold on all 5 viewports incl. desktop, stale
+        resolutionScale allowlist 0.85 at 390/412px, mobile citation
+        surface gap at 390/412px on /orbit/ + /spacetrack/, stale
+        `/spacetrack/` HUD count 5→3 in the dom suite) — proven not
+        C1–C5 regressions: `git diff 61a44192..HEAD` on `public/orbit`,
+        `public/spacetrack`, `tests/e2e` is empty (batch touched only
+        `public/orbit-engine/sat-engine.js` + `starfield.js`).
+      - **Docs**: `docs/build-logs/2026-08-06_build_log_01.md` (batch +
+        C5 section), `CHANGELOG.md` (3.3 entry), `docs/issues-and-resolutions.md`
+        (C5 rows), this handoff. **Ops note**: the mobile suites need
+        serve.py on **8931**, the probes on **8932** — both must be up for
+        a full battery.
+      - **State**: repo is now 16 commits ahead of origin — push when the
+        user asks.
 
 ## C5 prep notes (for the batch-close session)
 
