@@ -75,7 +75,7 @@
       wired as suite #20 in the orbit-ingest `npm test` chain. `npm test` green:
       72/72 syntax, 62 files resolve, 20 suites. Repo is now 9 commits ahead of
       origin — push when the user asks.
-- [x] **C2 Quality toggle + eclipse wiring** (commit pending): state key,
+- [x] **C2 Quality toggle + eclipse wiring** (commit `b0e545ab`): state key,
       /orbit/ HUD control (desktop + drawer), engine sun per frame + multiply
       into `_refreshOcclusion`'s alpha behind the toggle.
       - **State**: `quality.cinematics` ('high'|'low', default 'high') added to
