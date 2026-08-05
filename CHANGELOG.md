@@ -5,7 +5,7 @@ newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
 ## 2026-08-05 — Plan 34 Phase 3.2: constellation / orbital-plane view (spec #7)
 
-**Commits `6b0d271a` (C1 compute), `3fc91871` (C2 page), `3e6d5600` (C3 redirect)**
+**Commits `6b0d271a` (C1 compute), `3fc91871` (C2 page), `3e6d5600` (C3 redirect), C4 docs close**
 
 ### Added
 - **New page `/constellations/`** — group Starlink / OneWeb / GPS / Galileo / Iridium by
@@ -32,16 +32,35 @@ newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
 ### Verification
 - `npm test` green throughout: 72/72 syntax, 62 files resolve, 23/23 constellation
-  checks.
+  checks (19 suites / 508 checks at batch close).
 - Custom Playwright probe 57/57 at 1400×900 + 390×844 (boot, clearances, fly-to,
   inspector, warp, REV, mobile menu, touch targets, zero console errors).
 - Redirect verified under `wrangler pages dev` (all three `/starlink` spellings 302).
 
+### C4 batch close (verification battery, docs commit)
+- Battery re-run at batch head: `npm test` green; **new constellation probe 38/38**
+  (desktop 1400×900 + mobile 390×844: stats HUD ↔ plane rows, slider max = full
+  count, clearances, warp/REV/clock/citation, oneweb switch, inspector live fields,
+  mobile menu, touch targets ≥32px, orientation change, zero console errors);
+  `/starlink/` redirects re-verified under `wrangler pages dev`.
+- `test_mobile_responsive.py` 125/136 and `test_mobile_dom.py` 27/29 — the 13
+  failures are all **known pre-existing** (batch touched nothing outside
+  `public/constellations/` + `_redirects`; `git diff` on orbit/spacetrack/e2e vs
+  the pre-batch commit is empty): stale `/orbit/` `>=3` HUD threshold (2 by
+  design), stale resolutionScale allowlist (`0.85` deliberate), mobile citation
+  surface gap (by design, open task), stale `/spacetrack/` HUD count in the dom
+  suite (5→3 since `25ab2721` moved activity/boxscore to Brief — new finding,
+  logged).
+
 ### Not built / follow-ups
-- C4 batch close: final verification battery + push to `main` (currently 6 commits
-  ahead of origin).
+- **Not pushed**: 7 commits ahead of origin at close (user request; deploy is
+  automatic on push — push when ready).
 - Delete dead `public/starlink/` files; plan 34 3.3 (cinematic) and 3.4 (space
   weather / ground stations) are separate phases.
+- Stale mobile-suite expectations (`test_mobile_responsive.py` `/orbit/` HUD
+  count + resolutionScale allowlist; `test_mobile_dom.py` `/spacetrack/` count)
+  and the mobile citation surface gap are logged in
+  `docs/issues-and-resolutions.md` for the next bug-fixing session.
 
 ---
 

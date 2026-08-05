@@ -2,7 +2,8 @@
 
 > One task per session; commit after each task; read this file at the start of every
 > new session. Tasks C1–C4 are ordered so each commit leaves `main` in a working,
-> deployable state. The 3.1 batch below is complete and archived.
+> deployable state. **The 3.2 batch (C1–C4) is complete and archived** (see the
+> archived 3.1 batch below for the same format).
 
 ## How to work this batch
 
@@ -74,6 +75,39 @@ exact template to copy for `public/constellations/`. Facts the next session need
 
 ## Task list
 
+- [x] **C4 Batch close** (docs commit, NOT pushed — user request): full verification
+      battery at batch head + this log / build log / changelog / issues log updated.
+      - **`npm test`**: green — 72/72 syntax, 62 files resolve, 19 orbit-ingest
+        suites / 508 checks (incl. 23/23 constellation).
+      - **New constellation probe** (`serve.py 8932`, `?cb` cache-busted): **38/38**
+        at 1400×900 + 390×844 — boot; stats HUD (LOADED/RENDERED/PLANES) consistent
+        with the plane rows; slider max == full count; default group starlink;
+        desktop bar/HUD clearances (selector bar below nav, HUDs below bar); mobile
+        hamburger visible ≥32px + stacked HUDs don't overlap; warp
+        ❚❚/1×/10×/100×/1000×; REV toggle; mission clock; citation; fonts ≥11px; no
+        page scroll (incl. after orientation change); oneweb switch (16 planes on
+        the baseline path); inspector via `satEntities[i].meta` populates all 9
+        fields live; mobile menu lists all destinations; touch targets ≥32px
+        (buttons/toggles/plane rows); zero real console/page errors (only the
+        expected `/api/tle` 404 under the Functions-less static server).
+      - **`test_mobile_responsive.py`**: 125/136; **`test_mobile_dom.py`**: 27/29.
+        All 13 failures proven pre-existing, none from C1–C3 (`git diff
+        3a9b0365..HEAD` on `public/orbit`, `public/spacetrack`, `public/orbit-engine`,
+        `tests/e2e` is empty): stale `/orbit/` `>=3` HUD threshold (2 by design),
+        stale resolutionScale allowlist (`0.85` deliberate), mobile citation gap
+        (footer hidden by design, open task), and a **new finding** — the dom
+        suite's exact `/spacetrack/` HUD count is stale (wants 5, has 3 since
+        `25ab2721`). All logged in `docs/issues-and-resolutions.md`; the stale
+        expectations are one-line suite fixes for a future bug-fixing session.
+      - **Redirects** re-verified under `wrangler pages dev public`: `/starlink`,
+        `/starlink/`, `/starlink/*` all 302 → `/constellations/?c=starlink`; target
+        200.
+      - **Probe-authoring notes for the next session** (cost red runs): 404 console
+        text has no URL — filter on `page.on('response')`; drive the debug handle
+        with `satEntities[i].meta` (entries[i] is `{...planeElements, rec}` and
+        `inspectSatellite` silently no-ops); serve.py exercises the baseline path —
+        assert plane counts relatively, not absolutely.
+      - **State**: repo is 7 commits ahead of origin. Push when the user asks.
 - [x] **C3 /starlink/ redirect** (commit `3e6d5600`): `public/_redirects` now maps every
       `/starlink` spelling (`/starlink`, `/starlink/`, `/starlink/*`) to
       `/constellations/?c=starlink` with **302** (the old `/starlink → /starlink/`
@@ -266,6 +300,18 @@ exact template to copy for `public/constellations/`. Facts the next session need
   `/constellations/?c=starlink 302`, keeping the 13 existing `/starlink/` nav links
   (renaming them in 13 places is churn; they redirect). `public/starlink/` files
   become dead behind the redirect — delete in a future pure-deletion pass.
+- **C4: mobile nav brand/source links are sub-32px tap targets on ALL three pages**
+  (measured 390px: `/orbit/` brand 28px / links 18px; `/spacetrack/` + `/constellations/`
+  14px). `chrome.css`'s mobile block hides only `.spacetrack-nav__list`; the brand
+  and source links stay at `font-size: 0.55rem`. Shared pre-existing chrome, not a
+  C2 regression (the C2 probe's "touch targets ≥32" selector set excluded nav
+  links). Left as a documented open item — a chrome.css follow-up should hide or
+  restyle them below 768px.
+- **C4: `test_mobile_dom.py`'s `/spacetrack/` HUD count is stale (5→3)** — set by
+  `2d163738`, broken by `25ab2721` (activity/boxscore moved to Brief), caught only
+  by the C4 battery since the 3.1 S14 battery ran before that suite's per-page map
+  existed. One-line fix (`3`) for a future session; the suite's own comment says an
+  exact count exists to catch panels going missing, so keep it exact.
 
 ---
 
