@@ -238,9 +238,10 @@ export class SatEngine {
         this._posScratch = new Cesium.Cartesian3();
         this._geoScratch = { lat: 0, lon: 0, alt: 0 };
         /** Cinematic quality (plan 34 §3.3): 'high' shades satellites inside
-         *  Earth's umbra via eclipseShadowFactor (the eclipse pass below);
-         *  'low' keeps only the camera-based far-side fade. /orbit/ owns the
-         *  persisted toggle; pages without one keep the engine default. */
+         *  Earth's umbra via eclipseShadowFactor (the eclipse pass below) AND
+         *  enables the bloom post-process stage (C3); 'low' keeps only the
+         *  camera-based far-side fade. /orbit/ owns the persisted toggle;
+         *  pages without one keep the engine default. */
         this.cinematics = 'high';
 
         try {
@@ -265,6 +266,12 @@ export class SatEngine {
         // passenger, never a driver.
         this._occludeFrame = () => this._refreshOcclusion();
         viewer.scene.preRender.addEventListener(this._occludeFrame);
+
+        // Bloom matches the initial cinematics level. This runs at construction
+        // (not only on a setCinematics flip) so pages that never call
+        // setCinematics — /starlink/, /constellations/ — still inherit the
+        // engine default 'high' exactly like the eclipse pass does.
+        this._applyCinematics();
     }
 
     /* ── Time ───────────────────────────────────────────────────────────── */
@@ -652,14 +659,37 @@ export class SatEngine {
     }
 
     /**
-     * Set the cinematic quality (plan 34 §3.3 — the eclipse shading pass).
+     * Apply the scene-level half of the cinematic quality (plan 34 §3.3 C3).
      *
-     * 'high' shades satellites inside Earth's umbra via eclipseShadowFactor;
-     * 'low' skips the per-frame sun work and leaves the far-side fade alone.
-     * The first frame after a change rewrites every visible point — the pass
-     * compares against the last applied multiplier, which the flip invalidates —
-     * so requestRender() makes the change visible immediately rather than
-     * waiting for the next propagation tick.
+     * 'high' enables `scene.postProcessStages.bloom`, the built-in bloom
+     * stage; 'low' disables it. The uniforms are left at Cesium's defaults —
+     * the canvas renders black in the dev sandbox (Cesium Ion 403), so visual
+     * tuning (glowOnly / contrast / sigma) is deliberately deferred until a
+     * real renderer can be eyeballed, same discipline as C2's sun constants
+     * being pinned by tests before they were trusted.
+     *
+     * Post-processing is guarded at every level: it needs a WebGL2 context,
+     * and even where the collection exists the bloom stage is a lazy getter
+     * that some restricted renderers may not provide. A page that boots
+     * without it must keep working, exactly like the propagation worker's
+     * synchronous fallback.
+     */
+    _applyCinematics() {
+        const scene = this.viewer.scene;
+        if (!scene.postProcessStages || !scene.postProcessStages.bloom) return;
+        scene.postProcessStages.bloom.enabled = this.cinematics === 'high';
+    }
+
+    /**
+     * Set the cinematic quality (plan 34 §3.3 — the eclipse shading + bloom
+     * passes).
+     *
+     * 'high' shades satellites inside Earth's umbra via eclipseShadowFactor
+     * and enables the bloom post-process stage; 'low' disables both and leaves
+     * the far-side fade alone. The first frame after a change rewrites every
+     * visible point — the pass compares against the last applied multiplier,
+     * which the flip invalidates — so requestRender() makes the change visible
+     * immediately rather than waiting for the next propagation tick.
      *
      * @param {'high'|'low'} level
      */
@@ -667,6 +697,7 @@ export class SatEngine {
         if (level !== 'high' && level !== 'low') return;
         if (this.cinematics === level) return;
         this.cinematics = level;
+        this._applyCinematics();
         this.requestRender();
     }
 
