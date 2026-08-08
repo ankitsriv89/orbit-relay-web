@@ -29,6 +29,17 @@ export const CITATION =
   'Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron). ' +
   'Redistributed under USSPACECOM express blanket approval for basic SSA data.';
 
+/**
+ * The SWPC attribution (plan 34 §3.4) — the second citation this project
+ * carries. NOAA SWPC data is public domain, so this is courtesy rather than
+ * licence-conditioned like CITATION, but the duplication discipline is the
+ * same: this file and `functions/api/_orbit.js` are separate bundles, and
+ * derive.test.mjs asserts the two copies are byte-identical.
+ */
+export const SWPC_CITATION =
+  'Space weather data: NOAA Space Weather Prediction Center ' +
+  '(services.swpc.noaa.gov). U.S. government work - public domain.';
+
 /* ── Row derivation ─────────────────────────────────────────────────────── */
 
 /**

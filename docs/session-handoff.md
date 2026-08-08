@@ -1,7 +1,7 @@
-# Session Handoff — Plan 34 Phase 3.3 (cinematic pass, spec #20)
+# Session Handoff — Plan 34 Phase 3.4 (space weather + ground stations, spec #16 + #6)
 
 > One task per session; commit after each task; read this file at the start of every
-> new session. Tasks C1–C5 are ordered so each commit leaves `main` in a working,
+> new session. Tasks C1–C4 are ordered so each commit leaves `main` in a working,
 > deployable state. **The 3.3 batch (C1–C5) is complete and archived** (see the
 > archived 3.2 batch below for the same format).
 
@@ -14,6 +14,60 @@
    `fix:`, `feat:`, `test(e2e):`, `refactor:` + short imperative subject).
 4. Append "done / status" under the task below, and if anything surprising came up,
    add it to "Surprises & decisions". Keep this file committed — it is the memory.
+
+## C1 prep notes (explored at end of the C1 session, not yet implemented)
+
+- **SWPC endpoints (verified live 2026-08-08)**:
+  - 3-hour Kp: `https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json`
+    — `[{time_tag, Kp, a_running, station_count}]`, ~2 weeks of history.
+  - 3-day forecast: `https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json`
+    — `[{time_tag, kp, observed: 'observed'|'forecast', noaa_scale}]`.
+  - F10.7: `https://services.swpc.noaa.gov/json/f107_cm_flux.json` —
+    `[{time_tag, flux, ninety_day_mean}]`; the 90-day mean only rides on SOME
+    reports (the Noon one) — `current.f107_90day` must be the latest row that
+    carries a mean, not the latest row's field.
+  - The 1-minute Kp file exists but is deliberately NOT ingested (1440 rows/day
+    buy a daily job nothing).
+- **A second citation is a legal-ish invariant, not cosmetic**: the em dash (U+2014)
+  in the first draft of `SWPC_CITATION` made `new Headers` throw "value greater than
+  255" on every /api/space-weather response — a real outage the suite caught
+  (pages-api test + the new ASCII-only check in derive.test.mjs pin it). The header
+  on this endpoint MUST name NOAA, not USSPACECOM — the endpoint carries no
+  Space-Track data, and a USSPACECOM attribution there would be a licence-relevant
+  lie in the other direction. `json()` in _catalog.js now takes `citation` as an
+  option for exactly this.
+- **C2 (frontend) still to wire**: aurora ovals on /orbit/ (builtin layer in
+  `public/orbit/layers.js` — add the entry there, NOT in index.html; the registry
+  renders desktop + drawer), the ovals as engine-managed entities (addManagedEntity),
+  a compact SPACE WEATHER row in the layers HUD, silent degrade when the fetch
+  fails. Pure oval math belongs in `public/orbit-engine/astro.js` beside
+  `eclipseShadowFactor` — NOAA's Kp→equatorward-boundary table is ~linear:
+  66.5° − 2·Kp. Geomagnetic poles: 80.65°N/72.68°W (north), antipode (south).
+- **C3/C4 (ground stations) prep**: open decision 3 says a static JSON file
+  (`public/data/ground-stations.json`, ~50 rows), not a D1 table. signal.js keeps
+  its 20 hardcoded stations as the offline fallback if the fetch fails. Markers via
+  `engine.addManagedEntity` (launch-sites.js is the pattern). The link line needs a
+  pure slant-range function in `signal/compute.js` (satellite.js's
+  `ecfToLookAngles` already returns `range` — wrap it pure, test it closed-form).
+- **Verification**: `npm test`; then a headless Playwright probe like 3.3's pattern;
+  mobile contract at 390/412/820/1133/1400 per `tests/e2e/test_mobile_responsive.py`.
+  The signal page's analysis HUD and /orbit/'s layers HUD are the two touchpoints.
+
+## Task list
+
+- [x] **C1 Backend — SWPC ingest + D1 + artifact + /api/space-weather + tests**:
+      new `space_weather` table (kind/time_tag/value/meta, truncate-and-reload per
+      kind, one batch = one transaction), `SWPC_CITATION` duplicated across bundles
+      and asserted byte-identical + ASCII-only by derive.test.mjs,
+      `ingest-spaceweather.js` (injectable fetch, per-kind failure isolation, empty
+      guard, `space-weather/latest.json` artifact with `current`/`kp_history`/
+      `kp_forecast`/`f107`), wired into runDaily after boxscore, and
+      `functions/api/space-weather.js` via `artifactOrDb` with a D1 fallback whose
+      `rebuildFromRows` is round-trip-tested against the ingest's
+      `buildSpaceWeatherArtifact`. `json()`/`artifactOrDb` gained a `citation`
+      option (default unchanged) so the X-Data-Source header on this endpoint names
+      NOAA. New suite `space-weather.test.mjs` (11 checks) + 7 endpoint checks in
+      pages-api.test.mjs. `npm test` green: 0 FAIL, resolve 63 files.
 
 ## C2 prep notes (explored at end of the C1 session, not yet implemented)
 

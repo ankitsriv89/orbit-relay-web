@@ -179,6 +179,32 @@ CREATE TABLE IF NOT EXISTS decay (
 CREATE INDEX IF NOT EXISTS idx_decay_epoch  ON decay(DECAY_EPOCH);
 CREATE INDEX IF NOT EXISTS idx_decay_source ON decay(SOURCE);
 
+-- ── space_weather ──────────────────────────────────────────────────────────
+-- NOAA SWPC indices (plan 34 §3.4) — the ONE non-Space-Track dataset in this
+-- schema. Three self-contained series, each re-issued in full by SWPC on
+-- every fetch, so each kind is truncate-and-reloaded like boxscore rather
+-- than diffed:
+--
+--   kp_3h        the 3-hour planetary K index (observed, ~2 weeks of history)
+--   kp_forecast  the 3-day Kp forecast (observed + forecast in one file)
+--   f107         the F10.7 cm solar flux (daily observations)
+--
+-- The 1-minute Kp file is deliberately NOT ingested: 1440 rows/day of
+-- 1-minute samples buy nothing a daily job can use, and the 3-hour series is
+-- the authoritative planetary index. `meta` holds the per-kind extras (Ap,
+-- station count, observed/forecast flag, NOAA scale, 90-day mean) as JSON.
+-- Data source: NOAA Space Weather Prediction Center (public domain).
+CREATE TABLE IF NOT EXISTS space_weather (
+  kind       TEXT NOT NULL,
+  time_tag   TEXT NOT NULL,    -- SWPC's own ISO-8601 UTC stamp, verbatim
+  value      REAL,             -- Kp, or solar flux in sfu
+  meta       TEXT,             -- JSON extras, shape varies by kind
+  updated_at TEXT,
+  PRIMARY KEY (kind, time_tag)
+);
+
+CREATE INDEX IF NOT EXISTS idx_space_weather_kind ON space_weather(kind, time_tag);
+
 -- ── boxscore ───────────────────────────────────────────────────────────────
 -- Per-country tallies, refreshed daily. Small enough to truncate and reload,
 -- so there is no delta cursor here.

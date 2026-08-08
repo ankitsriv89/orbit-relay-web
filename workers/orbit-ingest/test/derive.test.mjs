@@ -21,7 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  CITATION, GROUPS, GP_PREDICATES, OBJECT_COLUMNS, OBJECT_UPSERT_SQL,
+  CITATION, SWPC_CITATION, GROUPS, GP_PREDICATES, OBJECT_COLUMNS, OBJECT_UPSERT_SQL,
   DERIVED_COLUMNS, regimeOf, launchYearOf, debrisFamilyOf, deriveObjectRow,
   toThreeLine, groupKey,
 } from '../src/derive.js';
@@ -304,9 +304,35 @@ await test('the Worker and Pages copies of the citation are byte-identical', () 
   assert.equal(theirs, CITATION);
 });
 
+await test('the SWPC citation is byte-identical across bundles too', () => {
+  // The second provider (plan 34 §3.4) carries the same duplication risk as
+  // the Space-Track string: functions/api/_orbit.js and this Worker are
+  // separate bundles, and a silently diverged attribution on the
+  // /api/space-weather response would be a data-source lie.
+  const pages = fs.readFileSync(path.join(ROOT, 'functions/api/_orbit.js'), 'utf8');
+  const m = /export const SWPC_CITATION =\s*([\s\S]*?);\n/.exec(pages);
+  assert.ok(m, 'no SWPC_CITATION in functions/api/_orbit.js');
+  const theirs = (m[1].match(/'((?:[^'\\]|\\.)*)'/g) || [])
+    .map((s) => s.slice(1, -1)).join('');
+  assert.equal(theirs, SWPC_CITATION);
+});
+
 await test('the citation names Space-Track and the approving command', () => {
   assert.match(CITATION, /Space-Track\.org/);
   assert.match(CITATION, /USSPACECOM/);
+});
+
+await test('the SWPC citation names NOAA and is public-domain, not a condition', () => {
+  assert.match(SWPC_CITATION, /NOAA/);
+  assert.match(SWPC_CITATION, /public domain/);
+});
+
+await test('the SWPC citation is pure ASCII — it ships in an HTTP header', () => {
+  // Unlike the body, `X-Data-Source` must be a ByteString: the first draft
+  // carried an em dash (U+2014), and `new Headers` threw "value greater than
+  // 255" on EVERY /api/space-weather response. This pins the constraint that
+  // caught it.
+  assert.doesNotMatch(SWPC_CITATION, /[^\x20-\x7e]/);
 });
 
 await test('BOTH pages carry a visible Space-Track attribution', () => {

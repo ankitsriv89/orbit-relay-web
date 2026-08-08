@@ -43,7 +43,7 @@ where, and why*.
 | `public/orbit-engine/conjunction.js` + `screen.worker.js` + `screen-client.js` | Close-approach screening | The maths takes its propagator by **injection**, so it is unit-tested in Node against analytic orbits with closed-form answers. Screening runs in a SECOND, **module** worker — never the 280ms render tick — and has **no synchronous fallback** on purpose. The coarse gate is derived from the step (`threshold + 22.4·Δt/2`), never tuned: a tuned gate misses conjunctions silently and looks like "there were none" |
 | `public/data/tle/celestrak/` | Shipped TLE baseline | `tle.js` reads `/data/tle`. Refresh with `scripts/snapshot_tle.sh` |
 | `functions/api/tle.js` | Pages Function | TLE proxy + edge cache; falls back to the shipped baseline, or reads the R2 bundle for `source=spacetrack` |
-| `functions/api/{search,summary,object/[norad],feed,decay-watch,boxscore,brief,analytics}.js` | Catalog endpoints | Behind `/spacetrack/`. Tested for real in `workers/orbit-ingest/test/pages-api.test.mjs`. `brief.js` deliberately has **no D1 fallback** — rebuilding the card on a read would pair fresh facts with a sentence checked against older ones |
+| `functions/api/{search,summary,object/[norad],feed,decay-watch,boxscore,brief,analytics,space-weather}.js` | Catalog endpoints | Behind `/spacetrack/`. Tested for real in `workers/orbit-ingest/test/pages-api.test.mjs`. `brief.js` deliberately has **no D1 fallback** — rebuilding the card on a read would pair fresh facts with a sentence checked against older ones. `space-weather.js` is the ONE endpoint with no Space-Track data — its `X-Data-Source` header carries `SWPC_CITATION` (NOAA), not `CITATION` |
 | `functions/api/_orbit.js` + `_catalog.js` | Shared function helpers | `_orbit.js:17-19` is the `X-Data-Source` citation, legally required on every response. `_catalog.js` also carries `clamp`/`safeParse`/`artifactOrDb` shared by the R2-then-D1 endpoints |
 | `workers/orbit-ingest/src/brief.js` | Daily brief | **Facts in SQL, narrative optional.** A model is asked only to phrase numbers already computed, once a day at ingest, never per request. `checkNarrative()` rejects any sentence containing a numeral absent from the facts — *including a correct one the model derived*, since from the output alone that is indistinguishable from invention. Off unless `ORBIT_AI_CARDS` is set; with it off the panel is still a live digest. Provider swappable (`scripts/ai-node.mjs`), Workers AI default — one call a day makes latency and cost moot, so the tiebreak is operational surface |
 | `workers/orbit-ingest/` | Space-Track ingest | Runs from **GitHub Actions**, not the Worker's crons — the GP job needs ~300ms CPU against Workers Free's 10ms. `scripts/env-node.mjs` is a Workers-shaped `env` over the D1 HTTP API + R2 SigV4. Its `npm test` is 301 checks, no network |
@@ -128,8 +128,15 @@ only the JS — Space-Track's own position is that public TLEs should not be use
 conjunction assessment, and that disclaimer is the reason deriving our own screening is
 acceptable at all.
 
-Space weather (plan 34, §3.4) would come from NOAA SWPC — a *different* provider. The
-citation handling is currently single-source and will need a second attribution string.
+Space weather (plan 34, §3.4) comes from NOAA SWPC — a *different* provider. It carries
+its own attribution (`SWPC_CITATION`, public-domain U.S. government work, so courtesy
+rather than licence-conditioned): `/api/space-weather` names NOAA in `X-Data-Source`
+because its body carries **no** Space-Track data, and `json()`/`artifactOrDb` in
+`_catalog.js` take a `citation` override for exactly that. `SWPC_CITATION` is duplicated
+across bundles and asserted byte-identical **and ASCII-only** by derive.test.mjs — the
+ASCII pin exists because a non-Latin-1 character in the header throws on every
+response. `d1/orbit.sql` carries the `space_weather` table (kind/time_tag/value/meta,
+truncate-and-reload per kind).
 
 ## References
 

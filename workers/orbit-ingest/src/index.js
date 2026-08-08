@@ -9,7 +9,8 @@
  * Three schedules, dispatched on `event.cron`:
  *
  *   17 * / 6 * * *   GP delta          → objects, new-object events, R2 bundles
- *   20 17 * * *      SATCAT + DECAY + BOXSCORE → daily catalog state, full bundle
+ *   20 17 * * *      SATCAT + DECAY + BOXSCORE + SPACE WEATHER → daily catalog
+ *                   state, full bundle
  *   25 17 * * 3      60-day decay predictions  → reentry watch list
  *
  * Fire one locally without waiting for the clock:
@@ -21,6 +22,7 @@ import { ingestGP } from './ingest-gp.js';
 import { ingestSatcat } from './ingest-satcat.js';
 import { ingestDecay } from './ingest-decay.js';
 import { ingestBoxscore } from './ingest-boxscore.js';
+import { ingestSpaceWeather } from './ingest-spaceweather.js';
 import { ingestLaunchSites } from './ingest-launch-sites.js';
 import { buildGroupArtifacts, buildFullCatalog, buildSummary, buildFeed, buildAnalytics } from './derive.js';
 import { buildBrief } from './brief.js';
@@ -84,6 +86,10 @@ export async function runDaily(env) {
   await step(report, 'ingest-satcat', () => ingestSatcat(env));
   await step(report, 'ingest-decay', () => ingestDecay(env, 'daily'));
   await step(report, 'ingest-boxscore', () => ingestBoxscore(env));
+  // NOAA SWPC (plan 34 §3.4) — a different provider from Space-Track, no
+  // auth, and its own table/artifact/endpoint. Same daily cadence: the
+  // indices change every 3 hours, not every 6, so once a day is plenty.
+  await step(report, 'ingest-spaceweather', () => ingestSpaceWeather(env));
 
   let groups = null;
   await step(report, 'artifacts', async () => (groups = await buildGroupArtifacts(env), { groups }));

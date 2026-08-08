@@ -19,14 +19,18 @@ const CORS = {
  * @param {object} [opts]
  * @param {number} [opts.status]
  * @param {number} [opts.maxAge] seconds; omit for no-store
+ * @param {string} [opts.citation] header citation; defaults to the Space-Track
+ *   string. /api/space-weather passes SWPC_CITATION — its body carries no
+ *   Space-Track data, so attributing it to USSPACECOM in the header would be
+ *   a licence-relevant lie in the other direction.
  */
-export function json(body, { status = 200, maxAge = 0 } = {}) {
+export function json(body, { status = 200, maxAge = 0, citation = CITATION } = {}) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       ...CORS,
-      [CITATION_HEADER]: CITATION,
+      [CITATION_HEADER]: citation,
       'Cache-Control': maxAge ? `public, max-age=${maxAge}` : 'no-store',
     },
   });
@@ -73,14 +77,17 @@ export function safeParse(s) {
  *   caller is responsible for marking it `stale: true` and adding a `note`
  * @param {(artifact: object) => object} [transform] applied to a parsed
  *   artifact before `stale: false` is added (e.g. feed.js slicing to `limit`)
+ * @param {object} [opts]
+ * @param {string} [opts.citation] passed through to json(); space-weather.js
+ *   uses this to put the SWPC attribution in the header on both paths
  */
-export async function artifactOrDb(env, r2Key, artifactMaxAge, fallback, transform = (a) => a) {
+export async function artifactOrDb(env, r2Key, artifactMaxAge, fallback, transform = (a) => a, { citation } = {}) {
   if (env && env.ORBIT_R2) {
     const object = await env.ORBIT_R2.get(r2Key);
     if (object) {
       try {
         const artifact = JSON.parse(await object.text());
-        return json({ ...transform(artifact), stale: false }, { maxAge: artifactMaxAge });
+        return json({ ...transform(artifact), stale: false }, { maxAge: artifactMaxAge, citation });
       } catch (_) {
         // A corrupt artifact must not take the endpoint down — fall through to D1.
       }
@@ -90,7 +97,7 @@ export async function artifactOrDb(env, r2Key, artifactMaxAge, fallback, transfo
   const unbound = requireDb(env);
   if (unbound) return unbound;
 
-  return json(await fallback(), { maxAge: 60 });
+  return json(await fallback(), { maxAge: 60, citation });
 }
 
 /**

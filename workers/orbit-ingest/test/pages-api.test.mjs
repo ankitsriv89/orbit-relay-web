@@ -35,6 +35,8 @@ const feed        = (await import(path.join(ROOT, 'functions/api/feed.js'))).onR
 const decayWatch  = (await import(path.join(ROOT, 'functions/api/decay-watch.js'))).onRequest;
 const boxscore    = (await import(path.join(ROOT, 'functions/api/boxscore.js'))).onRequest;
 const brief       = (await import(path.join(ROOT, 'functions/api/brief.js'))).onRequest;
+const spaceWeather = (await import(path.join(ROOT, 'functions/api/space-weather.js'))).onRequest;
+const { rebuildFromRows } = await import(path.join(ROOT, 'functions/api/space-weather.js'));
 
 const results = [];
 async function test(name, fn) {
@@ -688,6 +690,113 @@ await test('the response carries the citation header, like every catalog route',
   const r2 = { get: async () => ({ text: async () => JSON.stringify(CARD) }) };
   const r = await brief({ request: get('https://x/api/brief'), env: envOf(db, r2) });
   assert.ok(r.headers.get('x-data-source'), 'citation header missing');
+});
+
+/* ── /api/space-weather ─────────────────────────────────────────────────── */
+
+console.log('\n-- /api/space-weather --');
+
+const SW_ARTIFACT = {
+  generated_at: NOW,
+  swpc_citation: 'SWPC text',
+  current: { time_tag: '2026-08-07T21:00:00', kp: 1.33, ap: 5, station_count: 8, f107: 95, f107_90day: 132 },
+  kp_history: [{ t: '2026-08-07T21:00:00', kp: 1.33 }],
+  kp_forecast: [{ t: '2026-08-08T00:00:00', kp: 2.0, observed: false }],
+  f107: { time_tag: '2026-08-07T22:00:00', flux: 95, ninety_day_mean: 132 },
+};
+
+await test('the artifact is served with stale:false and the SWPC header', async () => {
+  const r2 = { get: async () => ({ text: async () => JSON.stringify(SW_ARTIFACT) }) };
+  const r = await spaceWeather({ request: get('https://x/api/space-weather'), env: envOf(db, r2) });
+  const j = await body(r);
+  assert.equal(j.stale, false);
+  assert.equal(j.current.kp, 1.33);
+  assert.deepEqual(j.kp_history, SW_ARTIFACT.kp_history);
+  // This endpoint carries NO Space-Track data, so the header must name NOAA —
+  // a USSPACECOM attribution here would be a licence-relevant lie in reverse.
+  assert.match(r.headers.get('X-Data-Source'), /NOAA/);
+  assert.doesNotMatch(r.headers.get('X-Data-Source'), /USSPACECOM/);
+  assert.doesNotMatch(j.citation || '', /Space-Track/);
+});
+
+await test('a corrupt artifact falls through to D1 rather than erroring', async () => {
+  const r2 = { get: async () => ({ text: async () => 'not json{' }) };
+  const r = await spaceWeather({ request: get('https://x/api/space-weather'), env: envOf(db, r2) });
+  assert.equal(r.status, 200);
+  assert.equal((await body(r)).stale, true);
+});
+
+await test('the D1 fallback reassembles the artifact shape from table rows', async () => {
+  const db2 = seeded();
+  db2.prepare(`INSERT INTO space_weather (kind, time_tag, value, meta, updated_at)
+               VALUES ('kp_3h', '2026-08-07T21:00:00', 1.33, '{"ap":5,"station_count":8}', ?)`)
+    .run(NOW);
+  db2.prepare(`INSERT INTO space_weather (kind, time_tag, value, meta, updated_at)
+               VALUES ('kp_forecast', '2026-08-08T00:00:00', 2.0, '{"observed":false}', ?)`)
+    .run(NOW);
+  db2.prepare(`INSERT INTO space_weather (kind, time_tag, value, meta, updated_at)
+               VALUES ('f107', '2026-08-07T22:00:00', 95, '{"ninety_day_mean":132}', ?)`)
+    .run(NOW);
+
+  const r = await spaceWeather({ request: get('https://x/api/space-weather'), env: envOf(db2) });
+  const j = await body(r);
+  assert.equal(j.stale, true);
+  assert.match(j.note, /artifact not built/);
+  assert.equal(j.current.kp, 1.33);
+  assert.equal(j.current.ap, 5);
+  assert.equal(j.current.station_count, 8);
+  assert.equal(j.current.f107, 95);
+  assert.equal(j.current.f107_90day, 132);
+  assert.deepEqual(j.kp_forecast, [{ t: '2026-08-08T00:00:00', kp: 2.0, observed: false }]);
+  assert.equal(j.f107.flux, 95);
+  assert.match(j.swpc_citation, /NOAA/);
+  assert.match(r.headers.get('X-Data-Source'), /NOAA/);
+});
+
+await test('an empty table yields null current, not a 500 or missing keys', async () => {
+  const db2 = seeded();
+  const j = await body(await spaceWeather({
+    request: get('https://x/api/space-weather'), env: envOf(db2) }));
+  assert.equal(j.current.kp, null);
+  assert.deepEqual(j.kp_history, []);
+  assert.equal(j.f107, null);
+});
+
+await test('rebuildFromRows and buildSpaceWeatherArtifact agree on one contract', async () => {
+  // The two bundles' assembly logic is duplicated on purpose (Pages Functions
+  // cannot import from the ingest Worker); this round-trip pins them together
+  // so a change to one fails the other's test rather than drifting silently.
+  const { buildSpaceWeatherArtifact } = await import('../src/ingest-spaceweather.js');
+  const kp3h = [
+    { time_tag: '2026-08-07T15:00:00', kp: 1, ap: 4, station_count: 8 },
+    { time_tag: '2026-08-07T21:00:00', kp: 1.33, ap: 5, station_count: 8 },
+  ];
+  const forecast = [
+    { time_tag: '2026-08-08T00:00:00', kp: 2.0, observed: false },
+    { time_tag: '2026-08-08T03:00:00', kp: 3.33, observed: false },
+  ];
+  const f107 = [{ time_tag: '2026-08-07T22:00:00', flux: 95, ninety_day_mean: 132 }];
+
+  const artifact = buildSpaceWeatherArtifact({ kp3h, forecast, f107, generatedAt: NOW });
+
+  const rows = [
+    ...kp3h.map((r) => ({ kind: 'kp_3h', time_tag: r.time_tag, value: r.kp,
+                          meta: JSON.stringify({ ap: r.ap, station_count: r.station_count }) })),
+    ...forecast.map((r) => ({ kind: 'kp_forecast', time_tag: r.time_tag, value: r.kp,
+                              meta: JSON.stringify({ observed: r.observed }) })),
+    ...f107.map((r) => ({ kind: 'f107', time_tag: r.time_tag, value: r.flux,
+                          meta: JSON.stringify({ ninety_day_mean: r.ninety_day_mean }) })),
+  ];
+  const rebuilt = rebuildFromRows(rows);
+  // generated_at is wall-clock in the fallback; everything else must be equal.
+  delete rebuilt.generated_at;
+  delete artifact.generated_at;
+  assert.deepEqual(rebuilt, artifact);
+});
+
+await test('an unbound D1 is a 503, like every catalog route', async () => {
+  const r = await spaceWeather({ request: get('https://x/api/space-weather'), env: {} });
+  assert.equal(r.status, 503);
 });
 
 /* ── Report ─────────────────────────────────────────────────────────────── */
