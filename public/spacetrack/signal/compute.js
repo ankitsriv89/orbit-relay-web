@@ -156,6 +156,53 @@ export function eirpDbm(txPowerW, txGainDbi) {
     return 10 * Math.log10(txPowerW * 1000) + txGainDbi;
 }
 
+/* ── Geodetic → ECF and slant range (plan 34 §3.4) ─────────────────────────
+ *
+ * The ground-station link needs the station's Earth-fixed position and the
+ * slant range to the satellite. satellite.js has both (geodeticToEcf and the
+ * `rangeSat` of ecfToLookAngles), but this module deliberately carries no
+ * satellite.js — the vendored copy is a browser global, and the whole point
+ * of compute.js is Node-testability. The transform here is WGS-84 geodetic →
+ * ECF, written out in metres (the engine and Cesium work in metres;
+ * satellite.js works in km), with the SAME constants as the vendored
+ * satellite.js (a = 6378.137, b = 6356.7523142 — the trimmed vendor rounds the
+ * official 6356.752314245), so `slantRangeKm` agrees with its
+ * ecfToLookAngles().rangeSat to floating-point precision — asserted in
+ * signal-compute.test.mjs by loading the vendored file into a vm context.
+ */
+
+export const WGS84_A_KM = 6378.137;
+export const WGS84_B_KM = 6356.7523142;
+
+/**
+ * WGS-84 geodetic → Earth-fixed position, metres.
+ *
+ * @param {{latDeg:number, lonDeg:number, altKm?:number}} g geodetic coordinates
+ * @returns {{x:number, y:number, z:number}} ECF position in metres
+ */
+export function stationEcfMetres({ latDeg, lonDeg, altKm = 0 }) {
+    const lat = degToRad(latDeg);
+    const lon = degToRad(lonDeg);
+    const e2 = (WGS84_A_KM * WGS84_A_KM - WGS84_B_KM * WGS84_B_KM) / (WGS84_A_KM * WGS84_A_KM);
+    const chi = Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat));
+    const h = altKm * 1000;
+    const r = WGS84_A_KM * 1000 / chi + h;
+    return {
+        x: r * Math.cos(lat) * Math.cos(lon),
+        y: r * Math.cos(lat) * Math.sin(lon),
+        z: (WGS84_A_KM * 1000 * (1 - e2) / chi + h) * Math.sin(lat),
+    };
+}
+
+/** Straight-line distance between an ECF station position and an ECF
+ *  satellite position, km. Pure, so the RF tab can use a REAL slant range
+ *  (station↔sat at this instant) instead of the near-zenith altitude bound. */
+export function slantRangeKm(stationEcf, satEcf) {
+    return Math.hypot(satEcf.x - stationEcf.x,
+                      satEcf.y - stationEcf.y,
+                      satEcf.z - stationEcf.z) / 1000;
+}
+
 /** Free-space path loss in dB — negative, as dB works. */
 export function freeSpaceLossDb(rangeKm, freqMHz) {
     return -(20 * Math.log10(rangeKm * 1000) + 20 * Math.log10(freqMHz * 1e6) + 20 * Math.log10(4 * Math.PI / 299792458));

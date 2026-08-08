@@ -87,11 +87,16 @@
             <div class="menu-sections">
                 <div id="visibility-section" class="menu-section menu-section--active" data-tab-content="visibility">
                     <div class="st-signal-section__title">GROUND STATION VISIBILITY</div>
+                    <div class="hud-row hud-row--toggle layer-controls-row">
+                        <span class="hud-label">STATIONS</span>
+                        <button type="button" id="stations-toggle" class="st-toggle-btn" aria-label="Toggle ground station markers on the globe">OFF</button>
+                    </div>
                     <label class="st-field"><span class="st-field__label">STATION</span><select id="gs-station" class="st-select"><option value="">select station</option></select></label>
                     <label class="st-field"><span class="st-field__label">ELEVATION MASK</span><input type="range" id="gs-elev" class="st-input" min="0" max="30" value="10" step="1"><span id="gs-elev-val">10°</span></label>
                     <label class="st-field"><span class="st-field__label">PREDICTION WINDOW</span><select id="gs-window" class="st-select"><option value="3600">1 hour</option><option value="21600" selected>6 hours</option><option value="86400">24 hours</option></select></label>
                     <div class="st-actions"><button id="gs-compute" class="st-btn st-btn--primary">COMPUTE</button></div>
                     <div class="st-hint" id="gs-hint">select a station and compute</div>
+                    <div class="hud-row"><span class="hud-label">LIVE LINK</span><span id="gs-link" class="hud-val">—</span></div>
                     <hr class="hud-divider">
                     <div class="st-signal-section__title">VISIBILITY WINDOWS</div>
                     <ul class="st-feed" id="gs-windows"></ul>

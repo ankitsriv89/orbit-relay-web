@@ -1,5 +1,5 @@
 import { orbVel } from '../../orbit-engine/astro.js';
-import { degToRad, eciToEcf, coverageRadiusDeg, coverageCircleDeg, visibilityWindows, predictPasses, eirpDbm, linkBudget } from './compute.js';
+import { degToRad, eciToEcf, coverageRadiusDeg, coverageCircleDeg, visibilityWindows, predictPasses, eirpDbm, linkBudget, stationEcfMetres, slantRangeKm } from './compute.js';
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, on, setText, fmtLat, fmtLon } from '../shared/utils.js';
@@ -60,6 +60,7 @@ function refreshSelectedLive() {
     setText('sig-obj-lon', fmtLon(p.lon));
     setText('sig-obj-alt', `${Math.round(p.alt)} km`);
     setText('sig-obj-vel', `${orbVel(p.alt).toFixed(2)} km/s`);
+    refreshLink();
 }
 
 function loadSelectedObject() {
@@ -95,38 +96,174 @@ State.subscribe('selectedObject', (obj) => {
     if (obj && obj.norad !== (selectedObject || {}).norad) loadSelectedObject();
 });
 
-/* ── Ground stations ────────────────────────────────────────────────────── */
-const GROUND_STATIONS = [
-    { name: 'Cape Canaveral, FL, USA', lat: 28.39, lon: -80.60 },
-    { name: 'Vandenberg SFB, CA, USA', lat: 34.74, lon: -120.57 },
-    { name: 'Kourou, French Guiana', lat: 5.16, lon: -52.65 },
-    { name: 'Baikonur, Kazakhstan', lat: 45.96, lon: 63.30 },
-    { name: 'Plesetsk, Russia', lat: 62.92, lon: 40.68 },
-    { name: 'McMurdo, Antarctica', lat: -77.85, lon: 166.67 },
-    { name: 'Svalbard, Norway', lat: 78.23, lon: 15.39 },
-    { name: 'Kiruna, Sweden', lat: 67.86, lon: 20.96 },
-    { name: 'Madrid, Spain', lat: 40.43, lon: -4.25 },
-    { name: 'Goldstone, CA, USA', lat: 35.43, lon: -116.89 },
-    { name: 'Canberra, Australia', lat: -35.40, lon: 148.98 },
-    { name: 'Hartebeesthoek, S. Africa', lat: -25.89, lon: 27.69 },
-    { name: 'Dongara, Australia', lat: -29.25, lon: 114.93 },
-    { name: 'Santa Maria, Azores', lat: 36.98, lon: -25.11 },
-    { name: 'Brasília, Brazil', lat: -15.79, lon: -47.88 },
-    { name: 'Singapore', lat: 1.35, lon: 103.82 },
-    { name: 'Hawaii, USA', lat: 21.30, lon: -157.86 },
-    { name: 'Guam, USA', lat: 13.44, lon: 144.78 },
-    { name: 'Ascension Island', lat: -7.95, lon: -14.37 },
-    { name: 'Troll, Antarctica', lat: -72.01, lon: 2.53 },
+/* ── Ground stations ──────────────────────────────────────────────────────
+ * The real list lives in /data/ground-stations.json (~50 sites, plan 34 §3.4).
+ * FALLBACK_STATIONS below is the offline subset that populates the select
+ * before (and instead of) the fetch — it is a strict subset of the file,
+ * asserted by signal-compute.test.mjs, so a dead static file degrades to the
+ * pre-3.4 behaviour rather than a broken page.
+ */
+const FALLBACK_STATIONS = [
+    { name: 'Cape Canaveral, FL, USA', lat: 28.39, lon: -80.60, alt: 0 },
+    { name: 'Vandenberg SFB, CA, USA', lat: 34.74, lon: -120.57, alt: 0 },
+    { name: 'Kourou, French Guiana', lat: 5.16, lon: -52.65, alt: 0 },
+    { name: 'Baikonur, Kazakhstan', lat: 45.96, lon: 63.30, alt: 0 },
+    { name: 'Plesetsk, Russia', lat: 62.92, lon: 40.68, alt: 0 },
+    { name: 'McMurdo, Antarctica', lat: -77.85, lon: 166.67, alt: 0 },
+    { name: 'Svalbard, Norway', lat: 78.23, lon: 15.39, alt: 0 },
+    { name: 'Kiruna, Sweden', lat: 67.86, lon: 20.96, alt: 0 },
+    { name: 'Madrid, Spain', lat: 40.43, lon: -4.25, alt: 0 },
+    { name: 'Goldstone, CA, USA', lat: 35.43, lon: -116.89, alt: 0 },
+    { name: 'Canberra, Australia', lat: -35.40, lon: 148.98, alt: 0 },
+    { name: 'Hartebeesthoek, S. Africa', lat: -25.89, lon: 27.69, alt: 0 },
+    { name: 'Dongara, Australia', lat: -29.25, lon: 114.93, alt: 0 },
+    { name: 'Santa Maria, Azores', lat: 36.98, lon: -25.11, alt: 0 },
+    { name: 'Brasília, Brazil', lat: -15.79, lon: -47.88, alt: 0 },
+    { name: 'Singapore', lat: 1.35, lon: 103.82, alt: 0 },
+    { name: 'Hawaii, USA', lat: 21.30, lon: -157.86, alt: 0 },
+    { name: 'Guam, USA', lat: 13.44, lon: 144.78, alt: 0 },
+    { name: 'Ascension Island', lat: -7.95, lon: -14.37, alt: 0 },
+    { name: 'Troll, Antarctica', lat: -72.01, lon: 2.53, alt: 0 },
 ];
 
+let groundStations = FALLBACK_STATIONS;
+let stationMarkers = [];
+let stationMarkersOn = false;
+let linkLine = null;
+
 const stationSelect = $('gs-station');
-if (stationSelect) {
-    for (const s of GROUND_STATIONS) {
+
+/** The station the select currently names, or null. */
+function selectedStation() {
+    if (!stationSelect || !stationSelect.value) return null;
+    const [lat, lon, alt = 0] = stationSelect.value.split(',').map(Number);
+    if (isNaN(lat) || isNaN(lon)) return null;
+    return { lat, lon, alt };
+}
+
+function populateStationSelect() {
+    if (!stationSelect) return;
+    const prev = stationSelect.value;
+    stationSelect.textContent = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'select station';
+    stationSelect.appendChild(placeholder);
+    for (const s of groundStations) {
         const opt = document.createElement('option');
-        opt.value = `${s.lat},${s.lon}`;
+        opt.value = `${s.lat},${s.lon},${s.alt ?? 0}`;
         opt.textContent = s.name;
         stationSelect.appendChild(opt);
     }
+    if ([...stationSelect.options].some(o => o.value === prev)) stationSelect.value = prev;
+}
+
+populateStationSelect();
+
+fetch('/data/ground-stations.json')
+    .then(res => {
+        if (!res.ok) throw new Error(`ground-stations ${res.status}`);
+        return res.json();
+    })
+    .then(data => {
+        if (!Array.isArray(data) || data.length === 0) throw new Error('empty station list');
+        groundStations = data;
+        populateStationSelect();
+    })
+    .catch(err => console.warn('[signal] ground-stations fetch failed, using built-in 20:', err));
+
+/* ── Station markers + live sat↔ground link (plan 34 §3.4) ─────────────────
+ * The stations were only ever <select> options — never rendered on the globe,
+ * even though the link-budget maths that characterises a station↔sat link was
+ * already in compute.js. Markers are managed entities (launch-sites.js is the
+ * pattern); the link is a live straight polyline from the station to the
+ * satellite, rebuilt on the 1 s dossier tick, with the true WGS-84 slant
+ * range shown in the visibility tab and fed to the RF tab. Both degrade
+ * silently: no station selected → no line, and the RF tab falls back to the
+ * near-zenith altitude bound it used before.
+ */
+const STATION_LINK_COLOR = '#42f587';
+
+function renderStationMarkers() {
+    if (stationMarkersOn || !viewer) return;
+    stationMarkersOn = true;
+    for (const s of groundStations) {
+        stationMarkers.push(engine.addManagedEntity(viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(s.lon, s.lat, 0),
+            point: {
+                pixelSize: 5,
+                color: Cesium.Color.fromCssColorString(STATION_LINK_COLOR).withAlpha(0.75),
+                outlineColor: Cesium.Color.WHITE.withAlpha(0.5),
+                outlineWidth: 1,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            },
+            label: {
+                text: s.name,
+                font: '10px monospace',
+                fillColor: Cesium.Color.fromCssColorString(STATION_LINK_COLOR).withAlpha(0.85),
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -8),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                showBackground: true,
+                backgroundColor: Cesium.Color.fromCssColorString('#000810').withAlpha(0.8),
+                backgroundPadding: new Cesium.Cartesian2(4, 2),
+                scaleByDistance: new Cesium.NearFarScalar(1e5, 1.2, 1e7, 0.4),
+            },
+        })));
+    }
+    engine.requestRender();
+}
+
+function removeStationMarkers() {
+    for (const e of stationMarkers) engine.removeManagedEntity(e);
+    stationMarkers = [];
+    stationMarkersOn = false;
+}
+
+const stationsToggle = $('stations-toggle');
+if (stationsToggle) {
+    stationsToggle.addEventListener('click', () => {
+        if (stationMarkersOn) removeStationMarkers();
+        else renderStationMarkers();
+        stationsToggle.textContent = stationMarkersOn ? 'ON' : 'OFF';
+        stationsToggle.classList.toggle('st-toggle-btn--on', stationMarkersOn);
+    });
+}
+
+/** Rebuild the station↔sat link line + its slant-range readout. */
+function refreshLink() {
+    const st = selectedStation();
+    const p = selectedSatrec ? engine.geo(selectedSatrec) : null;
+    if (!st || !p) {
+        if (linkLine) linkLine.show = false;
+        setText('gs-link', '—');
+        return;
+    }
+    const stEcf = stationEcfMetres({ latDeg: st.lat, lonDeg: st.lon, altKm: st.alt });
+    const satEcf = stationEcfMetres({ latDeg: p.lat, lonDeg: p.lon, altKm: p.alt });
+    if (!linkLine) {
+        linkLine = engine.addManagedEntity(viewer.entities.add({
+            polyline: {
+                positions: [],
+                width: 1.5,
+                material: Cesium.Color.fromCssColorString(STATION_LINK_COLOR).withAlpha(0.8),
+                arcType: Cesium.ArcType.NONE,   // a sight line through space, not a surface arc
+            },
+        }));
+    }
+    linkLine.show = true;
+    linkLine.polyline.positions = [
+        new Cesium.Cartesian3(stEcf.x, stEcf.y, stEcf.z),
+        new Cesium.Cartesian3(satEcf.x, satEcf.y, satEcf.z),
+    ];
+    setText('gs-link', `${slantRangeKm(stEcf, satEcf).toFixed(0)} km`);
+}
+
+if (stationSelect) {
+    on('gs-station', 'change', refreshLink);
 }
 
 on('gs-elev', 'input', () => {
@@ -173,7 +310,7 @@ on('gs-compute', 'click', () => {
         return;
     }
 
-    const [stationLat, stationLon] = stationVal.split(',').map(Number);
+    const [stationLat, stationLon, stationAlt = 0] = stationVal.split(',').map(Number);
     const elevMask = Number($('gs-elev').value);
     const windowSec = Number($('gs-window').value);
     const stepSec = 30;
@@ -183,7 +320,7 @@ on('gs-compute', 'click', () => {
 
     const windows = visibilityWindows({
         t0Ms: Date.now(), windowSec, stepSec, elevMask, stationLat, stationLon,
-        elevationAt: (date, lat, lon) => computeElevation(selectedSatrec, date, lat, lon, 0),
+        elevationAt: (date, lat, lon) => computeElevation(selectedSatrec, date, lat, lon, stationAlt),
     });
 
     if (!windows.length) {
@@ -329,7 +466,16 @@ on('rf-compute', 'click', () => {
     if (selectedSatrec) {
         const p = engine.geo(selectedSatrec);
         if (p) {
-            const b = linkBudget({ freqMHz, txPowerW, txGainDbi, rxGainDbi, dataRateKbps, rangeKm: p.alt });
+            // Real station↔sat slant range when a station is selected (plan 34
+            // §3.4); the near-zenith altitude bound remains the no-station case.
+            const st = selectedStation();
+            const rangeKm = st
+                ? slantRangeKm(
+                    stationEcfMetres({ latDeg: st.lat, lonDeg: st.lon, altKm: st.alt }),
+                    stationEcfMetres({ latDeg: p.lat, lonDeg: p.lon, altKm: p.alt })
+                )
+                : p.alt;
+            const b = linkBudget({ freqMHz, txPowerW, txGainDbi, rxGainDbi, dataRateKbps, rangeKm });
             setText('rf-pl', `${b.pathLoss.toFixed(1)} dB`);
             setText('rf-snr', `${b.snr.toFixed(1)} dB`);
             setText('rf-gt', `${b.gToT.toFixed(1)} dB/K`);
@@ -348,4 +494,7 @@ exposeDebug('signal', {
     viewer, engine,
     get booted() { return !!engine; },
     get selected() { return selectedObject; },
+    get stationCount() { return groundStations.length; },
+    get stationsOnGlobe() { return stationMarkers.length; },
+    refreshLink,
 });

@@ -26,13 +26,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
 
 import {
   degToRad, eciToEcf, coverageRadiusDeg, coverageCircleDeg,
   visibilityWindows, predictPasses, eirpDbm, freeSpaceLossDb,
   receivedPowerDbm, thermalNoiseDbm, snrDb, systemGtoTDb, linkMarginDb,
-  linkBudget,
+  linkBudget, stationEcfMetres, slantRangeKm, WGS84_A_KM, WGS84_B_KM,
 } from '../../../public/spacetrack/signal/compute.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -282,11 +285,97 @@ await test('linkBudget aggregates the whole chain end to end', () => {
   assert.equal(b.gToT, systemGtoTDb(40));
 });
 
-/* ── Cross-file invariants ──────────────────────────────────────────────── */
+/* ── Geodetic → ECF and slant range (plan 34 §3.4) ─────────────────────── */
 
-console.log('\n-- signal.js and compute.js agree --');
+console.log('\n-- WGS-84 geodetic → ECF and slant range --');
 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+await test('the geodetic→ECF transform hits the closed-form anchors exactly', () => {
+  // Equator, lon 0, sea level → (a, 0, 0); lon 90 → (0, a, 0); north pole → (0, 0, b).
+  const eq = stationEcfMetres({ latDeg: 0, lonDeg: 0, altKm: 0 });
+  approx(eq.x, WGS84_A_KM * 1000, 1e-6);
+  approx(eq.y, 0, 1e-9);
+  approx(eq.z, 0, 1e-9);
+  const eq90 = stationEcfMetres({ latDeg: 0, lonDeg: 90, altKm: 0 });
+  approx(eq90.y, WGS84_A_KM * 1000, 1e-6);
+  approx(eq90.x, 0, 1e-9);
+  const pole = stationEcfMetres({ latDeg: 90, lonDeg: 0, altKm: 0 });
+  approx(pole.z, WGS84_B_KM * 1000, 1e-6);
+  approx(pole.x, 0, 1e-6);
+  approx(pole.y, 0, 1e-6);
+});
+
+await test('altitude rides straight up the ellipsoid normal at the equator', () => {
+  const p = stationEcfMetres({ latDeg: 0, lonDeg: 0, altKm: 1 });
+  approx(p.x, (WGS84_A_KM + 1) * 1000, 1e-6);   // at lat 0 the prime vertical is a
+  const pz = stationEcfMetres({ latDeg: 90, lonDeg: 0, altKm: 0.4 });
+  approx(pz.z, (WGS84_B_KM + 0.4) * 1000, 1e-6);
+});
+
+await test('slant range is the straight-line ECF distance in km', () => {
+  const st = stationEcfMetres({ latDeg: 0, lonDeg: 0, altKm: 0 });
+  const overhead = { x: st.x, y: st.y, z: st.z + 400 * 1000 };
+  approx(slantRangeKm(st, overhead), 400, 1e-9);           // exactly overhead
+  const antipode = { x: -st.x, y: -st.y, z: -st.z };
+  approx(slantRangeKm(st, antipode), 2 * WGS84_A_KM, 1e-9); // through the centre
+});
+
+await test('the transform agrees with the vendored satellite.js to 1e-6 km', () => {
+  // The page's other sight-line maths use satellite.js's geodeticToEcf /
+  // ecfToLookAngles (km). compute.js must not import it, so this loads the
+  // vendored file into a bare vm context and cross-checks both functions.
+  const src = read('public/orbit-engine/vendor/satellite.min.js');
+  const { runInContext, createContext } = require('node:vm');
+  // The UMD wrapper binds its API to `globalThis.satellite` of the vm context —
+  // runInContext returns the script's completion value, so read it off the
+  // context object.
+  const ctx = createContext({});
+  runInContext(src, ctx);
+  const satjs = ctx.satellite;
+  assert.ok(satjs && typeof satjs.geodeticToEcf === 'function', 'vendored satellite.js loads');
+
+  const g = { latitude: degToRad(45.2), longitude: degToRad(-118.7), height: 0.62 };
+  const mine = stationEcfMetres({ latDeg: 45.2, lonDeg: -118.7, altKm: 0.62 });
+  const theirs = satjs.geodeticToEcf(g);
+  approx(mine.x / 1000, theirs.x, 1e-6);
+  approx(mine.y / 1000, theirs.y, 1e-6);
+  approx(mine.z / 1000, theirs.z, 1e-6);
+
+  const st = stationEcfMetres({ latDeg: -33.9, lonDeg: 151.2, altKm: 0.05 });
+  const sat = { x: 2000e3 + 3e6, y: 4000e3, z: 5000e3 };
+  const look = satjs.ecfToLookAngles(
+    { latitude: degToRad(-33.9), longitude: degToRad(151.2), height: 0.05 },
+    { x: sat.x / 1000, y: sat.y / 1000, z: sat.z / 1000 }
+  );
+  assert.ok(look && typeof look.rangeSat === 'number', 'ecfToLookAngles returns rangeSat');
+  approx(slantRangeKm(st, sat), look.rangeSat, 1e-6);
+});
+
+await test('the station data file ships 50 real stations, fallback included', () => {
+  const data = JSON.parse(read('public/data/ground-stations.json'));
+  assert.equal(data.length, 50);
+  const seen = new Set();
+  for (const s of data) {
+    assert.ok(typeof s.name === 'string' && s.name.length > 0, 'name');
+    assert.ok(Number.isFinite(s.lat) && Math.abs(s.lat) <= 90, s.name + ' lat');
+    assert.ok(Number.isFinite(s.lon) && Math.abs(s.lon) <= 180, s.name + ' lon');
+    assert.ok(Number.isFinite(s.alt) && s.alt >= 0, s.name + ' alt');
+    assert.ok(!seen.has(s.name), 'duplicate name ' + s.name);
+    seen.add(s.name);
+  }
+  const fallback = /FALLBACK_STATIONS\s*=\s*\[([\s\S]*?)\n\];/.exec(read('public/spacetrack/signal/signal.js'));
+  assert.ok(fallback, 'FALLBACK_STATIONS block found in signal.js');
+  const fallbackRows = [...fallback[1].matchAll(/\{ name: '([^']+)', lat: ([\d.+-]+), lon: ([\d.+-]+)[^}]*\}/g)]
+    .map(m => ({ name: m[1], lat: Number(m[2]), lon: Number(m[3]) }));
+  assert.ok(fallbackRows.length >= 20, `fallback has ${fallbackRows.length} stations`);
+  for (const f of fallbackRows) {
+    const match = data.find(s => s.name === f.name);
+    assert.ok(match, `fallback station "${f.name}" missing from the data file`);
+    approx(match.lat, f.lat, 1e-9);
+    approx(match.lon, f.lon, 1e-9);
+  }
+});
 
 await test('compute.js stays importable in Node: no browser globals', () => {
   // The invariant is about CODE, not prose — the file header legitimately names
@@ -304,7 +393,8 @@ await test('compute.js stays importable in Node: no browser globals', () => {
 await test('signal.js imports the maths instead of re-implementing it', () => {
   const src = read('public/spacetrack/signal/signal.js');
   for (const fn of ['visibilityWindows', 'predictPasses', 'coverageRadiusDeg',
-                    'coverageCircleDeg', 'linkBudget']) {
+                    'coverageCircleDeg', 'linkBudget', 'stationEcfMetres',
+                    'slantRangeKm']) {
     assert.ok(new RegExp(`import[\\s\\S]*\\b${fn}\\b`).test(src),
               `signal.js must import ${fn}`);
   }
