@@ -56,6 +56,7 @@
 ## Task list
 
 - [x] **C1 Backend — SWPC ingest + D1 + artifact + /api/space-weather + tests**:
+      **DONE — commit `5cc3a69c` (18 files ahead of origin).**
       new `space_weather` table (kind/time_tag/value/meta, truncate-and-reload per
       kind, one batch = one transaction), `SWPC_CITATION` duplicated across bundles
       and asserted byte-identical + ASCII-only by derive.test.mjs,
