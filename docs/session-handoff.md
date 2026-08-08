@@ -36,12 +36,13 @@
   Space-Track data, and a USSPACECOM attribution there would be a licence-relevant
   lie in the other direction. `json()` in _catalog.js now takes `citation` as an
   option for exactly this.
-- **C3 (ground stations) prep**: open decision 3 says a static JSON file
-  (`public/data/ground-stations.json`, ~50 rows), not a D1 table. signal.js keeps
-  its 20 hardcoded stations as the offline fallback if the fetch fails. Markers via
-  `engine.addManagedEntity` (launch-sites.js is the pattern). The link line needs a
-  pure slant-range function in `signal/compute.js` (satellite.js's
-  `ecfToLookAngles` already returns `range` — wrap it pure, test it closed-form).
+- **C3 (ground stations) — DONE (commit `253eab81`)**: shipped as planned — static
+  JSON (`public/data/ground-stations.json`, 50 rows), offline fallback = the
+  original 20 (test-pinned as a subset), markers via `engine.addManagedEntity`,
+  pure `stationEcfMetres` + `slantRangeKm` in `signal/compute.js` (the vendored
+  satellite.js key turned out to be `rangeSat`, not `range` — see the C3
+  task notes above). The RF tab now uses the real slant range when a station is
+  selected, and visibility windows use the station's altitude.
 - **Verification**: `npm test`; then a headless Playwright probe like 3.3's pattern;
   mobile contract at 390/412/820/1133/1400 per `tests/e2e/test_mobile_responsive.py`.
   The signal page's analysis HUD and /orbit/'s layers HUD are the two touchpoints.
@@ -77,6 +78,36 @@
     φs+π, C·m = cos(off), and the concrete 75.65/72.68 anchor. test_orbit.py's
     perf gate clicks ALL `.layer-cb` including builtins, so the aurora layer
     gets exercised there automatically — it just fetches once, benign.
+
+- [x] **C3 Ground stations — markers + live link + slant range + tests**:
+      **DONE — commit `253eab81` (24 files ahead of origin).** Static
+      `public/data/ground-stations.json` (50 sites, plan 34 open decision 3:
+      no D1 table) replaces the hardcoded list; `FALLBACK_STATIONS` in signal.js
+      keeps the original 20 as the offline subset (test asserts fallback ⊆ file,
+      name+coords exact). Signal page: STATIONS toggle in the visibility tab
+      renders the sites as managed point+label markers (launch-sites.js
+      pattern, `#42f587`); picking a station + a satellite draws a live
+      station↔sat polyline (ArcType.NONE — a sight line through space) rebuilt
+      on the 1 s dossier tick, with the slant range in a new LIVE LINK row
+      (`#gs-link`); the RF tab now budgets the REAL slant range instead of the
+      near-zenith altitude bound (altitude remains the no-station fallback);
+      visibility windows use the station's real altitude. Pure maths in
+      `signal/compute.js`: `stationEcfMetres` (WGS-84 → ECF, metres) +
+      `slantRangeKm` — cross-checked against the vendored satellite.min.js
+      loaded into a bare vm context (geodeticToEcf AND ecfToLookAngles.
+      rangeSat, ≤1e-6 km), plus exact closed-form anchors (equator/pole/overhead/
+      antipode) and the fallback-subset pin. `npm test` green: 0 FAIL.
+  - **Surprise**: the vendored satellite.js UMD binds its API to
+    `globalThis.satellite` of whatever context runs it — `require()` returns an
+    EMPTY exports object, and `vm.runInContext(src, ctx)` returns the script's
+    completion value, not the context. The cross-check must
+    `runInContext(src, ctx)` then read `ctx.satellite`. Also its
+    `ecfToLookAngles` returns the range under the key `rangeSat` (not `range`),
+    and its WGS-84 b is 6356.7523142 (rounded, vs the official ...314245) —
+    compute.js's constants match the VENDORED digits on purpose so the two
+    agree to 1e-6 km, and the test pins that exact agreement. FALLBACK_STATIONS
+    kept the original "Brasília" spelling, so the JSON file must too (the test
+    would have caught a mismatch).
       new `space_weather` table (kind/time_tag/value/meta, truncate-and-reload per
       kind, one batch = one transaction), `SWPC_CITATION` duplicated across bundles
       and asserted byte-identical + ASCII-only by derive.test.mjs,
