@@ -36,14 +36,7 @@
   Space-Track data, and a USSPACECOM attribution there would be a licence-relevant
   lie in the other direction. `json()` in _catalog.js now takes `citation` as an
   option for exactly this.
-- **C2 (frontend) still to wire**: aurora ovals on /orbit/ (builtin layer in
-  `public/orbit/layers.js` — add the entry there, NOT in index.html; the registry
-  renders desktop + drawer), the ovals as engine-managed entities (addManagedEntity),
-  a compact SPACE WEATHER row in the layers HUD, silent degrade when the fetch
-  fails. Pure oval math belongs in `public/orbit-engine/astro.js` beside
-  `eclipseShadowFactor` — NOAA's Kp→equatorward-boundary table is ~linear:
-  66.5° − 2·Kp. Geomagnetic poles: 80.65°N/72.68°W (north), antipode (south).
-- **C3/C4 (ground stations) prep**: open decision 3 says a static JSON file
+- **C3 (ground stations) prep**: open decision 3 says a static JSON file
   (`public/data/ground-stations.json`, ~50 rows), not a D1 table. signal.js keeps
   its 20 hardcoded stations as the offline fallback if the fetch fails. Markers via
   `engine.addManagedEntity` (launch-sites.js is the pattern). The link line needs a
@@ -57,6 +50,33 @@
 
 - [x] **C1 Backend — SWPC ingest + D1 + artifact + /api/space-weather + tests**:
       **DONE — commit `5cc3a69c` (18 files ahead of origin).**
+
+- [x] **C2 Frontend — aurora ovals on /orbit/ + SPACE WX HUD row + tests**:
+      **DONE — commit `56f660a2` (21 files ahead of origin).** Pure oval maths
+      in `public/orbit-engine/astro.js` (`auroraBoundaryLat` 66.5−2·Kp, clamped
+      to [0,9]; `auroraOvals({kp, sunEcef})` returns north/south rings sampled
+      in ring angle, southern = point reflection of northern so `south[k]` is
+      exactly antipodal to `north[k]`), builtin AURORA layer (`🌌`, `#42f587`)
+      added to `layers.js` — the registry renders desktop + drawer copies, no
+      index.html edit needed for the checkbox. `orbital-relay.js` fetches
+      `/api/space-weather` on toggle, draws two closed GEODESIC polylines as
+      engine-managed entities, shows `KP x.x` in `#layer-status-aurora{,-drawer}`,
+      and mounts ONE `SPACE WX` row (KP · F10.7 · 90D) cloned into both layers
+      HUDs. Silent degrade on fetch failure (row '—', status 'ERR'). New suite
+      `aurora-compute.test.mjs` (15 checks) against an independent spherical-trig
+      reference; `npm test` green: 0 FAIL.
+  - **Surprise**: the oval centre model detail — the centre is `off` along the
+    magnetic-midnight MERIDIAN (geomagnetic colatitude `off`, longitude
+    φs+180°), NOT toward the antisolar *point* (which sits at the sun's own
+    colatitude). With the sun over the geographic north pole that puts the
+    centre at 75.65°N 72.68°W (5° equatorward along the pole's meridian) —
+    physically right (the northern oval shifts away from the sun), and the
+    first test draft asserted the wrong algebra (C·mm = cosδ·cosθs + sinδ was
+    derived assuming C = cosδ·m + sinδ·mm, which is not the construction).
+    The suite now pins the correct invariants: geomagnetic longitude of C =
+    φs+π, C·m = cos(off), and the concrete 75.65/72.68 anchor. test_orbit.py's
+    perf gate clicks ALL `.layer-cb` including builtins, so the aurora layer
+    gets exercised there automatically — it just fetches once, benign.
       new `space_weather` table (kind/time_tag/value/meta, truncate-and-reload per
       kind, one batch = one transaction), `SWPC_CITATION` duplicated across bundles
       and asserted byte-identical + ASCII-only by derive.test.mjs,
