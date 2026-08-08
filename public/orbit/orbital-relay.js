@@ -20,6 +20,7 @@ import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from 
 import { parseTLE, parseTLEChunked, fetchTLE } from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
+    auroraOvals, sunDirectionEcef,
 } from '../orbit-engine/astro.js';
 import {
     wireHudToggle, initMobileListener, initHamburgerMenu,
@@ -79,6 +80,121 @@ initHamburgerMenu();
  * all assume the checkboxes already exist in the DOM. */
 renderLayerList('layer-list');
 renderLayerList('layer-list-drawer', '-drawer');
+
+/* ── SPACE WEATHER (plan 34 §3.4 — NOAA SWPC) ──────────────────────────────
+ * A builtin AURORA layer (registry entry in layers.js) that draws the
+ * auroral ovals for the current Kp index, plus a compact data row in both
+ * layers HUDs. All data comes from /api/space-weather (SWPC → D1 → artifact,
+ * cited NOAA). Silent degrade on purpose: a fetch failure blanks the row to
+ * '—' and the toggle does nothing — this is a satellite tracker, not a
+ * weather service, and a dead SWPC must not take the page down with it.
+ */
+const SW_COLOR = '#42f587';
+let auroraState = { data: null, entities: [], loaded: false, fetching: false };
+
+function swStatusEls() {
+    return [
+        document.getElementById('layer-status-aurora'),
+        document.getElementById('layer-status-aurora-drawer'),
+    ];
+}
+
+function setSwStatus(text) {
+    swStatusEls().forEach(el => { if (el) el.textContent = text; });
+}
+
+function setSwRow(text) {
+    document.querySelectorAll('.space-weather-row .hud-val').forEach(el => {
+        el.textContent = text;
+    });
+}
+
+function swRowText(data) {
+    const kp   = data?.current?.kp;
+    const f107 = data?.current?.f107;
+    const mean = data?.current?.f107_90day;
+    const parts = [];
+    if (kp != null) parts.push(`KP ${Number(kp).toFixed(1)}`);
+    if (f107 != null) parts.push(`F10.7 ${Math.round(f107)}`);
+    if (mean != null) parts.push(`90D ${Math.round(mean)}`);
+    return parts.join(' · ') || '—';
+}
+
+/** One SPACE WX row built once, cloned into both layers HUDs (desktop + drawer). */
+function mountSpaceWeatherRows() {
+    document.querySelectorAll(
+        '#layers-hud-body .hud-controls-hint, #layers-drawer-overlay .hud-controls-hint'
+    ).forEach(hint => {
+        const row = document.createElement('div');
+        row.className = 'hud-row space-weather-row';
+        const label = document.createElement('span');
+        label.className = 'hud-label';
+        label.textContent = 'SPACE WX';
+        const val = document.createElement('span');
+        val.className = 'hud-val';
+        val.textContent = '—';
+        row.appendChild(label);
+        row.appendChild(val);
+        hint.parentNode.insertBefore(row, hint);
+    });
+}
+
+async function fetchSpaceWeather() {
+    const res = await fetch('/api/space-weather');
+    if (!res.ok) throw new Error(`space-weather ${res.status}`);
+    return res.json();
+}
+
+async function toggleAurora(checked) {
+    if (!checked) {
+        auroraState.entities.forEach(e => { e.show = false; });
+        setSwStatus('');
+        return;
+    }
+    if (auroraState.loaded) {
+        auroraState.entities.forEach(e => { e.show = true; });
+        setSwStatus(`KP ${Number(auroraState.data.current.kp).toFixed(1)}`);
+        return;
+    }
+    if (auroraState.fetching) return;
+    auroraState.fetching = true;
+    setSwStatus('…');
+    try {
+        const data = await fetchSpaceWeather();
+        auroraState.data = data;
+        setSwRow(swRowText(data));
+        const kp = data?.current?.kp;
+        if (kp == null) throw new Error('no current Kp in /api/space-weather');
+        // The ovals are fixed at build time: magnetic midnight rotates with the
+        // sun and Kp re-ingests daily, but rebuilding per tick costs ~50 trig
+        // calls a frame for a layer that moves at half a pixel a minute.
+        const sun = sunDirectionEcef(engine.now());
+        const { north, south } = auroraOvals({ kp, sunEcef: sun });
+        auroraState.entities = [north, south].map(ring => {
+            const coords = [];
+            for (const p of ring) coords.push(p.lon, p.lat);
+            coords.push(ring[0].lon, ring[0].lat);   // close the ring
+            return engine.addManagedEntity(viewer.entities.add({
+                polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(coords),
+                    width: 2,
+                    arcType: Cesium.ArcType.GEODESIC,
+                    material: Cesium.Color.fromCssColorString(SW_COLOR).withAlpha(0.6),
+                },
+            }));
+        });
+        auroraState.loaded = true;
+        auroraState.fetching = false;
+        setSwStatus(`KP ${Number(kp).toFixed(1)}`);
+    } catch (err) {
+        console.warn('[orbital-relay] aurora layer failed:', err);
+        auroraState.loaded = false;
+        auroraState.fetching = false;
+        setSwStatus('ERR');
+    }
+}
+
+mountSpaceWeatherRows();
 
 /* ── Orbit revolution count (plan 35 §3, S6) — authored twice: desktop panel
  * + mobile drawer, mirroring every other layers-hud control until the S11
@@ -541,6 +657,8 @@ document.querySelectorAll('.layer-cb').forEach(cb => {
                 });
                 if (stStatusEl) stStatusEl.textContent = cb.checked ? stationEntities.length : '';
                 updateSatBar();
+            } else if (group === 'aurora') {
+                toggleAurora(cb.checked);
             }
         } else {
             const color = cb.dataset.color;
@@ -588,6 +706,7 @@ window.__orbit = {
     allSats: engine.allSats,
     layerState,
     stationEntities,
+    auroraState,
     get satPointCount() { return engine.satPointCount; },
     get entityCount()   { return viewer.entities.values.length; },
     get booted()        { return engine.allSats.length > 0; },
@@ -602,6 +721,7 @@ window.__orbit = {
     propagateAllSatsSync: () => engine.propagateSync(),
     inspectSatellite,
     toggleLayer,
+    toggleAurora,
     fetchTLE: (group, live) => fetchTLE(group, { source: SOURCE, live }),
     parseTLE,
 };

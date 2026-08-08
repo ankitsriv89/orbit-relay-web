@@ -73,6 +73,7 @@ export const LAYERS = [
         section: '🌍 INTERNATIONAL',
         layers: [
             { group: 'stations-other', name: 'STATIONS', flag: '🛰', color: '#ff8c69', builtin: true },
+            { group: 'aurora', name: 'AURORA', flag: '🌌', color: '#42f587', builtin: true },
             { group: 'weather', name: 'WEATHER', flag: '🌍', color: '#88ffcc', cap: 100 },
             { group: 'geo', name: 'GEO BELT', flag: '🌍', color: '#ffe066', cap: 150 },
             { group: 'resource', name: 'EARTH-OBS', flag: '🌍', color: '#66ff99', cap: 150 },

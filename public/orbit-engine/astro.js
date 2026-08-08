@@ -252,3 +252,146 @@ export function farSideFade(p, cam, { minAlpha = 0.18, radiusM = EARTH_R_KM * 10
     const depth = span > 0 ? Math.min(1, (rr - dot) / span) : 1;
     return minAlpha + (1 - minAlpha) * (1 - depth);
 }
+
+/* ── Aurora ovals (plan 34 §3.4 — NOAA SWPC) ─────────────────────────────── */
+
+/**
+ * Geomagnetic (centered dipole) north pole in geographic coordinates — the
+ * value NOAA SWPC's aurora products are built on (80.65°N, 72.68°W). The south
+ * pole is its antipode, which is what makes the two ovals exactly antisymmetric.
+ */
+export const GEOMAG_POLE_NORTH = { lat: 80.65, lon: -72.68 };
+
+/**
+ * Nightside shift of the oval's centre, degrees. The auroral oval is not
+ * centred on the magnetic pole: it is displaced toward magnetic midnight —
+ * the classic "offset circle" fit to the Feldstein–Starkov ovals uses ~5°.
+ */
+export const AURORA_OVAL_OFFSET_DEG = 5;
+
+/**
+ * Equatorward boundary latitude of the auroral oval for a 3-hour Kp index —
+ * NOAA's published Kp→boundary table, which is linear: 66.5° at Kp 0, 48.5°
+ * at Kp 9. Kp is clamped to [0, 9]; SWPC occasionally reports 3-hourly values
+ * outside it (Kp 10 during the 2024 May storm series).
+ */
+export function auroraBoundaryLat(kp) {
+    return 66.5 - 2 * Math.min(9, Math.max(0, kp));
+}
+
+/** Colatitude of the oval ring from the geomagnetic pole: 90° − boundary. */
+export function auroraRingColatDeg(kp) {
+    return 90 - auroraBoundaryLat(kp);
+}
+
+/**
+ * Auroral oval rings for a Kp index and sun direction — pure, Cesium-free,
+ * Node-tested (aurora-compute.test.mjs).
+ *
+ * Model (the offset-circle approximation): each oval is a small circle of
+ * radius `auroraRingColatDeg(kp)` centred on the geomagnetic pole shifted
+ * `AURORA_OVAL_OFFSET_DEG` toward geomagnetic midnight. Magnetic midnight is
+ * the antisolar point in geomagnetic longitude — the meridian 180° from the
+ * sun's, at the sun's colatitude from the pole — so the oval's centre rides
+ * the night side as the sun (and the Earth beneath it) rotate. The southern
+ * oval is the northern's point reflection: the geomagnetic south pole is the
+ * antipode, so the south ring is built by mirroring every north point through
+ * Earth's centre. This makes `south[k]` exactly antipodal to `north[k]`, a
+ * closed-form property the suite asserts.
+ *
+ * The rings are fixed at build time. The oval genuinely moves with the sun
+ * (magnetic midnight rotates ~once per day) and with Kp (re-ingested daily),
+ * but rebuilding on every tick would recompute ~50 transcendental calls per
+ * frame for a layer that moves at half a pixel per minute — the layer code
+ * rebuilds when the user toggles it or the page refreshes.
+ *
+ * @param {object} o
+ * @param {number} o.kp 3-hourly Kp index (clamped to [0, 9])
+ * @param {{x:number,y:number,z:number}} o.sunEcef unit sun direction in the
+ *        Earth-fixed frame (sunDirectionEcef's output) — defines midnight
+ * @param {number} [o.samples=24] ring points, evenly spaced in ring angle
+ * @returns {{north:{lat:number,lon:number}[], south:{lat:number,lon:number}[]}}
+ *          empty arrays if the sun direction has zero magnitude
+ */
+export function auroraOvals({ kp, sunEcef, samples = 24 }) {
+    const DEG = Math.PI / 180;
+    const sm = Math.hypot(sunEcef.x, sunEcef.y, sunEcef.z);
+    if (sm === 0) return { north: [], south: [] };
+    const s = { x: sunEcef.x / sm, y: sunEcef.y / sm, z: sunEcef.z / sm };
+
+    const { m, e, f } = geomagPoleFrame();
+    const rho = auroraRingColatDeg(kp) * DEG;
+    const off = AURORA_OVAL_OFFSET_DEG * DEG;
+
+    // Sun in geomagnetic coordinates; magnetic midnight = same colatitude,
+    // opposite geomagnetic longitude.
+    const phiS   = Math.atan2(s.x * f.x + s.y * f.y + s.z * f.z,
+                              s.x * e.x + s.y * e.y + s.z * e.z);
+
+    // Oval centre: `off` from the pole toward midnight.
+    const C = geomagPoint(off, phiS + Math.PI, m, e, f);
+
+    // Orthonormal pair spanning the plane perpendicular to C.
+    let u = { x: e.x - (e.x * C.x + e.y * C.y + e.z * C.z) * C.x,
+              y: e.y - (e.x * C.x + e.y * C.y + e.z * C.z) * C.y,
+              z: e.z - (e.x * C.x + e.y * C.y + e.z * C.z) * C.z };
+    const ul = Math.hypot(u.x, u.y, u.z) || 1;
+    u = { x: u.x / ul, y: u.y / ul, z: u.z / ul };
+    const v = { x: C.y * u.z - C.z * u.y,
+                y: C.z * u.x - C.x * u.z,
+                z: C.x * u.y - C.y * u.x };
+
+    const north = [];
+    for (let k = 0; k < samples; k++) {
+        const psi = (k / samples) * 2 * Math.PI;
+        const px = Math.cos(rho) * C.x + Math.sin(rho) * (Math.cos(psi) * u.x + Math.sin(psi) * v.x);
+        const py = Math.cos(rho) * C.y + Math.sin(rho) * (Math.cos(psi) * u.y + Math.sin(psi) * v.y);
+        const pz = Math.cos(rho) * C.z + Math.sin(rho) * (Math.cos(psi) * u.z + Math.sin(psi) * v.z);
+        north.push({ lat: Math.asin(clampUnit(pz)) / DEG,
+                     lon: Math.atan2(py, px) / DEG });
+    }
+    const south = north.map(p => antipodeOf(p));
+    return { north, south };
+}
+
+function clampUnit(x) { return Math.min(1, Math.max(-1, x)); }
+
+/** Geographic antipode of a {lat, lon} point. */
+function antipodeOf({ lat, lon }) {
+    return { lat: -lat, lon: lon + (lon <= 0 ? 180 : -180) };
+}
+
+/** Point with geomagnetic colatitude `theta` and longitude `phi` (radians). */
+function geomagPoint(theta, phi, m, e, f) {
+    const ct = Math.cos(theta), st = Math.sin(theta);
+    const cp = Math.cos(phi),  sp = Math.sin(phi);
+    return {
+        x: ct * m.x + st * (cp * e.x + sp * f.x),
+        y: ct * m.y + st * (cp * e.y + sp * f.y),
+        z: ct * m.z + st * (cp * e.z + sp * f.z),
+    };
+}
+
+/**
+ * Orthonormal basis of the centered-dipole frame: `m` points at the geographic
+ * pole GEOMAG_POLE_NORTH, `e` lies in the meridian plane through both poles
+ * (so the geographic north pole has geomagnetic longitude 0), `f = m × e`.
+ * Built once per call — `auroraOvals` runs at most per layer toggle, so the
+ * trig here is not on any per-frame path.
+ */
+function geomagPoleFrame() {
+    const DEG = Math.PI / 180;
+    const plat = GEOMAG_POLE_NORTH.lat * DEG;
+    const plon = GEOMAG_POLE_NORTH.lon * DEG;
+    const m = { x: Math.cos(plat) * Math.cos(plon),
+                y: Math.cos(plat) * Math.sin(plon),
+                z: Math.sin(plat) };
+    // e = projection of the geographic north pole onto the plane ⊥ m.
+    let e = { x: -m.z * m.x, y: -m.z * m.y, z: 1 - m.z * m.z };
+    const el = Math.hypot(e.x, e.y, e.z) || 1;
+    e = { x: e.x / el, y: e.y / el, z: e.z / el };
+    const f = { x: m.y * e.z - m.z * e.y,
+                y: m.z * e.x - m.x * e.z,
+                z: m.x * e.y - m.y * e.x };
+    return { m, e, f };
+}
