@@ -17,7 +17,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import { OBJECT_UPSERT_SQL, deriveObjectRow, buildAnalytics } from '../src/derive.js';
@@ -27,16 +27,20 @@ const ROOT = path.resolve(HERE, '../../..');
 const SCHEMA = fs.readFileSync(path.join(ROOT, 'd1/orbit.sql'), 'utf8');
 const raw = (n) => fs.readFileSync(path.join(HERE, '../fixtures', n), 'utf8');
 
-const search      = (await import(path.join(ROOT, 'functions/api/search.js'))).onRequest;
-const dossier     = (await import(path.join(ROOT, 'functions/api/object/[norad].js'))).onRequest;
-const summary     = (await import(path.join(ROOT, 'functions/api/summary.js'))).onRequest;
-const analytics   = (await import(path.join(ROOT, 'functions/api/analytics.js'))).onRequest;
-const feed        = (await import(path.join(ROOT, 'functions/api/feed.js'))).onRequest;
-const decayWatch  = (await import(path.join(ROOT, 'functions/api/decay-watch.js'))).onRequest;
-const boxscore    = (await import(path.join(ROOT, 'functions/api/boxscore.js'))).onRequest;
-const brief       = (await import(path.join(ROOT, 'functions/api/brief.js'))).onRequest;
-const spaceWeather = (await import(path.join(ROOT, 'functions/api/space-weather.js'))).onRequest;
-const { rebuildFromRows } = await import(path.join(ROOT, 'functions/api/space-weather.js'));
+// pathToFileURL, not a bare path — a raw Windows absolute path (D:\...) is not
+// a valid ESM specifier and node's loader rejects it (ERR_UNSUPPORTED_ESM_URL_SCHEME).
+const importFromRoot = (rel) => import(pathToFileURL(path.join(ROOT, rel)));
+
+const search      = (await importFromRoot('functions/api/search.js')).onRequest;
+const dossier     = (await importFromRoot('functions/api/object/[norad].js')).onRequest;
+const summary     = (await importFromRoot('functions/api/summary.js')).onRequest;
+const analytics   = (await importFromRoot('functions/api/analytics.js')).onRequest;
+const feed        = (await importFromRoot('functions/api/feed.js')).onRequest;
+const decayWatch  = (await importFromRoot('functions/api/decay-watch.js')).onRequest;
+const boxscore    = (await importFromRoot('functions/api/boxscore.js')).onRequest;
+const brief       = (await importFromRoot('functions/api/brief.js')).onRequest;
+const spaceWeather = (await importFromRoot('functions/api/space-weather.js')).onRequest;
+const { rebuildFromRows } = await importFromRoot('functions/api/space-weather.js');
 
 const results = [];
 async function test(name, fn) {
@@ -602,7 +606,7 @@ await test('days_until does not drift with the host timezone', async () => {
   // LOCAL time, which moves a ceil()'d day count by one off UTC. The DAILY
   // BRIEF panel sits directly above this one showing the same objects, so a
   // divergence here is visible on screen, not just wrong.
-  const { parseEpochUTC } = await import(path.join(ROOT, 'functions/api/_catalog.js'));
+  const { parseEpochUTC } = await importFromRoot('functions/api/_catalog.js');
   const t = parseEpochUTC('2026-08-01 12:00:00');
   assert.equal(new Date(t).toISOString(), '2026-08-01T12:00:00.000Z',
                `parsed as local time (TZ=${process.env.TZ || 'unset'})`);

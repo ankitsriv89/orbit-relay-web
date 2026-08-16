@@ -12,13 +12,13 @@
  */
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 
-const { onRequest: brief } = await import(path.join(ROOT, 'functions/api/brief.js'));
-const { archiveKey, BRIEF_INDEX_KEY } = await import(path.join(HERE, '../src/brief.js'));
+const { onRequest: brief } = await import(pathToFileURL(path.join(ROOT, 'functions/api/brief.js')));
+const { archiveKey, BRIEF_INDEX_KEY } = await import(pathToFileURL(path.join(HERE, '../src/brief.js')));
 
 const results = [];
 async function test(name, fn) {

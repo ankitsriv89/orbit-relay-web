@@ -170,6 +170,7 @@ console.log('\n-- ingestSpaceWeather --');
 await test('three series are fetched, replaced and written as one artifact', async () => {
   const { db, r2, env } = makeEnv();
   const res = await ingestSpaceWeather(env, {
+    nowMs: NOW_MS,
     fetchImpl: fetchFor({
       [SWPC_KP_3H]: KP_3H,
       [SWPC_KP_FOR]: FORECAST,
@@ -213,6 +214,7 @@ await test('an all-empty upstream writes nothing (the boxscore empty-guard)', as
 await test('one failed series does not take the other two down', async () => {
   const { db, r2, env } = makeEnv();
   const res = await ingestSpaceWeather(env, {
+    nowMs: NOW_MS,
     fetchImpl: async (url) => {
       if (url === SWPC_KP_FOR) return new Response('not json at all', { status: 200 });
       return fetchFor({ [SWPC_KP_3H]: KP_3H, [SWPC_F107]: F107 })(url);
@@ -230,6 +232,7 @@ await test('one failed series does not take the other two down', async () => {
 await test('an HTTP failure upstream is a per-kind error, not a throw', async () => {
   const { db, r2, env } = makeEnv();
   const res = await ingestSpaceWeather(env, {
+    nowMs: NOW_MS,
     fetchImpl: async (url) => (url === SWPC_F107
       ? new Response('', { status: 503 })
       : fetchFor({ [SWPC_KP_3H]: KP_3H, [SWPC_KP_FOR]: FORECAST })(url)),

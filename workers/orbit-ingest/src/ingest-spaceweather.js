@@ -181,9 +181,8 @@ async function fetchJson(url, fetchImpl) {
  *
  * @returns {Promise<{rows: number, kinds: Record<string, number>}>}
  */
-export async function ingestSpaceWeather(env, { fetchImpl = fetch } = {}) {
-  const now = new Date().toISOString();
-  const nowMs = Date.now();
+export async function ingestSpaceWeather(env, { fetchImpl = fetch, nowMs = Date.now() } = {}) {
+  const now = new Date(nowMs).toISOString();
 
   const fetches = [
     ['kp_3h', SWPC_KP_3H, (rows) => reduceKp3h(rows, { nowMs })],

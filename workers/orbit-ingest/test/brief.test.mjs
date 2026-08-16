@@ -21,7 +21,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import {
@@ -259,7 +259,7 @@ await test('both copies of the epoch parser agree — they cannot import each ot
   // neither half of the repo can import from the other. Two copies drifting is
   // exactly what produced the bug above, so agreement is asserted rather than
   // assumed.
-  const { parseEpochUTC: pagesParse } = await import(path.join(ROOT, 'functions/api/_catalog.js'));
+  const { parseEpochUTC: pagesParse } = await import(pathToFileURL(path.join(ROOT, 'functions/api/_catalog.js')));
   for (const [raw] of REAL_EPOCHS) {
     assert.equal(pagesParse(raw), parseEpochUTC(raw), `disagree on ${JSON.stringify(raw)}`);
   }
