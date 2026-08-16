@@ -14,7 +14,7 @@
 // `UNOFFICIAL — NOT FOR COLLISION AVOIDANCE`. This list carries no such badge
 // because it redistributes an upstream prediction rather than deriving one.
 
-import { json, preflight, requireDb, withCitation, parseEpochUTC, clamp } from './_catalog.js';
+import { json, preflight, requireDb, withCitation, parseEpochUTC, clamp, cached } from './_catalog.js';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -47,8 +47,12 @@ const SQL = `
   LIMIT ?`;
 
 export async function onRequest(context) {
+  if (context.request.method === 'OPTIONS') return preflight();
+  return cached(context, () => handle(context));
+}
+
+async function handle(context) {
   const { request, env } = context;
-  if (request.method === 'OPTIONS') return preflight();
 
   const unbound = requireDb(env);
   if (unbound) return unbound;

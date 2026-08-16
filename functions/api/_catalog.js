@@ -39,6 +39,56 @@ export function json(body, { status = 200, maxAge = 0, citation = CITATION } = {
 export const preflight = () => new Response(null, { status: 204, headers: CORS });
 
 /**
+ * Wrap a handler so its response is served from, and written to, the edge cache.
+ *
+ * **The `maxAge` values passed to json() above do nothing on their own.**
+ * Cloudflare does not edge-cache a Function response just because it carries a
+ * Cache-Control header — a Function runs on every request unless something
+ * explicitly puts its response into the Cache API. Every D1-backed endpoint
+ * here shipped a `maxAge` and none of them were ever cached; each call ran the
+ * query again. tle.js has always done this correctly and is the model.
+ *
+ * This matters because D1 bills rows SCANNED, not returned, and the catalog
+ * queries are far more expensive than they look — see _ratelimit.js for the
+ * measured numbers. Collapsing N identical requests into one D1 hit is the
+ * single largest cost lever in this package, and unlike rate limiting it makes
+ * the endpoint faster rather than more restrictive.
+ *
+ * Only 200s carrying a positive `max-age` are stored: a 503 from an unbound D1
+ * or a `no-store` error body must never be pinned at the edge for an hour.
+ *
+ * `caches` is absent in Node and can be absent under `wrangler dev`, so its
+ * absence degrades to "just run the handler" rather than throwing.
+ *
+ * @param {object} context the Pages Function context (needs request + waitUntil)
+ * @param {() => Promise<Response>} handler
+ */
+export async function cached(context, handler) {
+  const { request } = context;
+  const cache = globalThis.caches && globalThis.caches.default;
+
+  // Vary-free by construction: these endpoints ignore cookies and auth, and the
+  // full URL (query string included) is the whole cache key.
+  if (!cache || request.method !== 'GET') return handler();
+
+  const hit = await cache.match(request);
+  if (hit) return hit;
+
+  const response = await handler();
+
+  const cc = response.headers.get('Cache-Control') || '';
+  const maxAge = /max-age=(\d+)/.exec(cc);
+  if (response.status === 200 && maxAge && Number(maxAge[1]) > 0 && !/no-store/.test(cc)) {
+    // waitUntil so the caller is not blocked on the cache write. The response
+    // must be cloned — a Response body can only be read once, and the cache
+    // consumes it.
+    const put = cache.put(request, response.clone());
+    if (context.waitUntil) context.waitUntil(put); else await put;
+  }
+  return response;
+}
+
+/**
  * Guard for an unbound D1. The Pages project can be deployed before the binding
  * exists, and `undefined.prepare` is a 500 that says nothing useful.
  */

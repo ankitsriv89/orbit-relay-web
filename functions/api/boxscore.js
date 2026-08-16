@@ -7,7 +7,7 @@
 // country dropping out of the report should drop out of ours). Small enough
 // that this reads D1 directly rather than needing an R2 artifact.
 
-import { json, preflight, requireDb, withCitation } from './_catalog.js';
+import { json, preflight, requireDb, withCitation, cached } from './_catalog.js';
 
 const SQL = `
   SELECT COUNTRY, SPADOC_CD, ORBITAL_PAYLOAD_COUNT, ORBITAL_ROCKET_BODY_COUNT,
@@ -17,8 +17,12 @@ const SQL = `
   ORDER BY COUNTRY_TOTAL DESC`;
 
 export async function onRequest(context) {
-  const { request, env } = context;
-  if (request.method === 'OPTIONS') return preflight();
+  if (context.request.method === 'OPTIONS') return preflight();
+  return cached(context, () => handle(context));
+}
+
+async function handle(context) {
+  const { env } = context;
 
   const unbound = requireDb(env);
   if (unbound) return unbound;

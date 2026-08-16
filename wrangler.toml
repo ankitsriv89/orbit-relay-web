@@ -25,3 +25,23 @@ database_id = "e5fe1563-71ef-4fb4-9e04-554c87caf821"
 [[r2_buckets]]
 binding = "ORBIT_R2"
 bucket_name = "orbit-data"
+
+# ---- Public API rate limiting ----------------------------------------------
+# 30 requests/minute per IP over /api/*, applied by functions/api/_middleware.js
+# via the shared helper in functions/api/_ratelimit.js.
+#
+# This is the free, edge-side rate limiting binding — it keeps no storage of
+# our own, which is why it is used here rather than a counter in KV. ORBIT_KV
+# is bound ONLY to the ingest Worker on purpose (it holds the live Space-Track
+# session cookie) and binding it to Pages to count requests would break that.
+#
+# `period` accepts only 10 or 60. The limit here must match RATE_LIMIT
+# .requestsPerMinute in _ratelimit.js; api-throttle.test.mjs pins both to 30.
+#
+# The namespace_id is a rate-limiter id, local to this account's Workers
+# config — it is not a secret and not a resource that has to exist beforehand.
+[[unsafe.bindings]]
+name = "API_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }

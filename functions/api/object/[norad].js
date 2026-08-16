@@ -12,7 +12,7 @@
 // names change, and "ISS (NAUKA)" / "ISS DEB" would both match a substring
 // test — audit finding M-19.
 
-import { json, preflight, requireDb, withCitation, safeParse } from '../_catalog.js';
+import { json, preflight, requireDb, withCitation, safeParse, cached } from '../_catalog.js';
 
 const SQL = `
   SELECT
@@ -47,8 +47,12 @@ const EVENTS_SQL = `
   WHERE NORAD_CAT_ID = ? ORDER BY ts DESC, id DESC LIMIT 20`;
 
 export async function onRequest(context) {
-  const { request, env, params } = context;
-  if (request.method === 'OPTIONS') return preflight();
+  if (context.request.method === 'OPTIONS') return preflight();
+  return cached(context, () => handle(context));
+}
+
+async function handle(context) {
+  const { env, params } = context;
 
   const unbound = requireDb(env);
   if (unbound) return unbound;

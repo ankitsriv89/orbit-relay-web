@@ -13,7 +13,7 @@
 // Space-Track field — and responses say so, because a filter that looks
 // authoritative and is not is worse than one that is absent.
 
-import { json, preflight, requireDb, withCitation, clamp } from './_catalog.js';
+import { json, preflight, requireDb, withCitation, clamp, cached } from './_catalog.js';
 
 const MAX_LIMIT     = 500;
 const DEFAULT_LIMIT = 100;
@@ -34,8 +34,13 @@ const COLUMNS = `NORAD_CAT_ID, OBJECT_NAME, OBJECT_ID, OBJECT_TYPE, COUNTRY_CODE
          APOAPSIS, PERIAPSIS, regime, launch_year, operator, debris_family`;
 
 export async function onRequest(context) {
-  const { request, env } = context;
+  const { request } = context;
   if (request.method === 'OPTIONS') return preflight();
+  return cached(context, () => handle(context));
+}
+
+async function handle(context) {
+  const { request, env } = context;
 
   const unbound = requireDb(env);
   if (unbound) return unbound;
@@ -104,6 +109,32 @@ export async function onRequest(context) {
   };
   const order = SORTS[p('sort')] || SORTS.norad;
 
+  // An UNFILTERED facets request is answerable from the daily artifact, and
+  // that is worth a special case because it was the most expensive call in the
+  // product: five whole-catalog queries (the COUNT below plus four GROUP BYs),
+  // each examining 27,381 of 31,944 rows because `DECAY_DATE IS NULL` selects
+  // 86% of the table. It is also the most cacheable thing here — identical for
+  // every caller, changing once a day — so it should not touch D1 at all.
+  //
+  // Only the unfiltered form: the artifact holds whole-catalog totals, so a
+  // request carrying filters still has to ask D1, and falls through below.
+  if (p('facets') === '1' && where.length === 1 && args.length === 0) {
+    const artifact = await readSummary(env);
+    if (artifact) {
+      return json(withCitation({
+        total: artifact.tracked || 0,
+        facets: {
+          type:     tallyToRows(artifact.by_type),
+          country:  tallyToRows(artifact.by_country),
+          regime:   tallyToRows(artifact.by_regime),
+          operator: tallyToRows(artifact.by_operator).filter((r) => r.key !== null),
+        },
+        operator_derived: true,
+        eras: Object.keys(ERAS),
+      }), { maxAge: 300 });
+    }
+  }
+
   const total = await env.ORBIT_DB
     .prepare(`SELECT COUNT(*) AS n FROM objects${clause}`).bind(...args).first();
 
@@ -156,3 +187,41 @@ export async function onRequest(context) {
 }
 
 const rows = (r) => (r.results || []).map((x) => ({ key: x.k, n: x.n }));
+
+/**
+ * `catalog/summary.json`, or null if it is missing/corrupt/unbound.
+ *
+ * Same read-through discipline as artifactOrDb(): a corrupt artifact must not
+ * take the endpoint down, it just means the D1 path answers instead.
+ */
+async function readSummary(env) {
+  if (!env || !env.ORBIT_R2) return null;
+  try {
+    const object = await env.ORBIT_R2.get('catalog/summary.json');
+    if (!object) return null;
+    const parsed = JSON.parse(await object.text());
+    // Guard the shape: a partial artifact (the D1-fallback form summary.js
+    // writes when it has not been built yet, which carries `stale: true` and
+    // empty breakdowns) must not be served as a complete facet set.
+    if (!parsed || parsed.stale || !parsed.by_type || !parsed.by_country) return null;
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * `{PAYLOAD: 18393, …}` → `[{key: 'PAYLOAD', n: 18393}, …]`, descending.
+ *
+ * The artifact stores each breakdown as an object keyed by value; the facets
+ * response has always been an array of `{key, n}` sorted by count, and the
+ * filter chips depend on both the shape and the order. LIMIT 40 matches the
+ * D1 path below so the two forms cannot disagree on length.
+ */
+function tallyToRows(tally) {
+  if (!tally) return [];
+  return Object.entries(tally)
+    .map(([key, n]) => ({ key: key === 'UNKNOWN' ? null : key, n }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 40);
+}
