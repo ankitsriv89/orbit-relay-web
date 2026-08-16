@@ -17,7 +17,7 @@ CLAUDE.local.md
 media-mirror/
 media-manifest.txt
 
-# Python venv under scripts/mars-terrain/ — ~18k files, unrelated to the catalog.
+# Python venvs / bytecode caches, wherever they show up.
 .venv/
 __pycache__/
 
