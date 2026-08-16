@@ -21,7 +21,6 @@ builds every panel. The login-form check runs WITHOUT interception.
 import sys, time
 from playwright.sync_api import sync_playwright
 
-CHROME = '/home/ankit/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome'
 BASE = 'http://127.0.0.1:8931'
 
 results = []
@@ -37,7 +36,7 @@ def fake_auth(page):
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
-            executable_path=CHROME, headless=True,
+            executable_path=pw.chromium.executable_path, headless=True,
             args=['--enable-unsafe-swiftshader', '--no-sandbox'],
         )
 

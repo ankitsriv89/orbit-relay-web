@@ -48,9 +48,8 @@ where, and why*.
 | `workers/orbit-ingest/src/brief.js` | Daily brief | **Facts in SQL, narrative optional.** A model is asked only to phrase numbers already computed, once a day at ingest, never per request. `checkNarrative()` rejects any sentence containing a numeral absent from the facts — *including a correct one the model derived*, since from the output alone that is indistinguishable from invention. Off unless `ORBIT_AI_CARDS` is set; with it off the panel is still a live digest. Provider swappable (`scripts/ai-node.mjs`), Workers AI default — one call a day makes latency and cost moot, so the tiebreak is operational surface |
 | `workers/orbit-ingest/` | Space-Track ingest | Runs from **GitHub Actions**, not the Worker's crons — the GP job needs ~300ms CPU against Workers Free's 10ms. `scripts/env-node.mjs` is a Workers-shaped `env` over the D1 HTTP API + R2 SigV4. Its `npm test` is 301 checks, no network |
 | `d1/orbit.sql` | D1 schema | `objects.SITE`/`satcat.SITE` are the raw code (`AFETR`); the human-readable name lives in `launch_sites`, populated weekly from Space-Track's `launch_site` class (plan 38 task 2) |
-| `tests/e2e/` | Playwright suites | Including `test_mobile_responsive.py` and `test_mobile_dom.py` — the viewport table there is the mobile contract |
-| `scripts/` | Bash helpers | `snapshot_tle.sh` (sleeps between Celestrak group fetches to avoid rate limits), `upload_r2.sh` |
-| `scripts/mars-terrain/` | **Leftover** | Unrelated to the orbit catalog; carries a large `.venv/`. Not part of any active plan |
+| `tests/e2e/` | Playwright suites | Including `test_mobile_responsive.py` and `test_mobile_dom.py` — the viewport table there is the mobile contract. (`test_plan27.py`/`test_plan28.py`/`test_site_parity.py`, which targeted a different project's `mars-colony/index.html`, were removed 2026-08-17 — see CLAUDE.md) |
+| `scripts/` | Bash helpers | `snapshot_tle.sh` (sleeps between Celestrak group fetches to avoid rate limits). (`snapshot_music.sh`/`upload_r2.sh`, for a different standalone "SIGNAL" music app, and `mars-terrain/`, unrelated Mars-DEM heightmap prep, were removed 2026-08-17 — see CLAUDE.md) |
 
 ## Frontend conventions
 
@@ -112,10 +111,12 @@ Useful to know before you spend time on it:
 ## Verification
 
 - `npm test` — syntax + resolve checks + the orbit-ingest suite. Offline, seconds.
-- `.claude/skills/verify/SKILL.md` — Playwright headless checks. Critical notes:
-  - This box is slow (SwiftShader, ~5fps WebGL); use keyboard events, not `page.click`.
-  - Always cache-bust with `?cb=<timestamp>`.
-  - Check `ps aux | grep chrome-linux64` for strays before debugging a hang.
+- `tests/e2e/` — Playwright headless checks against `serve.py`'s no-cache static server.
+  See CLAUDE.md's "Browser/visual testing on this machine" section for the current
+  machine's setup (Python `playwright` package, GPU vs. SwiftShader launch args, the
+  portable `pw.chromium.executable_path` resolution). Always cache-bust page loads with
+  `?cb=<timestamp>` — a stale cached module has produced a byte-identical measurement
+  after a real code change before.
 - **Every UI change is verified at the mobile viewports** in
   `tests/e2e/test_mobile_responsive.py`. See CLAUDE.md's mobile section for the contract.
 
@@ -144,4 +145,4 @@ truncate-and-reload per kind).
 - [README.md](README.md) — deploy and route map.
 - [docs/game-plans/34_unblock_landing_refactor_plan.md](docs/game-plans/34_unblock_landing_refactor_plan.md) — active plan.
 - [docs/game-plans/Orbital_Relay_Feature_Specification.md](docs/game-plans/Orbital_Relay_Feature_Specification.md) — 20-feature target spec.
-- `.claude/skills/verify/SKILL.md` — Playwright E2E guide.
+- `tests/e2e/` (`serve.py` + `test_*.py`) — this repo's Playwright E2E suite.

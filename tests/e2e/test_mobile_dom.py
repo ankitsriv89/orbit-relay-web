@@ -5,7 +5,6 @@ Lightweight mobile layout audit - DOM only, no Cesium boot wait.
 import sys, time
 from playwright.sync_api import sync_playwright
 
-CHROME = '/home/ankit/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome'
 BASE = 'http://127.0.0.1:8931'
 
 # page -> the number of `.key-hud` panels it ships. This is per-page on
@@ -23,7 +22,7 @@ def check(name, ok, detail=''):
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
-            executable_path=CHROME, headless=True,
+            executable_path=pw.chromium.executable_path, headless=True,
             args=['--enable-unsafe-swiftshader', '--no-sandbox'],
         )
 

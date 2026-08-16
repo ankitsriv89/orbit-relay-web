@@ -89,6 +89,64 @@ Use `orbitalrelay.space` for canonical/OG tags. Re-confirm with
 
 ---
 
+## Browser/visual testing on this machine
+
+`tests/e2e/` was originally written against a 2-core Linux sandbox running SwiftShader
+software rendering (a since-removed `.claude/skills/verify/` — see "Files not relevant to
+this project" — carried the same assumption for a different, unrelated project).
+**This machine is different** — Windows, 16 logical cores, a real GPU (Intel UHD Graphics
++ NVIDIA T1200) — and the old throttling advice does not apply here. What's actually
+true on *this* box, verified directly rather than assumed:
+
+- **`python3` does not exist on PATH here — use the `py -3` launcher** (Python 3.12, via
+  the Python Launcher for Windows). Anywhere repo docs say `python3 -m http.server` or
+  `python3 tests/e2e/test_x.py`, substitute `py -3`.
+- **The Python `playwright` package is not preinstalled** — `py -3 -m pip install
+  playwright` first (the `npx playwright`/Node CLI being present is a separate install and
+  doesn't satisfy the Python `from playwright.sync_api import ...` used by `tests/e2e/`).
+  The Chromium *browser binary* is already cached from the Node-side install at
+  `%LOCALAPPDATA%\ms-playwright\chromium-<rev>\chrome-win64\chrome.exe` and Python
+  `playwright` finds it automatically — don't hardcode a path (see next point).
+- **Never hardcode a browser executable path.** The `tests/e2e/*.py` files originally had
+  `CHROME = '/home/ankit/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome'`
+  baked in — a Linux path from the machine those tests were written on, which doesn't
+  exist here and would fail outright. Fixed in `test_admin_mobile.py`,
+  `test_mobile_dom.py`, `test_mobile_responsive.py`, `test_orbit.py` (this repo's real
+  suite — the mars-colony-targeted `test_plan27.py`/`test_plan28.py`/`test_site_parity.py`
+  that also had this hardcoded path were removed in the 2026-08-17 cleanup rather than
+  fixed) to resolve the browser via `pw.chromium.executable_path` inside the
+  `sync_playwright()` context instead — portable across machines and OSes.
+- **Headless Chromium defaults to software rendering (SwiftShader) even with a real GPU
+  present** — that's normal Chrome sandboxing behavior on Windows, not a missing driver.
+  Confirmed via `WEBGL_debug_renderer_info` that the plain `pw.chromium.launch(headless=True)`
+  default reports `ANGLE (..., SwiftShader Device ..., SwiftShader driver)`. To get real
+  GPU-accelerated WebGL (worth it for the Cesium globe pages — `/orbit/`, `/spacetrack/`,
+  `/starlink/`, `/constellations/`), launch with:
+  ```python
+  browser = pw.chromium.launch(headless=True, args=[
+      '--use-gl=angle', '--use-angle=d3d11', '--ignore-gpu-blocklist',
+      '--enable-gpu', '--disable-gpu-sandbox',
+  ])
+  ```
+  Verified this switches the reported renderer to `ANGLE (Intel, Intel(R) UHD Graphics ...
+  Direct3D11 ..., D3D11)`. The existing `--enable-unsafe-swiftshader` flag in the old
+  test files still works (forces software rendering explicitly) but is no longer
+  *necessary* here — prefer the D3D11 args above for anything where actual rendered
+  pixels matter (a screenshot, a canvas pixel probe); either is fine for DOM/state-only
+  assertions.
+- **16 cores means the "check for stray Chrome before debugging a hang" caution some
+   older Playwright docs carry (written for 2-core boxes that fall over at ~3 stray
+  processes) does not apply here.** Still `browser.close()` / kill what you start — just
+  not because the box can't take a few extra processes.
+- **`jq` is not installed** and not on PATH. This matters because
+  `.claude/hooks/check-public.sh` (the PostToolUse guardrail that runs `syntax.mjs` +
+  `resolve.mjs` after every `public/*.{js,html,css}` edit) pipes through `jq` twice. On
+  this machine it currently **fails silently** (the script isn't `set -e`, so a missing
+  `jq` just falls through to `exit 0`) — meaning **the guardrail is currently a no-op on
+  this box**, not a blocker. Don't mistake "no hook feedback" for "the edit is clean" —
+  run `npm test` yourself; it does the same checks without `jq`. Install `jq` for Windows
+  (e.g. `winget install jqlang.jq`) to restore the hook.
+
 ## Before you say a change works
 
 In order, cheapest first:
@@ -101,8 +159,8 @@ In order, cheapest first:
 2. **Load the affected route** under `npm run dev` and confirm the console is clean. A
    globe page that renders is not proof — a dead module fails silently.
 3. **Check it at 390px** (see the mobile section — this is not optional).
-4. **`tests/e2e/`** for behavioral changes. `.claude/skills/verify` drives headless
-   Chromium; use the `verify` skill rather than hand-rolling Playwright.
+4. **`tests/e2e/`** for behavioral changes — see "Browser/visual testing on this
+   machine" below for how to run them here (`serve.py` + the `test_*.py` files).
 
 When you add a guardrail, **write it before the fix and watch it go red on the real bug.**
 A check that has never failed on a bug it claims to catch has not been tested.
@@ -231,6 +289,37 @@ Do not "fix" these without reading the reasoning first:
 - Don't use `insertAdjacentHTML` with anything user- or API-derived.
 - Don't add a fourth copy of the HUD/nav/time-warp code. There are already three.
 
+### Files not relevant to this project
+
+This repo was split out of a larger multi-project playground (AGENTS.md's "Historical
+note" already covers the code side: `mars-colony/`, `game-v2/`, `rocket-lab/`, `music/`,
+`eventforge/` are not here). A 2026-08-17 cleanup removed the leftovers from that split
+that were still sitting in the tree — **if you find guidance referencing any of the
+following, it is stale**, they no longer exist in this repo:
+
+- `.claude/skills/verify/` (`SKILL.md` + `mobile_e2e.py`) — drove `mars-colony`, a
+  different Three.js game (`__mc` debug handles, Gratbot/Ariana mechanics). Use
+  `tests/e2e/` directly instead; see "Browser/visual testing on this machine" above.
+- `scripts/mars-terrain/` — real-Mars-DEM heightmap prep that wrote into
+  `standalone/public/mars-colony/assets/<site>/`, plus a large tracked Python `.venv/`.
+- `scripts/snapshot_music.sh` + `scripts/upload_r2.sh` — built/uploaded media for a
+  different, standalone "SIGNAL" music app (not this repo's `/spacetrack/signal/` RF
+  link-budget page). `scripts/snapshot_tle.sh` is the real one here (Celestrak TLE
+  baseline refresh) — the two "signal"s were easy to confuse before the cleanup.
+- `tests/e2e/test_plan27.py`, `test_plan28.py`, `test_site_parity.py` — all targeted
+  `mars-colony/index.html` (Ariana's briefing, Gratbot's dance, per-site parity), not
+  anything in this repo's `public/`.
+- Several `docs/*` files that duplicated tracked copies already at `docs/game-plans/*`
+  (line-ending variants from a cross-machine copy), plus `docs/enhancement-ideas.md`
+  (notes for an unrelated rocket-launch-sim project, `marsapiens.com`) and two
+  `docs/NASAJSC_*` folders of NASA JSC ephemeris data not referenced by any code or plan
+  here.
+
+`docs/game-plans/` still carries a few non-`.md` reference files on purpose
+(`Space-Track.org*.pdf`, `Orbital_Relay_Feature_Specification.docx`, a `.csv` catalog
+export) — those *are* this repo's, just don't treat a `.docx`/`.pdf` as more current than
+the `.md` plan files that supersede them.
+
 ---
 
 ## Current work
@@ -239,6 +328,33 @@ See [docs/game-plans/34_unblock_landing_refactor_plan.md](docs/game-plans/34_unb
 for the active plan and
 [docs/game-plans/Orbital_Relay_Feature_Specification.md](docs/game-plans/Orbital_Relay_Feature_Specification.md)
 for the 20-feature target spec.
+
+### Status snapshot — 2026-08-17
+
+`npm test` green (74/74 syntax, all references resolve, ~588 checks across 22
+orbit-ingest suites). Plan-by-plan:
+
+- **Plan 34** (unblock + refactor + Phase 3 features) — **Phases 0, 1, 2.1, 2.2, and all
+  of Phase 3 (3.1 through 3.4) are done.** 3.4 (space weather + ground stations, spec
+  #16 + #6) is the most recent work: C1 (SWPC ingest, `5cc3a69c`), C2 (aurora ovals +
+  SPACE WX HUD, `56f660a2`), C3 (ground stations + live link, `253eab81`) all landed and
+  verified. **What's left in 3.4 is only its own "batch close" housekeeping step** —
+  the verification-battery + docs/CHANGELOG entry that every prior batch (3.2's C4, 3.3's
+  C5) ended with — not a fourth feature task; see
+  [docs/session-handoff.md](docs/session-handoff.md) for the batch's task list and
+  surprises. Once that lands, plan 34 as a whole is fully closed.
+- **Plan 36** (admin dashboard) — done and deployed; see below.
+- **Plan 37** (`/about/` + `/wiki/`) — done (`e3d50c3e`); both routes exist and ship.
+- **Plan 38** (public dashboard + brief news) — tasks 1–8 done (`[x]` in
+  [docs/game-plans/38_TODO.md](docs/game-plans/38_TODO.md)); **task 9 (Wiki glossary
+  entries for cohort/cumulative-catalog-entries/launch-site-code + the
+  `test_dashboard_mobile.py` no-page-scroll gate) is the one remaining `[ ]`** in this
+  repo's plan backlog.
+
+**Net: the only two concretely unstarted items across all tracked plans are plan 34
+3.4's batch-close and plan 38 task 9.** Repo is ahead of `origin` — recent batches were
+deliberately not pushed pending user review (see each batch's CHANGELOG entry); confirm
+with `git log origin/main..HEAD` before assuming what's live in production.
 
 ### Admin dashboard (plan 36) — status 2026-08-01
 
