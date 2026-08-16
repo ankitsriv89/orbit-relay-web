@@ -211,7 +211,7 @@ Last, because it depends on the auth path (plan 36) and on the archive existing.
 
 ---
 
-## [ ] 9 — Wiki glossary + final gates
+## [x] 9 — Wiki glossary + final gates
 
 - `/wiki/` glossary entries for terms this plan introduces: *cohort*, *cumulative catalog
   entries* vs *still on orbit*, *catalog entry vs launch*, *altitude bin*, *launch site

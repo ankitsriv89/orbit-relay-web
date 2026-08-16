@@ -205,6 +205,44 @@
                 <dd>How fast simulated time advances relative to real time on the globe
                     pages — 1×, 10×, 100× or 1000× realtime, i.e. that many simulated
                     seconds pass per real second.</dd>
+
+                <dt>Cohort</dt>
+                <dd>All catalog entries launched in the same decade, tracked as a group
+                    from that decade forward. Analytics' cohort survival chart shows, for
+                    each decade's cohort, how many are still on orbit today versus how
+                    many have since decayed.</dd>
+
+                <dt>Cumulative catalog entries vs. still on orbit today</dt>
+                <dd>Two different curves on Analytics' growth chart, deliberately never
+                    merged into one line. <strong>Cumulative catalog entries</strong> is a
+                    historical running total — every object ever catalogued, decayed
+                    objects included, so it never shrinks. <strong>Still on orbit
+                    today</strong> approximates the current population by subtracting a
+                    cumulative decay count from that same running total. Neither is a true
+                    historical on-orbit snapshot (the catalog doesn't hold one); treat the
+                    second series as an approximation.</dd>
+
+                <dt>Catalog entry vs. launch</dt>
+                <dd>A single launch often puts multiple trackable objects into orbit — a
+                    payload, its upper stage, and any shedding debris each get their own
+                    catalog entry. Counts described as catalog entries (for example,
+                    "recent launches" on the Brief, which is really new catalog entries
+                    filtered to <code>OBJECT_TYPE = PAYLOAD</code>) are a proxy for launch
+                    activity, not a one-to-one launch count.</dd>
+
+                <dt>Altitude bin / inclination bin</dt>
+                <dd>A fixed-width range of altitude (or inclination) used to bucket
+                    objects into a histogram — for example, all objects between 500 and
+                    550 km. Analytics' altitude and inclination histograms count only
+                    objects still on orbit (excluding decayed objects), unlike the
+                    historical launch-count sections on the same page.</dd>
+
+                <dt>Launch site code</dt>
+                <dd>A short code identifying the physical launch site (for example,
+                    <code>AFETR</code> for Cape Canaveral), sourced from Space-Track's
+                    static <code>launch_site</code> reference table — not derived or
+                    guessed. Where a code has no mapped name, this site shows the bare
+                    code rather than an invented one.</dd>
             </dl>
         </section>
     </main>

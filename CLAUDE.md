@@ -345,14 +345,16 @@ orbit-ingest suites). Plan-by-plan:
   surprises. Once that lands, plan 34 as a whole is fully closed.
 - **Plan 36** (admin dashboard) — done and deployed; see below.
 - **Plan 37** (`/about/` + `/wiki/`) — done (`e3d50c3e`); both routes exist and ship.
-- **Plan 38** (public dashboard + brief news) — tasks 1–8 done (`[x]` in
-  [docs/game-plans/38_TODO.md](docs/game-plans/38_TODO.md)); **task 9 (Wiki glossary
-  entries for cohort/cumulative-catalog-entries/launch-site-code + the
-  `test_dashboard_mobile.py` no-page-scroll gate) is the one remaining `[ ]`** in this
-  repo's plan backlog.
+- **Plan 38** (public dashboard + brief news) — all 9 tasks done (`[x]` in
+  [docs/game-plans/38_TODO.md](docs/game-plans/38_TODO.md)). Task 9 added Wiki glossary
+  entries (cohort, cumulative-catalog-entries-vs-still-on-orbit, catalog-entry-vs-launch,
+  altitude/inclination bin, launch-site-code) and
+  `tests/e2e/test_dashboard_mobile.py`, asserting no page-level horizontal scroll on
+  `/spacetrack/analytics/` and `/spacetrack/brief/` at all five viewports while
+  `.st-country-matrix` keeps its own `overflow-x: auto`. Plan 38 as a whole is closed.
 
-**Net: the only two concretely unstarted items across all tracked plans are plan 34
-3.4's batch-close and plan 38 task 9.** Repo is ahead of `origin` — recent batches were
+**Net: the only concretely unstarted item across all tracked plans is plan 34
+3.4's batch-close.** Repo is ahead of `origin` — recent batches were
 deliberately not pushed pending user review (see each batch's CHANGELOG entry); confirm
 with `git log origin/main..HEAD` before assuming what's live in production.
 
