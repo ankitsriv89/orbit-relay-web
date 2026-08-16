@@ -2,8 +2,10 @@
 
 > One task per session; commit after each task; read this file at the start of every
 > new session. Tasks C1–C4 are ordered so each commit leaves `main` in a working,
-> deployable state. **The 3.3 batch (C1–C5) is complete and archived** (see the
-> archived 3.2 batch below for the same format).
+> deployable state. **The 3.4 batch (C1–C4) is complete and archived.** Plan 34 as a
+> whole is now fully closed — see `CLAUDE.md`'s status snapshot for what's next
+> (plan 38 task 9 is the only remaining tracked item). The 3.3 batch (C1–C5) is
+> archived below in the same format.
 
 ## How to work this batch
 
@@ -48,6 +50,52 @@
   The signal page's analysis HUD and /orbit/'s layers HUD are the two touchpoints.
 
 ## Task list
+
+- [x] **C4 Batch close** (docs + a CSS fix, this session, 2026-08-17): full
+      verification battery on the Windows dev box (GPU-accelerated headless
+      Chromium, D3D11 ANGLE per `CLAUDE.md`) + build log / changelog / issues
+      log / this handoff updated.
+      - **`npm test`**: green — 74/74 syntax, all references resolve
+        (63 files), 21 orbit-ingest suites, no FAIL lines.
+      - **`test_mobile_responsive.py`**: 125/136; **`test_mobile_dom.py`**:
+        27/29. The 13 failures are the same four pre-existing categories the
+        3.2/3.3 batteries logged (stale `/orbit/` `>=3` HUD threshold, stale
+        resolutionScale allowlist, mobile citation surface gap, stale
+        `/spacetrack/` HUD count 5→3) — confirmed unrelated to this session's
+        change (`git diff` touches only `public/spacetrack/spacetrack.css`).
+      - **Two real mobile bugs found and fixed**, neither visible to the DOM
+        suites above: the user asked for the routes to actually be looked at
+        with GPU rendering (this box has a real GPU per `CLAUDE.md`) rather
+        than trusting DOM-only checks, after noticing scroll and HUD-overlap
+        problems in real use. A GPU-rendered screenshot probe across all 11
+        routes at 390×844 found:
+        1. **Mobile scroll dead on `/spacetrack/brief/` + `/spacetrack/analytics/`**
+           — `spacetrack.css`'s mobile `body { overflow: hidden }` was
+           unscoped (written for the globe-only catalog page) and leaked onto
+           these two scrolling-document pages, which link the same
+           stylesheet for shared HUD/nav CSS. Scoped to
+           `[data-page-id="spacetrack-catalog"]` /
+           `[data-page-id="orbital-relay"]`. Verified: wheel-scroll `0→0`
+           before, `0→26` / `0→243` after.
+        2. **RESULTS panel truncated behind the screenshot button** on
+           `/spacetrack/` mobile — both anchored at the identical
+           `bottom:130px, right:8px` corner. Moved `#results-hud` above the
+           button's 44px height + 8px gap. Verified with
+           `getBoundingClientRect()` + a screenshot: "// RESULTS" now renders
+           in full.
+      - **Why the standing suites missed both**: `test_mobile_responsive.py`
+        and `test_mobile_dom.py` assert element existence/count/geometry, not
+        rendered pixel overlap or scroll-gesture behavior — both bugs were
+        100% invisible to `npm test` and both suites the whole time they
+        existed. The probe script itself was scratch (not committed, matching
+        the 3.2/3.3 batches' `cN_*_probe.py` — those were never actually
+        committed either despite being named in old build logs as "new"
+        files; they were Linux-sandbox scratch). The fix is what's durable.
+      - **Docs**: `docs/build-logs/2026-08-17_build_log_01.md` (new),
+        `CHANGELOG.md` (3.4 entry), `docs/issues-and-resolutions.md` (C4 rows
+        + methodology note), this handoff.
+      - **State**: repo was 26 commits ahead of origin at the start of this
+        session; push when the user asks.
 
 - [x] **C1 Backend — SWPC ingest + D1 + artifact + /api/space-weather + tests**:
       **DONE — commit `5cc3a69c` (18 files ahead of origin).**

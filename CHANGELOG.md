@@ -3,6 +3,46 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-17 — Plan 34 Phase 3.4 batch close: two real mobile bugs found by GPU-rendered visual inspection
+
+**Docs-only commit (this session), plus a CSS fix in `public/spacetrack/spacetrack.css`.**
+
+Plan 34 3.4's features (C1 SWPC ingest, C2 aurora ovals + SPACE WX HUD, C3
+ground stations + live link) had already landed in prior sessions. This
+session is the batch-close verification pass, run on the Windows dev box with
+GPU-accelerated headless Chromium (D3D11 ANGLE) instead of the old
+SwiftShader-only sandbox.
+
+### Fixed
+- **Mobile scroll was dead on `/spacetrack/brief/` and `/spacetrack/analytics/`.**
+  An unscoped `body { overflow: hidden }` in `spacetrack.css`'s mobile media
+  query — written for the globe pages, which have nothing to scroll — leaked
+  onto these two plain scrolling-document pages because they link the same
+  stylesheet for shared HUD/nav styling. Scoped the rule to the two globe
+  pages by `data-page-id`.
+- **The RESULTS panel and the screenshot button occupied the same corner**
+  on `/spacetrack/` mobile (both `bottom: 130px, right: 8px`), truncating
+  "// RESULTS" behind the camera icon. Moved the results panel above the
+  button's height plus a gap.
+
+### Verification
+- `npm test` green: 74/74 syntax, all references resolve, 21 orbit-ingest
+  suites, no FAIL lines.
+- `test_mobile_responsive.py` 125/136, `test_mobile_dom.py` 27/29 — the same
+  13 pre-existing failures logged in the 3.2 and 3.3 batteries, none from
+  this session's changes.
+- **Both fixes were invisible to the DOM/geometry suites** — found instead by
+  a GPU-rendered headless screenshot probe (real Chromium D3D11 rendering,
+  not SwiftShader) across every route at 390×844, at the user's request after
+  they noticed the same symptoms in real use. Confirmed with a wheel-scroll
+  probe (`scrollY` 0→0 before the fix, 0→26 / 0→243 after) and a
+  `getBoundingClientRect()` probe on the HUD panels.
+
+### Not built / follow-ups
+- Plan 34 3.4 is now **fully closed** (C1–C4 done).
+- Only plan 38 task 9 remains open across tracked plans per `CLAUDE.md`'s
+  status snapshot.
+
 ## 2026-08-06 — Plan 34 Phase 3.3: cinematic pass (spec #20)
 
 **Commits `b276191a` (C1 shadow math), `b0e545ab` (C2 toggle + eclipse), `04554f20` (C3 bloom), `f6c858ba` (C4 skyBox), C5 docs close**

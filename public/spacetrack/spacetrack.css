@@ -1091,7 +1091,15 @@ body[data-page-id="spacetrack-catalog"] #dossier {
  * Layout order: Header → Globe → Time Controls → Bottom Nav → Footer (hidden) */
 
 @media (max-width: 768px) {
-    body { overflow: hidden; }
+    /* Scoped to the globe pages (catalog + orbit) — full-screen apps with
+     * nothing to scroll. Unscoped `body { overflow: hidden }` here used to
+     * leak onto /spacetrack/brief/ and /spacetrack/analytics/, which also
+     * link this file for shared HUD/nav styling but are plain scrolling
+     * documents — it silently killed mobile scroll on both. */
+    body[data-page-id="spacetrack-catalog"],
+    body[data-page-id="orbital-relay"] {
+        overflow: hidden;
+    }
 
     /* .mobile-bottom-nav, .mobile-bottom-nav__*, .filter-drawer-overlay,
      * .filter-drawer, .filter-drawer__* (all at this breakpoint) are shared
@@ -1143,9 +1151,12 @@ body[data-page-id="spacetrack-catalog"] #dossier {
         display: none;
     }
 
-    /* Bottom-right: results */
+    /* Bottom-right: results. Sits above the screenshot button (44px tall,
+     * anchored at the same 130px bottom) rather than sharing its corner —
+     * they used to collide here, truncating "RESULTS" behind the camera
+     * icon. */
     body[data-page-id="spacetrack-catalog"] #results-hud {
-        bottom: calc(130px + var(--sa-bottom));
+        bottom: calc(130px + 44px + 8px + var(--sa-bottom));
         right: calc(8px + var(--sa-right));
         left: auto;
         top: auto;
