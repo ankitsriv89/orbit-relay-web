@@ -225,6 +225,19 @@ await test('the engine drives occlusion from the frame, not the propagation tick
             'the fade must not be computed inside the propagation tick');
 });
 
+await test('bloom never sets glowOnly, which would discard the whole scene', () => {
+  // Cesium's bloom `glowOnly` uniform is a BOOLEAN: any truthy value makes the
+  // stage output the glow alone and throw the rendered scene away. Plan 39 set
+  // it to 0.8 (truthy) as a guessed "tuning" value and every globe page —
+  // /orbit/, /spacetrack/, /starlink/, /constellations/ — went blank white with
+  // no console error, because the globe still renders and is then discarded.
+  // A numeric assignment here is always the bug, never a tuning knob.
+  const src = read('public/orbit-engine/sat-engine.js');
+  const m = src.match(/glowOnly\s*=\s*([^;\n]+)/);
+  assert.ok(!m || /^(false|0)\s*$/.test(m[1]),
+            `glowOnly must stay falsy (found "${m && m[1].trim()}") — a truthy value blanks every globe page`);
+});
+
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);
