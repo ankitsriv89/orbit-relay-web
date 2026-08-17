@@ -175,6 +175,13 @@
                     appears, it is labeled as derived; treat it as a best-effort
                     label, not ground truth.</dd>
 
+                <dt>Mission</dt>
+                <dd>Not a distinct Space-Track field. The <code>OBJECT_NAME</code> search
+                    covers mission strings in practice, since most object names <em>are</em>
+                    the mission or payload name (for example, <code>STARLINK-1234</code>,
+                    <code>LANDSAT 9</code>). Searching "name, mission, intl designator,
+                    NORAD" returns the same results as name-only search.</dd>
+
                 <dt>Debris family</dt>
                 <dd>A group of tracked fragments attributed to a single breakup or
                     collision event (for example, the Cosmos 2251 collision debris),

@@ -96,6 +96,9 @@ function renderAnalytics(data) {
     if (hint) hint.textContent = '';
 
     renderMatrix(wrap, matrix);
+
+    // New: render launch history table
+    renderLaunches(data.launches);
 }
 
 /* ── KPI strip ────────────────────────────────────────────────────────────── */
@@ -348,10 +351,51 @@ function renderBars(containerId, hintId, items, labelFn, valueFn) {
     bars(wrap, items, { label: labelFn, value: valueFn });
 }
 
+/* ── Launch history ──────────────────────────────────────────────────────────── */
+function renderLaunches(launches) {
+    const container = $('launches-card');
+    const hint = $('an-launches-hint');
+    const tableBody = $('an-launches-table-body');
+    if (!container) return;
+
+    if (!launches || !launches.length) {
+        if (hint) hint.textContent = 'no launches in artifact yet';
+        if (tableBody) tableBody.innerHTML = '';
+        return;
+    }
+    if (hint) hint.textContent = '';
+
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '';
+    for (const launch of launches) {
+        const row = document.createElement('tr');
+        const dateTd = document.createElement('td');
+        dateTd.textContent = launch.launch_date ? String(launch.launch_date).slice(0, 10) : '—';
+        const siteTd = document.createElement('td');
+        siteTd.textContent = launch.site || '—';
+        const nTd = document.createElement('td');
+        nTd.textContent = launch.n || '0';
+        const typeTd = document.createElement('td');
+        // Show primary type
+        const typeMap = { PAYLOAD: 'payload', 'ROCKET BODY': 'rocket body', DEBRIS: 'debris' };
+        typeTd.textContent = typeMap[launch.type] || (launch.type || '—');
+        row.append(dateTd, siteTd, nTd, typeTd);
+        tableBody.appendChild(row);
+    }
+}
+
 loadAnalytics();
 
 /* Refetch every 30 min to catch the daily ingest */
 setInterval(loadAnalytics, 30 * 60 * 1000);
+
+/* Refetch launches every 24 hrs to catch the daily build */
+setInterval(() => {
+    try {
+        renderLaunches(data?.launches);
+    } catch (_) {}
+}, 86400000);
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
 exposeDebug('analytics', {

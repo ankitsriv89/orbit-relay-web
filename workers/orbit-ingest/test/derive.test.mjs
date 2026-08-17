@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import {
   CITATION, SWPC_CITATION, GROUPS, GP_PREDICATES, OBJECT_COLUMNS, OBJECT_UPSERT_SQL,
   DERIVED_COLUMNS, regimeOf, launchYearOf, debrisFamilyOf, deriveObjectRow,
+  groupByLaunch, computeLaunchEntry,
   toThreeLine, groupKey,
 } from '../src/derive.js';
 import { operatorFor, OPERATORS } from '../src/operators.js';
@@ -225,6 +226,61 @@ await test('the three approximate groups are flagged so the UI can label them', 
 await test('R2 keys match the path the Pages Function reads', () => {
   assert.equal(groupKey('starlink'), 'tle/spacetrack/starlink.txt');
   assert.ok(tleJs.includes('`tle/spacetrack/${group}.txt`'));
+});
+
+/* ── 39: Launch history per-launch grouping ──────────────────────────────── */
+
+console.log('\n-- launch history grouping (plan 39) --');
+
+await test('groupByLaunch groups objects by YYYY-NNN prefix of OBJECT_ID', () => {
+  const rows = [
+    { OBJECT_ID: '2020-012A', OBJECT_TYPE: 'PAYLOAD' },
+    { OBJECT_ID: '2020-012B', OBJECT_TYPE: 'ROCKET BODY' },
+    { OBJECT_ID: '2020-012C', OBJECT_TYPE: 'DEBRIS' },
+    { OBJECT_ID: '2021-034D', OBJECT_TYPE: 'PAYLOAD' },
+  ];
+  const byLaunch = groupByLaunch(rows);
+  assert.equal(byLaunch.size, 2);
+  assert.equal(byLaunch.get('2020-012')?.length, 3);
+  assert.equal(byLaunch.get('2021-034')?.length, 1);
+});
+
+await test('computeLaunchEntry rolls up payload + rocket body + debris into one row', () => {
+  const group = [
+    { OBJECT_ID: '2020-012A', OBJECT_TYPE: 'PAYLOAD', LAUNCH_DATE: '2020-01-12', SITE: 'KSC' },
+    { OBJECT_ID: '2020-012B', OBJECT_TYPE: 'ROCKET BODY', LAUNCH_DATE: '2020-01-12', SITE: 'KSC' },
+    { OBJECT_ID: '2020-012C', OBJECT_TYPE: 'DEBRIS', LAUNCH_DATE: '2020-01-12', SITE: 'KSC' },
+  ];
+  const siteMap = new Map([['KSC', 'Kennedy Space Center']]);
+  const entry = computeLaunchEntry(group, siteMap);
+  assert.equal(entry.n, 3, `expected n=3, got ${entry.n}`);
+  assert.equal(entry.launch_date, '2020-01-12');
+  assert.equal(entry.site, 'Kennedy Space Center');
+  assert.equal(entry.typeBreakdown.PAYLOAD, 1);
+  assert.equal(entry.typeBreakdown['ROCKET BODY'], 1);
+  assert.equal(entry.typeBreakdown.DEBRIS, 1);
+});
+
+await test('computeLaunchEntry handles single-type groups', () => {
+  const group = [
+    { OBJECT_ID: '2020-012A', OBJECT_TYPE: 'PAYLOAD', LAUNCH_DATE: '2020-01-12', SITE: 'KSC' },
+  ];
+  const siteMap = new Map([['KSC', 'Kennedy Space Center']]);
+  const entry = computeLaunchEntry(group, siteMap);
+  assert.equal(entry.n, 1);
+  assert.equal(entry.typeBreakdown.PAYLOAD, 1);
+  assert.equal(entry.typeBreakdown['ROCKET BODY'], 0);
+  assert.equal(entry.typeBreakdown.DEBRIS, 0);
+});
+
+await test('computeLaunchEntry handles missing SITE gracefully', () => {
+  const group = [
+    { OBJECT_ID: '2020-012A', OBJECT_TYPE: 'PAYLOAD', LAUNCH_DATE: '2020-01-12' },
+  ];
+  const siteMap = new Map();
+  const entry = computeLaunchEntry(group, siteMap);
+  assert.equal(entry.n, 1);
+  assert.equal(entry.site, '');
 });
 
 /* ── 3LE rendering ──────────────────────────────────────────────────────── */

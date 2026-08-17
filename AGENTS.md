@@ -4,6 +4,11 @@ Compact architecture map. If a fact is obvious from filenames, it isn't here.
 Process, commands and invariants live in [CLAUDE.md](CLAUDE.md); this file is *what lives
 where, and why*.
 
+**When a request is ambiguous, ask for clarification rather than guessing or
+overthinking.** Don't silently pick an interpretation and run with it, and don't spiral
+into exhaustive analysis trying to infer intent from indirect signals — a short question
+resolves it faster and more reliably than either.
+
 ## Repo identity
 
 - Its own git repo. **Domain: `orbitalrelay.space`.** Cloudflare Pages project
@@ -116,7 +121,9 @@ Useful to know before you spend time on it:
   machine's setup (Python `playwright` package, GPU vs. SwiftShader launch args, the
   portable `pw.chromium.executable_path` resolution). Always cache-bust page loads with
   `?cb=<timestamp>` — a stale cached module has produced a byte-identical measurement
-  after a real code change before.
+  after a real code change before. `run_parallel.py` shards the full live-visual audit
+  across routes (capped concurrency — see CLAUDE.md, this box's GPU is the shared
+  bottleneck, not CPU).
 - **Every UI change is verified at the mobile viewports** in
   `tests/e2e/test_mobile_responsive.py`. See CLAUDE.md's mobile section for the contract.
 

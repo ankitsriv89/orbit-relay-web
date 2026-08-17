@@ -85,6 +85,58 @@ export function debrisFamilyOf(objectId) {
 }
 
 /**
+ * Launch history grouping: group objects by the YYYY-NNN prefix of OBJECT_ID,
+ * which is the shared launch designator prefix. Every object from one launch
+ * (payload, upper stage, debris) inherits the same prefix.
+ *
+ * @returns {Map<string, Array<object>} Map of launch prefix → object rows
+ */
+export function groupByLaunch(objectRows) {
+  const byLaunch = new Map();
+  for (const row of objectRows) {
+    const prefix = String(row.OBJECT_ID).slice(0, 8); // YYYY-NNN
+    if (!byLaunch.has(prefix)) byLaunch.set(prefix, []);
+    byLaunch.get(prefix).push(row);
+  }
+  return byLaunch;
+}
+
+/**
+ * Compute a single launch entry from its group of object rows.
+ * Rolls up LAUNCH_DATE, SITE name (via launch_sites join), object count,
+ * and a type breakdown (payload / rocket body / debris).
+ *
+ * @param {Array<object>} group  object rows sharing the same YYYY-NNN prefix
+ * @param {object} siteMap  Map of SITE_CODE → LAUNCH_SITE name from launch_sites table
+ * @returns {{launch_date: string|number, site: string|number, n: number, typeBreakdown: object}}
+ */
+export function computeLaunchEntry(group, siteMap) {
+  // All objects in the group share the same launch, so take the first LAUNCH_DATE
+  const launchDates = group.map((r) => r.LAUNCH_DATE).filter((v) => v);
+  const launchDate = launchDates.length ? launchDates[0] : null;
+
+  // Join SITE code to launch site name. The site map is a Map when built by
+  // buildAnalytics (and in the tests); the property fallback keeps plain-object
+  // callers working.
+  const siteCode = group[0]?.SITE || '';
+  const siteName = (siteMap?.get ? siteMap.get(siteCode) : siteMap?.[siteCode]) || siteCode || '';
+
+  // Type breakdown within this launch
+  const typeBreakdown = { PAYLOAD: 0, 'ROCKET BODY': 0, DEBRIS: 0 };
+  for (const r of group) {
+    const t = r.OBJECT_TYPE || '';
+    if (typeBreakdown[t] !== undefined) typeBreakdown[t]++;
+  }
+
+  return {
+    launch_date: launchDate,
+    site: siteName,
+    n: group.length,
+    typeBreakdown,
+  };
+}
+
+/**
  * Column order for the objects table. Declared once and used by both the INSERT
  * and the value builder so the two cannot drift — a silent column/value
  * misalignment would write RCS_SIZE into SITE and nothing would throw.
@@ -629,9 +681,35 @@ export async function buildAnalytics(env) {
   // Site names come from launch_sites (plan 38 task 2) — a LEFT JOIN would
   // need a second round-trip either way, and the table is ~60 rows, so one
   // extra SELECT + an in-memory join is simpler than rewriting bySite's query.
+  // Declared here (before the launches block) because computeLaunchEntry joins
+  // SITE codes through the same map.
   const { results: siteNames } = await env.ORBIT_DB
     .prepare('SELECT SITE_CODE, LAUNCH_SITE FROM launch_sites').all();
   const nameOf = new Map((siteNames || []).map((r) => [r.SITE_CODE, r.LAUNCH_SITE]));
+
+  // Launch history — group by YYYY-NNN prefix of OBJECT_ID
+  const { results: allRows } = await env.ORBIT_DB.prepare('SELECT * FROM objects').all();
+  const byLaunch = groupByLaunch(allRows || []);
+  const launches = [];
+  for (const [prefix, group] of byLaunch) {
+    const entry = computeLaunchEntry(group, nameOf);
+    // Only include launches with at least one object still on orbit or recently launched
+    if (entry.n >= 1) {
+      launches.push({
+        launch_date: entry.launch_date,
+        site: entry.site,
+        n: entry.n,
+        typeBreakdown: entry.typeBreakdown,
+      });
+    }
+  }
+  // Sort reverse chronological by launch date (most recent first). D1 stores
+  // LAUNCH_DATE as TEXT, so ISO strings compare chronologically as strings; a
+  // numeric comparator would no-op on them and `slice(0, 20)` below would take
+  // whatever order the scan happened to produce.
+  launches.sort((a, b) => String(b.launch_date || '').localeCompare(String(a.launch_date || '')));
+
+  const launchEntries = launches.slice(0, 20); // top 20 most recent launches
 
   // Top 8 countries by all-time total drive which rows the by-decade matrix
   // carries — a full COUNTRY_CODE x decade grid is mostly zeroes and the panel
@@ -688,6 +766,12 @@ export async function buildAnalytics(env) {
     by_regime: Object.fromEntries(byRegime.map((r) => [r.k || 'UNKNOWN', r.n])),
     launches_by_decade: byDecade.map((r) => ({ decade: r.k, n: r.n })),
     launches_by_year: byYear.map((r) => ({ year: r.k, n: r.n })),
+    launches: launchEntries.map((launch) => ({
+      launch_date: launch.launch_date,
+      site: launch.site,
+      n: launch.n,
+      typeBreakdown: launch.typeBreakdown,
+    })),
     operator_by_year: [...operatorByYearMap.entries()].sort((a, b) => a[0] - b[0])
       .map(([year, { top, other }]) => ({ year, top, other, derived: true })),
     regime_by_year: years.map((year) => ({
@@ -720,6 +804,16 @@ export async function buildAnalytics(env) {
   };
 
   await env.ORBIT_R2.put('catalog/analytics.json', JSON.stringify(analytics), {
+    httpMetadata: { contentType: 'application/json; charset=utf-8' },
+  });
+
+  // Own artifact for the per-launch list (plan 39 task 3): a rows-shaped
+  // payload that would sit awkwardly inside the aggregate-shaped analytics
+  // object, and that the /api/analytics endpoint serves via its own R2 key.
+  await env.ORBIT_R2.put('catalog/launches.json', JSON.stringify({
+    generated_at: new Date().toISOString(),
+    launches: launchEntries,
+  }), {
     httpMetadata: { contentType: 'application/json; charset=utf-8' },
   });
   return analytics;

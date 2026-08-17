@@ -7,6 +7,11 @@ the invariants a change must not break.
 If the two ever disagree about a path or a command, trust what you verify against the
 working tree and fix whichever file is stale.
 
+**When a request is ambiguous, ask for clarification rather than guessing or
+overthinking.** Don't silently pick an interpretation and run with it, and don't spiral
+into exhaustive analysis trying to infer intent from indirect signals — a short question
+resolves it faster and more reliably than either.
+
 ---
 
 ## What this repo is
@@ -155,6 +160,18 @@ true on *this* box, verified directly rather than assumed:
    older Playwright docs carry (written for 2-core boxes that fall over at ~3 stray
   processes) does not apply here.** Still `browser.close()` / kill what you start — just
   not because the box can't take a few extra processes.
+- **`tests/e2e/run_parallel.py` shards `test_live_visual.py` (the full drive-the-site +
+  video/screenshot audit) across worker processes, one route per subprocess** —
+  `py -3 tests/e2e/run_parallel.py [--jobs N] [base_url]`. Read the module docstring
+  before changing the default: this box is I/O/GPU-bound, not CPU-bound (most of a
+  route's wall time is the Cesium CDN, the TLE fetch, and deliberate settle sleeps), so
+  concurrency is capped at 4 rather than set to core count — every worker drives its own
+  GPU-accelerated Chromium against the *same* D3D11 device, and oversubscribing it makes
+  the globe routes render slower and flakier, which defeats the purpose. Raising `--jobs`
+  much past 4 is a regression to chase down, not a free speedup, unless you've verified
+  the GPU isn't the bottleneck at that concurrency. `npm test` itself (syntax/resolve/
+  orbit-ingest) is already seconds and offline — this parallel runner is for the live
+  Playwright visual suite, not for `npm test`.
 - **`jq` is not installed** and not on PATH. This matters because
   `.claude/hooks/check-public.sh` (the PostToolUse guardrail that runs `syntax.mjs` +
   `resolve.mjs` after every `public/*.{js,html,css}` edit) pipes through `jq` twice. On

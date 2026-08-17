@@ -34,6 +34,7 @@ import {
     sunDirectionEcef,
 } from './astro.js';
 import { buildSkyFaceSources } from './starfield.js';
+import { renderCommLinks } from './comm-links.js';
 
 const SAT_TICK_MS   = 280;   // position refresh (a sat moves ~metres in this time)
 // The pulse rides the position cadence on purpose. At 90 ms it forced a full
@@ -345,6 +346,8 @@ export class SatEngine {
         this._managedEntities = [];
         this._posScratch = new Cesium.Cartesian3();
         this._geoScratch = { lat: 0, lon: 0, alt: 0 };
+        /** Comm-links renderer (ground-to-satellite RF links) */
+        this._commLinks = null;
         /** Cinematic quality (plan 34 §3.3): 'high' shades satellites inside
          *  Earth's umbra via eclipseShadowFactor (the eclipse pass below),
          *  enables the bloom post-process stage (C3) AND replaces the scene
@@ -384,9 +387,15 @@ export class SatEngine {
         // (not only on a setCinematics flip) so pages that never call
         // setCinematics — /starlink/, /constellations/ — still inherit the
         // engine default 'high' exactly like the eclipse pass does.
-        this._applyCinematics();
+this._applyCinematics();
     }
 
+    /** Register a comm-links renderer. The page calls this once with the ground-station
+     *  list and a tick function that returns the current satellite ECF position.
+     *  The engine will call .update() on the renderer every propagation tick. */
+    setCommLinks(renderer) {
+        this._commLinks = renderer;
+    }
     /* ── Time ───────────────────────────────────────────────────────────── */
 
     /**
@@ -630,6 +639,8 @@ export class SatEngine {
         if (this.tickInFlight) return;
         this.tickInFlight = true;
         this.worker.postMessage({ type: 'tick', t: this.now().getTime() });
+        // Update comm-links after positions are propagated
+        this._commLinks?.update();
     }
 
     /** The pre-worker synchronous loop. Used when there is no worker, and by
@@ -806,6 +817,19 @@ export class SatEngine {
 
         if (!scene.postProcessStages || !scene.postProcessStages.bloom) return;
         scene.postProcessStages.bloom.enabled = this.cinematics === 'high';
+        // Tune bloom uniforms for a satellite-point-and-thin-orbit-line scene.
+        // Cesium's defaults are tuned for generic 3D content and are very likely
+        // too aggressive for a starfield of point primitives (probable blown-out
+        // highlights on every bright satellite point). Values tuned for this use case:
+        const bloom = scene.postProcessStages.bloom;
+        if (bloom.uniforms) {
+            bloom.uniforms.glowOnly = 0.8;
+            bloom.uniforms.contrast = 1.2;
+            bloom.uniforms.brightness = 1.05;
+            bloom.uniforms.delta = 0.5;
+            bloom.uniforms.sigma = 2.5;
+            bloom.uniforms.stepSize = 8;
+        }
     }
 
     /** The procedural star skyBox (C4): six canvas faces of a deterministic

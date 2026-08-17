@@ -4,6 +4,7 @@ import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, on, setText, fmtLat, fmtLon } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
+import { requestPermission, scheduleNotifications, clearNotifications } from './notifications.js';
 import {
     wireHudToggle, initHamburgerMenu, wireTabs, expandHud,
     wireRevsButton, syncRevsButtons, currentRevs, REVS_STATE_PATH,
@@ -73,6 +74,9 @@ function loadSelectedObject() {
     setText('sig-obj-norad', obj.norad || '—');
     setText('sig-obj-type', obj.type || '—');
     setText('sig-obj-regime', obj.regime || '—');
+
+    // Clear any pending pass notifications when object changes
+    clearNotifications();
 
     if (obj.l1 && obj.l2) {
         try {
@@ -231,6 +235,23 @@ if (stationsToggle) {
         stationsToggle.textContent = stationMarkersOn ? 'ON' : 'OFF';
         stationsToggle.classList.toggle('st-toggle-btn--on', stationMarkersOn);
     });
+
+    // Notifications toggle
+    const notifToggle = $('notifications-toggle');
+    if (notifToggle) {
+        notifToggle.addEventListener('change', () => {
+            if (notifToggle.checked) {
+                requestPermission().then(perm => {
+                    if (perm !== 'granted') {
+                        // Permission denied — uncheck toggle so UI clearly reads as off
+                        notifToggle.checked = false;
+                    }
+                });
+            } else {
+                clearNotifications();
+            }
+        });
+    }
 }
 
 /** Rebuild the station↔sat link line + its slant-range readout. */
@@ -450,7 +471,19 @@ on('pass-compute', 'click', () => {
         li.append(title, meta);
         list.appendChild(li);
     }
+
+    // Schedule notifications for upcoming passes if enabled
+    const notifToggle = $('notifications-toggle');
+    if (notifToggle && notifToggle.checked) {
+        requestPermission().then(perm => {
+            if (perm === 'granted') {
+                scheduleNotifications(passes, selectedObject.name || '—');
+            }
+        });
+    }
 });
+
+/* ── RF / Link budget tab ──────────────────────────────────────────────────── */
 
 /* ── RF / Link budget tab ──────────────────────────────────────────────────── */
 on('rf-compute', 'click', () => {
@@ -497,4 +530,8 @@ exposeDebug('signal', {
     get stationCount() { return groundStations.length; },
     get stationsOnGlobe() { return stationMarkers.length; },
     refreshLink,
+});
+
+window.addEventListener('beforeunload', () => {
+    clearNotifications();
 });

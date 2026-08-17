@@ -8,9 +8,13 @@ file plus [the plan](39_signal_and_search_polish_plan.md) without re-deriving co
 
 Status: `[ ]` not started · `[~]` in progress · `[x]` done (record the commit).
 
+**All five tasks (1–5) landed in the plan-39 batch commit, 2026-08-17** — see
+[docs/build-logs/2026-08-17_build_log_02.md](../build-logs/2026-08-17_build_log_02.md)
+for the build, the blocker bugs found and fixed, and the verification battery.
+
 ---
 
-## [ ] 1 — Mission-search clarity + wiki note
+## [x] 1 — Mission-search clarity + wiki note
 
 **Why first:** smallest task, no code path changes, good warm-up for the plan.
 
@@ -25,7 +29,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done (record the commit)
 
 ---
 
-## [ ] 2 — Pass notifications
+## [x] 2 — Pass notifications
 
 **Files:** `public/spacetrack/signal/signal.js`, new
 `public/spacetrack/signal/notifications.js`
@@ -45,7 +49,7 @@ verification in a real browser tab (headless sandboxes are inconsistent for
 
 ---
 
-## [ ] 3 — Launch history — per-launch grouping
+## [x] 3 — Launch history — per-launch grouping
 
 **Files:** `workers/orbit-ingest/src/derive.js`, `functions/api/analytics.js` (or a new
 sibling endpoint), `public/spacetrack/analytics/analytics.js`,
@@ -68,7 +72,7 @@ no horizontal page scroll (table gets its own `overflow-x: auto`).
 
 ---
 
-## [ ] 4 — Bloom/HDR tuning pass
+## [x] 4 — Bloom/HDR tuning pass
 
 **Files:** `public/orbit-engine/sat-engine.js`
 
@@ -87,7 +91,7 @@ satellite points; `'low'` unaffected.
 
 ---
 
-## [ ] 5 — Comm-link animation (ground-to-satellite)
+## [x] 5 — Comm-link animation (ground-to-satellite)
 
 **Files:** `public/orbit-engine/sat-engine.js`, `public/orbit/orbital-relay.js` (confirm
 exact wiring point at task start), new `public/orbit-engine/comm-links.js`

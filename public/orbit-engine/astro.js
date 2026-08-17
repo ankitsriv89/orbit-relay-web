@@ -35,6 +35,31 @@ export function geoAt(satrec, date, out) {
     return r;
 }
 
+/**
+ * WGS-84 geodetic → Earth-fixed position, metres. Same constants and math as
+ * the copy in spacetrack/signal/compute.js (which duplicates it on purpose to
+ * stay import-free for Node tests); this copy is what the shared orbit-engine
+ * uses, e.g. comm-links.js ground-station endpoints.
+ *
+ * @param {{latDeg:number, lonDeg:number, altKm?:number}} g geodetic coordinates
+ * @returns {{x:number, y:number, z:number}} ECF position in metres
+ */
+export function stationEcfMetres({ latDeg, lonDeg, altKm = 0 }) {
+    const A_KM = 6378.137;
+    const B_KM = 6356.7523142;
+    const lat = (latDeg * Math.PI) / 180;
+    const lon = (lonDeg * Math.PI) / 180;
+    const e2 = (A_KM * A_KM - B_KM * B_KM) / (A_KM * A_KM);
+    const chi = Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat));
+    const h = altKm * 1000;
+    const r = A_KM * 1000 / chi + h;
+    return {
+        x: r * Math.cos(lat) * Math.cos(lon),
+        y: r * Math.cos(lat) * Math.sin(lon),
+        z: (A_KM * 1000 * (1 - e2) / chi + h) * Math.sin(lat),
+    };
+}
+
 export function orbitalPeriodMin(satrec) {
     return (2 * Math.PI) / satrec.no;
 }
