@@ -482,6 +482,10 @@ async function loadSatellites() {
         console.warn('[orbital-relay] STATIONS fetch failed:', stResult.reason);
     }
 
+    // After STATIONS is parsed, so the `stations-other` builtin has entities to
+    // reveal; the constellation fetches inside run concurrently with the fly-in.
+    bootDefaultLayers();
+
     updateSatBar();
     introFlyIn();
 }
@@ -592,7 +596,7 @@ function recalcLayerCount() {
         .reduce((sum, s) => sum + s.entities.reduce((n, e) => n + (e.show ? 1 : 0), 0), 0);
 }
 
-async function toggleLayer(group, color, cap, checked, live) {
+async function toggleLayer(group, color, cap, checked, live, { fly = true } = {}) {
     const statusEl = document.getElementById(`layer-status-${group}`);
 
     if (!checked) {
@@ -612,7 +616,7 @@ async function toggleLayer(group, color, cap, checked, live) {
         recalcLayerCount();
         updateSatBar();
         if (statusEl) statusEl.textContent = `${state.entities.length}`;
-        engine.flyToSats(state.entities);
+        if (fly) engine.flyToSats(state.entities);
         return;
     }
     if (state && state.fetching) return;
@@ -633,12 +637,49 @@ async function toggleLayer(group, color, cap, checked, live) {
         recalcLayerCount();
         updateSatBar();
         if (statusEl) statusEl.textContent = `${entities.length}`;
-        engine.flyToSats(entities);
+        if (fly) engine.flyToSats(entities);
     } catch (err) {
         console.warn(`[orbital-relay] Layer "${group}" fetch failed:`, err);
         layerState[group] = { entities: [], loaded: false, fetching: false };
         if (statusEl) statusEl.textContent = 'ERR';
     }
+}
+
+/**
+ * Load the layers `layers.js` flags `on`, honouring the checked state the
+ * registry already rendered.
+ *
+ * Checking a box in markup fires no `change` event, so without this the page
+ * booted with boxes ticked and nothing behind them. `fly: false` matters as
+ * much as the fetch: `toggleLayer` normally flies the camera to the layer it
+ * just loaded, which is right for a user click and wrong at boot — three
+ * layers resolving out of order would fight introFlyIn() and each other for
+ * the camera. The fly-in owns the camera at startup; these just populate.
+ */
+function bootDefaultLayers() {
+    document.querySelectorAll('#layer-list .layer-cb').forEach(cb => {
+        if (!cb.checked) return;
+        const group = cb.dataset.group;
+
+        if (cb.dataset.builtin === 'true') {
+            // Builtins have no fetch of their own — STATIONS is already loaded
+            // by loadSatellites(), so this only reveals what is there.
+            if (group === 'stations-other') {
+                stationEntities.forEach(e => {
+                    e.show = true;
+                    engine.ensureRing(e);
+                });
+                if (stStatusEl) stStatusEl.textContent = stationEntities.length;
+                updateSatBar();
+            } else if (group === 'aurora') {
+                toggleAurora(true);
+            }
+            return;
+        }
+
+        toggleLayer(group, cb.dataset.color, parseInt(cb.dataset.cap, 10),
+                    true, undefined, { fly: false });
+    });
 }
 
 document.querySelectorAll('.layer-cb').forEach(cb => {

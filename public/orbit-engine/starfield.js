@@ -124,8 +124,30 @@ export function projectToFace(d, face) {
  */
 export function drawSkyFace(ctx, size, stars, face) {
     ctx.clearRect(0, 0, size, size);
-    const frame = FACE_FRAMES[face];
     const half = size / 2;
+
+    /* Star radii are expressed against a reference face and scaled by `k`, so
+     * a star keeps the same APPARENT size no matter what texture size the
+     * caller asks for. Without this the sky changed with the texture: a face
+     * spans 90° and is magnified onto the screen by
+     * `screenHeight / (size · tan(fov/2)/tan(45°))`, so a pixel-constant
+     * radius inherits that magnification and a monitor swap changes the stars.
+     *
+     * The constants below are calibrated so a maximum-brightness core lands at
+     * roughly ONE screen pixel — a star is a point source, and anything wider
+     * reads as a blurry disc rather than a star. The pre-fix values were tuned
+     * against the face in isolation, never against the ~3-5x magnification
+     * they were about to be viewed through, which is why bright stars shipped
+     * as ~8px blobs at 900p and ~13px at 1440p, with the glow rect showing its
+     * square edges. CORE_/GLOW_ are in reference-face pixels at REF_FACE.
+     */
+    const REF_FACE = 2048;
+    const k = size / REF_FACE;
+    const CORE_BASE = 0.18;   // radius floor, reference-face px
+    const CORE_GAIN = 0.80;   // × b², so only the brightest reach ~1 screen px
+    const GLOW_BASE = 0.9;
+    const GLOW_GAIN = 2.1;
+    const GLOW_HALF = 3.4;    // glow rect half-width; must cover GLOW radius
 
     // Two passes: glows first (they are translucent), cores on top.
     for (const s of stars) {
@@ -135,12 +157,12 @@ export function drawSkyFace(ctx, size, stars, face) {
         const px = (uv.u + 1) * half;
         const py = (1 - uv.v) * half;
         if (s.b < 0.72) continue;
-        const g = ctx.createRadialGradient(px, py, 0, px, py, 3 + s.b * 7);
+        const g = ctx.createRadialGradient(px, py, 0, px, py, (GLOW_BASE + s.b * GLOW_GAIN) * k);
         const t = s.tint;
         g.addColorStop(0, `rgba(${Math.round(255 * t.r)},${Math.round(255 * t.g)},${Math.round(255 * t.b)},${(0.30 * s.b).toFixed(3)})`);
         g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
-        ctx.fillRect(px - 11, py - 11, 22, 22);
+        ctx.fillRect(px - GLOW_HALF * k, py - GLOW_HALF * k, GLOW_HALF * 2 * k, GLOW_HALF * 2 * k);
     }
 
     for (const s of stars) {
@@ -150,7 +172,7 @@ export function drawSkyFace(ctx, size, stars, face) {
         const px = (uv.u + 1) * half;
         const py = (1 - uv.v) * half;
         const t = s.tint;
-        const r = Math.max(0.4, 0.5 + s.b * s.b * 2.2);
+        const r = Math.max(0.35, CORE_BASE + s.b * s.b * CORE_GAIN) * k;
         ctx.fillStyle = `rgba(${Math.round(255 * t.r)},${Math.round(255 * t.g)},${Math.round(255 * t.b)},${s.b.toFixed(3)})`;
         ctx.beginPath();
         ctx.arc(px, py, r, 0, 2 * Math.PI);
@@ -163,7 +185,14 @@ export function drawSkyFace(ctx, size, stars, face) {
  * starfield. DOM-only: creates canvases, draws the faces, encodes. Returns
  * {positiveX, negativeX, positiveY, negativeY, positiveZ, negativeZ}.
  */
-export function buildSkyFaceSources({ size = 512, seed = 20260806, starCount = 600 } = {}) {
+/* size 2048: a face spans 90°, so only `size·tan(30°)/tan(45°)` ≈ 0.577·size
+ * of it covers Cesium's 60° vertical FOV. At the old 512 that was ~296 px
+ * stretched over a 1440p display — a 4.9× magnification that read as blurry
+ * blobs and square glow artifacts. 2048 brings it to ~1.2×, i.e. roughly
+ * texel-for-pixel on the largest display this is likely to meet, and the six
+ * faces still encode to a few hundred KB of data URL built once per session.
+ * starCount rises with the sky area so the field does not read sparse. */
+export function buildSkyFaceSources({ size = 2048, seed = 20260806, starCount = 2400 } = {}) {
     const stars = generateStars(seed, starCount);
     const canvas = document.createElement('canvas');
     canvas.width = size;

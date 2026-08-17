@@ -23,3 +23,6 @@ __pycache__/
 
 # LibreOffice lock files left beside docs/game-plans/*.docx
 .~lock.*#
+
+# Screenshots/videos from tests/e2e/test_live_visual.py — regenerated per run
+tests/e2e/artifacts/

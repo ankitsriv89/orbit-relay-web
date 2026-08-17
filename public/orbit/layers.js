@@ -16,7 +16,7 @@
  * key on those directly and must keep working unmodified.
  */
 
-/** @typedef {{group: string, name: string, flag: string, color?: string, cap?: number, builtin?: boolean}} LayerDef */
+/** @typedef {{group: string, name: string, flag: string, color?: string, cap?: number, builtin?: boolean, on?: boolean}} LayerDef */
 /** @typedef {{section: string, layers: LayerDef[]}} LayerSection */
 
 /** ISS is always-on furniture, not a toggle — kept separate from LAYERS. */
@@ -38,8 +38,8 @@ export const LAYERS = [
     {
         section: '🇺🇸 USA',
         layers: [
-            { group: 'gps-ops', name: 'GPS', flag: '🇺🇸', color: '#f5f500', cap: 35 },
-            { group: 'iridium-NEXT', name: 'IRIDIUM', flag: '🇺🇸', color: '#cc88ff', cap: 66 },
+            { group: 'gps-ops', name: 'GPS', flag: '🇺🇸', color: '#f5f500', cap: 35, on: true },
+            { group: 'iridium-NEXT', name: 'IRIDIUM', flag: '🇺🇸', color: '#cc88ff', cap: 66, on: true },
         ],
     },
     {
@@ -72,7 +72,7 @@ export const LAYERS = [
     {
         section: '🌍 INTERNATIONAL',
         layers: [
-            { group: 'stations-other', name: 'STATIONS', flag: '🛰', color: '#ff8c69', builtin: true },
+            { group: 'stations-other', name: 'STATIONS', flag: '🛰', color: '#ff8c69', builtin: true, on: true },
             { group: 'aurora', name: 'AURORA', flag: '🌌', color: '#42f587', builtin: true },
             { group: 'weather', name: 'WEATHER', flag: '🌍', color: '#88ffcc', cap: 100 },
             { group: 'geo', name: 'GEO BELT', flag: '🌍', color: '#ffe066', cap: 150 },
@@ -114,6 +114,14 @@ function buildLayerItem(def, idSuffix) {
         cb.type = 'checkbox';
         cb.className = 'layer-cb';
         cb.dataset.group = def.group;
+        /* `on` layers boot checked. Without this every box rendered unchecked
+         * and /orbit/ — the *cinematic* route — opened on a bare globe with
+         * the ISS alone, reporting "TRACKING 1 ACTIVE SATELLITES". The count
+         * was arithmetically right (1 ISS + 0 visible stations + 0 layers) and
+         * still read as broken, because an empty sky is not what this page is
+         * for. See bootDefaultLayers() in orbital-relay.js, which fetches the
+         * ones flagged here. */
+        if (def.on) cb.checked = true;
         if (def.builtin) {
             cb.dataset.builtin = 'true';
         } else {

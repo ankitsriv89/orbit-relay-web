@@ -75,16 +75,35 @@ const PULSE_TICK_MS = SAT_TICK_MS;
  * which is what `resolutionScale` does. 0.85 is a deliberate compromise: on a
  * ~5" screen the softening is not perceptible at arm's length, and it removes
  * ~28% of the fragment work on the device least able to afford it.
+ *
+ * On DESKTOP that same pinning is what made the globe look soft on every
+ * high-DPI monitor. `useBrowserRecommendedResolution = true` means "draw at CSS
+ * pixels", so a 1.5-2x display renders the globe at 1x and lets the compositor
+ * upscale it — Ion imagery arrives sharp and is then thrown away. The phone
+ * argument above does not transfer: a desktop GPU has the fill rate, and the
+ * blur is very visible on a large screen. Desktop therefore draws at the
+ * device ratio, capped at DESKTOP_DPR_CAP so a 4K/5K panel does not pay a 9x
+ * fragment bill for detail past the point of visible return.
  */
+const DESKTOP_DPR_CAP = 2;
+
 export function tuneViewerForDevice(viewer, { mobileMaxWidth = 600 } = {}) {
     const scene = viewer.scene;
 
     scene.requestRenderMode         = true;
     scene.maximumRenderTimeChange   = 30;    // seconds of simulation time
-    viewer.useBrowserRecommendedResolution = true;
 
     const isSmall = window.matchMedia(`(max-width: ${mobileMaxWidth}px)`).matches;
-    viewer.resolutionScale = isSmall ? 0.85 : 1.0;
+
+    if (isSmall) {
+        // Unchanged mobile path — see the note above.
+        viewer.useBrowserRecommendedResolution = true;
+        viewer.resolutionScale = 0.85;
+    } else {
+        viewer.useBrowserRecommendedResolution = false;
+        const dpr = Number(window.devicePixelRatio) || 1;
+        viewer.resolutionScale = Math.min(Math.max(dpr, 1), DESKTOP_DPR_CAP);
+    }
 
     tuneCameraLimits(viewer);
 
@@ -108,6 +127,94 @@ function tuneCameraLimits(viewer) {
     controller.minimumZoomDistance = 500;
     controller.maximumZoomDistance = 1.1e8;
     controller.enableInputs = true;
+
+    guardCameraAgainstNaN(viewer);
+}
+
+/**
+ * Recover the camera if CesiumJS drives it to NaN.
+ *
+ * CesiumJS 1.113 has a reachable bug in zoom-toward-cursor: after a
+ * *drag-rotate*, the next wheel tick whose pick ray hits the globe surface can
+ * leave `camera.position` — and with it direction/up/right and
+ * `positionCartographic.height` — entirely NaN. The globe disappears and no
+ * error is thrown; the page just goes black and stops responding to input.
+ *
+ * Verified against production, on /orbit/, /starlink/ and /constellations/
+ * (every page that calls this), and reproducible in four steps: load, drag to
+ * rotate, put the cursor over the globe, scroll. It is specific to that path —
+ * wheel WITHOUT a preceding drag is fine, wheel over empty space is fine, and
+ * `camera.zoomIn()` is fine. None of the controller knobs avoid it
+ * (`enableCollisionDetection`, `depthTestAgainstTerrain`, the zoom-distance
+ * clamps above), so this cannot be configured away, and pinning a patched
+ * Cesium is out of scope for a no-build-step frontend.
+ *
+ * `preUpdate` runs before the controller consumes the next input, so restoring
+ * the last good camera there means the corruption never reaches a rendered
+ * frame. We snapshot only known-finite states, so the fallback can never be a
+ * NaN we saved earlier.
+ *
+ * Recovery RE-APPLIES the zoom the user asked for rather than only restoring
+ * the old camera. Restoring alone is correct but feels broken: the gesture
+ * that triggers the bug is an ordinary "rotate, then scroll to zoom", so a
+ * bare restore reads as a globe that refuses to zoom. Instead we return to the
+ * last good position and move along the view direction toward the globe centre
+ * — which also re-centres the view, since the corrupting path is precisely the
+ * off-centre zoom-toward-cursor one.
+ */
+const CAMERA_RECOVER_ZOOM = 0.25;   // fraction of altitude per recovered tick
+
+function guardCameraAgainstNaN(viewer) {
+    const camera = viewer.camera;
+    const finite = (c) => c && Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isFinite(c.z);
+    const healthy = () => finite(camera.position) && finite(camera.direction) && finite(camera.up);
+
+    let last = null;
+
+    viewer.scene.preUpdate.addEventListener(() => {
+        if (healthy()) {
+            // Snapshot the good state. Clone: these are live Cartesian3s that
+            // Cesium mutates in place, so a reference would go NaN with them.
+            last = last || {
+                position: new Cesium.Cartesian3(),
+                direction: new Cesium.Cartesian3(),
+                up: new Cesium.Cartesian3(),
+            };
+            Cesium.Cartesian3.clone(camera.position, last.position);
+            Cesium.Cartesian3.clone(camera.direction, last.direction);
+            Cesium.Cartesian3.clone(camera.up, last.up);
+            return;
+        }
+
+        if (!last) {
+            // Corrupted before we ever saw a good frame — fall back to the
+            // same top-down framing every page boots into.
+            camera.setView({
+                destination: HOME_DESTINATION,
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+            });
+            return;
+        }
+
+        camera.setView({
+            destination: last.position,
+            orientation: { direction: last.direction, up: last.up },
+        });
+
+        /* Re-centre on the globe and complete the zoom, so the recovery reads
+         * as "it zoomed" rather than "it stuck". Looking at the centre is what
+         * pulls the view back to middle after the failed off-centre zoom. */
+        const carto = camera.positionCartographic;
+        if (!carto || !Number.isFinite(carto.height)) return;
+        const target = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, 0);
+        const range = Math.max(
+            viewer.scene.screenSpaceCameraController.minimumZoomDistance,
+            carto.height * (1 - CAMERA_RECOVER_ZOOM));
+        camera.lookAt(target, new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-90), range));
+        // lookAt leaves a reference frame behind; without this every later
+        // rotate/zoom happens in that frame instead of world space.
+        camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+    });
 }
 
 /** The same top-down framing every page boots into — see the `setView` calls
@@ -945,16 +1052,29 @@ export class SatEngine {
     /* ── Camera ─────────────────────────────────────────────────────────── */
 
     /** Frame a set of sat points. They are not Entities, so build a
-     *  BoundingSphere from their positions and fly to that. */
+     *  BoundingSphere from their positions and fly to that.
+     *
+     *  Only FINITE positions are considered. A sat whose first propagation has
+     *  not landed yet (or whose TLE produced no position) still carries a
+     *  Cartesian3 full of NaN; one of those poisons
+     *  `BoundingSphere.fromPoints`, and flying to a NaN sphere leaves the
+     *  camera at a NaN height — the globe vanishes and every later zoom reads
+     *  `nan m`, with no error thrown to say why. */
     flyToSats(sats, { duration = 1.8, pitch = -55, zoom = 3.0 } = {}) {
         const positions = [];
         for (let i = 0; i < sats.length; i++) {
             const s = sats[i];
             if (s.show === false) continue;
-            if (s.primitive && s.primitive.position) positions.push(s.primitive.position);
+            const p = s.primitive && s.primitive.position;
+            if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+                positions.push(p);
+            }
         }
         if (!positions.length) return;
         const sphere = Cesium.BoundingSphere.fromPoints(positions);
+        // fromPoints on near-coincident points can still yield a zero/NaN
+        // radius; `radius * zoom` would then be the camera's range.
+        if (!sphere || !Number.isFinite(sphere.radius) || sphere.radius <= 0) return;
         this.viewer.camera.flyToBoundingSphere(sphere, {
             duration,
             offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(pitch),
@@ -988,9 +1108,25 @@ export class SatEngine {
     get registered()    { return this._satById.size; }
 }
 
+/**
+ * Turn the worker's packed [x,y,z,…] buffer into Cartesian3s.
+ *
+ * `count` is sanitised rather than trusted. `new Array(n)` throws
+ * `RangeError: Invalid array length` for NaN, negative, fractional and
+ * out-of-range n — and every caller reaches here from a worker `message`
+ * handler that Cesium runs inside its render loop, where an uncaught throw
+ * makes Cesium stop rendering and paint its error dialog across the globe.
+ * A path that cannot be unpacked must degrade to "no ring drawn", never to
+ * "the scene is dead". Observed in production as a RangeError dialog on
+ * /orbit/, /starlink/ and /constellations/.
+ */
 function unpackPositions(xyz, count) {
-    const pts = new Array(count);
-    for (let i = 0; i < count; i++) {
+    const n = Number(count);
+    if (!Number.isFinite(n) || n <= 0 || !xyz) return [];
+    const usable = Math.min(Math.floor(n), Math.floor(xyz.length / 3));
+    if (usable <= 0) return [];
+    const pts = new Array(usable);
+    for (let i = 0; i < usable; i++) {
         pts[i] = new Cesium.Cartesian3(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
     }
     return pts;

@@ -134,11 +134,27 @@ function path(job, l1, l2, kind, steps, t0Ms, periodMin, spanFrom = 0, spanTo = 
     let rec = pathRecGet(key);
     if (!rec) {
         rec = makeSatrec(l1, l2);
-        if (!rec) { postMessage({ type: 'path', job, count: 0 }); return; }
+        // Always ship an `xyz` alongside `count`, even on the give-up path:
+        // the main thread does `new Array(m.count)`, and a message missing
+        // either field lands there as `undefined`/NaN, which throws
+        // `RangeError: Invalid array length` INSIDE Cesium's render loop —
+        // and Cesium responds to a render-loop throw by stopping rendering
+        // and showing its error dialog over the globe.
+        if (!rec) {
+            postMessage({ type: 'path', job, count: 0, xyz: new Float32Array(0) });
+            return;
+        }
         pathRecSet(key, rec);
     }
 
-    const period = periodMin || (2 * Math.PI) / rec.no;
+    // `rec.no` is radians/minute from the TLE mean motion. A malformed or
+    // decayed element set can leave it 0/NaN, and `(2π)/0` is Infinity — which
+    // turns every `new Date(t0 + rev*period*60000)` below into an Invalid Date,
+    // propagates NaN into the vertex count, and reaches `new Array(NaN)`.
+    // Falling back to a ~90 min LEO period keeps the ring wrong-but-finite
+    // rather than taking the whole scene down.
+    let period = periodMin || (2 * Math.PI) / rec.no;
+    if (!Number.isFinite(period) || period <= 0) period = 90;
     // Signed span, in revolutions: negative revs propagate before `now`, and
     // SGP4 is symmetric about the epoch so no guard is needed. The vertex
     // count scales with the span so resolution stays constant per revolution.

@@ -279,6 +279,113 @@ await test('drawSkyFace on the negative faces draws too (not just +X)', () => {
   }
 });
 
+/* ── Apparent star size (resolution independence) ───────────────────────── */
+
+/* A skyBox face spans a 90° FOV, so it is magnified onto the screen by
+ * roughly `screenHeight / (faceSize * tan(fov/2) / tan(45°))`. At the old
+ * fixed 512px face that is ~3.0x at 900p and ~4.9x at 1440p, which turned a
+ * 2.7px star core into an 8-13px blob and the 22x22 glow rect into a visible
+ * 67-107px SQUARE — the "stars look big / background looks different on this
+ * machine" report. Two invariants keep that from coming back:
+ *
+ *   1. Radii are expressed in *face* pixels but must scale WITH faceSize, so
+ *      a bigger texture means sharper stars, not bigger ones.
+ *   2. The default face is large enough that magnification at 1440p is ~1x.
+ */
+
+console.log('\n-- apparent star size --');
+
+/** Largest `arc` radius drawn, in units of face-width (resolution-independent). */
+function maxCoreFraction(size) {
+    const stars = generateStars(20260806, 600);
+    let max = 0;
+    for (const key of FACE_KEYS) {
+        const ctx = stubCtx();
+        drawSkyFace(ctx, size, stars, key);
+        for (const c of ctx.calls) {
+            if (c[0] === 'arc') max = Math.max(max, c[3]);
+        }
+    }
+    return max / size;
+}
+
+await test('star core size scales with face size (resolution-independent)', () => {
+  // The same star must occupy the same FRACTION of the face at any texture
+  // size. If radii are hardcoded in pixels, doubling size halves the fraction
+  // and the star renders at a different apparent size per machine.
+  const at512 = maxCoreFraction(512);
+  const at2048 = maxCoreFraction(2048);
+  assert.ok(Math.abs(at512 - at2048) / at512 < 0.02,
+    `core radius must be a fixed fraction of the face, got ${at512.toFixed(6)} at 512 ` +
+    `vs ${at2048.toFixed(6)} at 2048 (${(at2048 / at512).toFixed(3)}x) — radii are ` +
+    `hardcoded in face pixels, so apparent star size depends on texture size`);
+});
+
+await test('glow rect scales with face size too', () => {
+  const stars = generateStars(20260806, 600);
+  const maxRect = (size) => {
+    let max = 0;
+    for (const key of FACE_KEYS) {
+      const ctx = stubCtx();
+      drawSkyFace(ctx, size, stars, key);
+      for (const c of ctx.calls) if (c[0] === 'rect') max = Math.max(max, c[3]);
+    }
+    return max / size;
+  };
+  const a = maxRect(512), b = maxRect(2048);
+  assert.ok(a > 0 && Math.abs(a - b) / a < 0.02,
+    `glow rect must be a fixed fraction of the face, got ${a.toFixed(6)} vs ${b.toFixed(6)}`);
+});
+
+await test('a star renders as a point, not a disc, at 900p and 1440p', () => {
+  // The actual complaint: stars looked like big blurry blobs. Consistency
+  // across texture sizes (above) is necessary but not sufficient — the sizes
+  // also have to be SMALL. Convert the largest drawn core into screen pixels
+  // through the real magnification and hold it to roughly a point source.
+  const src = read('public/orbit-engine/starfield.js');
+  const size = Number((src.match(/size\s*=\s*(\d+)/) || [])[1]);
+  assert.ok(size, 'expected a default face size');
+  const faceFrac = maxCoreFraction(size);          // radius / face width
+  for (const screenH of [900, 1440]) {
+    // Face spans 90°, Cesium's default vertical FOV is 60°.
+    const facePxAcrossFov = size * (Math.tan(Math.PI / 6) / Math.tan(Math.PI / 4));
+    const screenPx = faceFrac * size * (screenH / facePxAcrossFov);
+    assert.ok(screenPx <= 2.5,
+      `brightest star core renders ~${screenPx.toFixed(2)}px at ${screenH}p — ` +
+      `a star is a point source; anything past ~2.5px reads as a blurry disc`);
+    assert.ok(screenPx > 0.2,
+      `brightest star core renders ~${screenPx.toFixed(2)}px at ${screenH}p — ` +
+      `too small to be visible at all`);
+  }
+});
+
+await test('the glow rect fully covers the glow gradient (no clipped square)', () => {
+  // The visible square edges came from a fillRect narrower than the radial
+  // gradient it was meant to contain.
+  const src = read('public/orbit-engine/starfield.js');
+  const base = Number((src.match(/GLOW_BASE\s*=\s*([\d.]+)/) || [])[1]);
+  const gain = Number((src.match(/GLOW_GAIN\s*=\s*([\d.]+)/) || [])[1]);
+  const half = Number((src.match(/GLOW_HALF\s*=\s*([\d.]+)/) || [])[1]);
+  assert.ok(Number.isFinite(base) && Number.isFinite(gain) && Number.isFinite(half),
+    'glow constants must stay declared as named values');
+  assert.ok(half >= base + gain,
+    `glow half-width ${half} must cover the max glow radius ${base + gain}, ` +
+    `or the gradient is cut off and the star shows square edges`);
+});
+
+await test('default face size keeps 1440p magnification near 1x', () => {
+  const src = read('public/orbit-engine/starfield.js');
+  const m = src.match(/size\s*=\s*(\d+)/);
+  assert.ok(m, 'buildSkyFaceSources must declare a default face size');
+  const size = Number(m[1]);
+  // Face spans 90deg; Cesium's default vertical FOV is 60deg.
+  const facePxAcrossFov = size * (Math.tan(Math.PI / 6) / Math.tan(Math.PI / 4));
+  const magnification = 1440 / facePxAcrossFov;
+  assert.ok(magnification <= 1.35,
+    `face size ${size} gives ${magnification.toFixed(2)}x magnification at 1440p — ` +
+    `stars will render as blurry blobs on a high-resolution display`);
+});
+
 /* ── Purity ─────────────────────────────────────────────────────────────── */
 
 console.log('\n-- purity --');
