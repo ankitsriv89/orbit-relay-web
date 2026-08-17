@@ -319,10 +319,25 @@ await test('admin routes keep their own middleware (Pages chains parent→child)
     'the admin auth middleware must survive — the parent one must not replace it');
 });
 
-await test('wrangler.toml declares the rate limiter binding', () => {
+/* This used to assert that wrangler.toml DECLARED the binding. It must not.
+ *
+ * `[[unsafe.bindings]]` is a Workers-only escape hatch that Cloudflare Pages
+ * rejects, and since this wrangler.toml sets `pages_build_output_dir` the Pages
+ * build parses and validates the file. Declaring it there failed every deploy
+ * from 28c9b049 onward — silently, because `ci` only runs `npm test` and
+ * production kept serving the last good build.
+ *
+ * The binding belongs in the Pages dashboard. The code contract that matters is
+ * the one above: an absent limiter FAILS OPEN. */
+await test('wrangler.toml does not declare a Workers-only unsafe binding', () => {
   const toml = fs.readFileSync(path.join(ROOT, 'wrangler.toml'), 'utf8');
-  assert.match(toml, /API_RATE_LIMITER/);
-  assert.match(toml, /\[\[unsafe\.bindings\]\]|\[\[unsafe\.rate_limits\]\]|ratelimit/i);
+  // Strip comments — the block is documented there on purpose, as a warning.
+  const active = toml.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+  assert.doesNotMatch(active, /\[\[unsafe\.bindings\]\]/,
+    'unsafe.bindings breaks the Cloudflare Pages build — configure the rate ' +
+    'limiter in the Pages dashboard (Settings → Functions → Bindings) instead');
+  assert.doesNotMatch(active, /^\s*type\s*=\s*["']ratelimit["']/m,
+    'a ratelimit binding declared in wrangler.toml fails the Pages build');
 });
 
 /* ── Report ─────────────────────────────────────────────────────────────── */

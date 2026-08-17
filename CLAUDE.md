@@ -81,8 +81,25 @@ git-connected). Two names in this repo are wrong and deploying to either is a mi
 - `signal-playground` (`signal-playground-0uj.pages.dev`) is a **separate, stale** project
   that does *not* serve `orbitalrelay.space`. It is what this file and `AGENTS.md` used to
   name; a manual deploy there ships to the wrong site.
-- `wrangler.toml`'s `name = "orbit-relay"` matches **no** project at all. It is inert for
-  Pages (the dashboard's git integration owns the deploy), which is why it went unnoticed.
+- `wrangler.toml`'s `name = "orbit-relay"` matches **no** project at all. The *name* is
+  inert for Pages (the dashboard's git integration owns the deploy), which is why it went
+  unnoticed.
+
+**But the file is not un-parsed.** It sets `pages_build_output_dir`, so the Pages build
+reads it and *validates* it — a Workers-only key in here fails the build. `[[unsafe.bindings]]`
+(the rate-limit binding) did exactly that: every deploy from `28c9b049` onward failed while
+`ci` stayed green, because `ci.yml` only runs `npm test` and nothing in `.github/workflows/`
+deploys the site. The symptom is silent — production keeps serving the last good build, so
+the site looks fine and the local tree looks fine. **After a push, confirm the deploy
+actually shipped**, e.g.
+
+```bash
+gh api repos/<owner>/<repo>/commits/<sha>/check-runs \
+  --jq '.check_runs[] | "\(.name): \(.conclusion)"'    # want "Cloudflare Pages: success"
+```
+
+Runtime bindings for Functions belong in the Pages dashboard (Settings → Functions →
+Bindings), not in this file.
 
 Use `orbitalrelay.space` for canonical/OG tags. Re-confirm with
 `wrangler pages project list` before hardcoding anything else.

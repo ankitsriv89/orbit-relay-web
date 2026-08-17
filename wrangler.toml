@@ -30,18 +30,26 @@ bucket_name = "orbit-data"
 # 30 requests/minute per IP over /api/*, applied by functions/api/_middleware.js
 # via the shared helper in functions/api/_ratelimit.js.
 #
-# This is the free, edge-side rate limiting binding — it keeps no storage of
-# our own, which is why it is used here rather than a counter in KV. ORBIT_KV
-# is bound ONLY to the ingest Worker on purpose (it holds the live Space-Track
-# session cookie) and binding it to Pages to count requests would break that.
+# The binding is NOT declared here. It was, as:
 #
-# `period` accepts only 10 or 60. The limit here must match RATE_LIMIT
-# .requestsPerMinute in _ratelimit.js; api-throttle.test.mjs pins both to 30.
+#   [[unsafe.bindings]]
+#   name = "API_RATE_LIMITER"
+#   type = "ratelimit"
+#   namespace_id = "1001"
+#   simple = { limit = 30, period = 60 }
 #
-# The namespace_id is a rate-limiter id, local to this account's Workers
-# config — it is not a secret and not a resource that has to exist beforehand.
-[[unsafe.bindings]]
-name = "API_RATE_LIMITER"
-type = "ratelimit"
-namespace_id = "1001"
-simple = { limit = 30, period = 60 }
+# and that broke the deploy. `unsafe.bindings` is a Workers-only escape hatch;
+# Cloudflare Pages rejects it, and because this file sets
+# `pages_build_output_dir` the Pages build DOES parse it. Every build from
+# 28c9b049 (the commit that added the block) onward failed with "Build failed"
+# while `ci` stayed green — CI only runs `npm test`, it does not deploy — so
+# the site silently kept serving the last good build and the local tree looked
+# fine. Note this contradicts the older "wrangler.toml is inert for Pages" note
+# in CLAUDE.md: inert for *bindings*, not un-parsed.
+#
+# To actually enable the limiter, add the binding in the Pages dashboard
+# (Settings → Functions → Bindings), not here. Until then _ratelimit.js finds
+# no `env.API_RATE_LIMITER` and FAILS OPEN by design — the documented
+# behaviour, guarded by api-throttle.test.mjs's "an unconfigured limiter fails
+# OPEN, not closed". The limit lives in RATE_LIMIT.requestsPerMinute in
+# _ratelimit.js; keep any dashboard binding at 30/60 to match.
