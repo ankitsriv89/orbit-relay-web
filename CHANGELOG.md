@@ -3,6 +3,55 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-17 — Plane-rings toggle on `/constellations/`, site-wide feedback widget
+
+### Added
+- **Plane-rings toggle on `/constellations/`.** The page draws one glowing
+  orbital-plane ring per plane (`buildRings()`); at Starlink/OneWeb shell
+  density that's dozens of overlapping ellipses forming a dense lattice
+  sphere around the globe — reported as looking like a rendering bug, but
+  it's the intended "show orbital plane structure" feature. Added a
+  "PLANE RINGS" ON/OFF toggle to the DENSITY HUD panel (matches the existing
+  `st-toggle-btn` pattern used by `revs-toggle` and the overlay toggles on
+  `/spacetrack/`), defaulting to ON. Rings are hidden via `.show` on each
+  managed entity rather than rebuilt, so toggling is instant.
+- **Site-wide feedback widget** (`public/shared/feedback.js`): a floating
+  "FEEDBACK" tab, bottom-right, on all 10 public routes — mounted the same
+  way as `/js/beacon.js` (one `<script type="module">` tag per page, zero
+  page-specific wiring, self-injects its own styles so it needs no
+  `tokens.css` link). Lets a visitor report a bug, suggestion, or general
+  feedback with an optional reply email, without leaving the page or using
+  email.
+  - `POST /api/feedback` (`functions/api/feedback.js`) — public, no auth,
+    same low-PII pattern as `/api/hit`: captures `path` and a bucketed
+    `ua_class` (mobile/tablet/desktop/bot), never the raw User-Agent. Shares
+    `/api/hit`'s dedicated write rate-limit bucket in `_ratelimit.js` so a
+    feedback spammer can't also exhaust the read budget for real API
+    callers.
+  - New `feedback` D1 table (`d1/orbit.sql`) — `kind`, `message`, optional
+    `email`, `path`, `ua_class`, `reviewed`.
+  - New **FEEDBACK** admin panel (`public/admin/panels/feedback.js` +
+    `functions/api/admin/feedback.js`) — lists submissions newest-first with
+    a per-item MARK REVIEWED/UNREVIEWED toggle; the sidebar dot badges the
+    unreviewed count, same `badge()` contract as the runs panel.
+
+### Verification
+- `npm test` green: 82/82 syntax, all references resolve (67 files, up from
+  65), full orbit-ingest suite passing.
+- Rings toggle: Playwright confirmed all ring entities flip `.show` on
+  click with no console errors and no horizontal overflow at 390px.
+- Feedback widget: Playwright end-to-end — submitted from `/starlink/`
+  (which redirects to `/constellations/?c=starlink`), confirmed the row
+  landed in local D1 with the correct `kind`/`message`/`email`/`path`/
+  `ua_class`, then confirmed the admin FEEDBACK panel lists it and the
+  MARK REVIEWED toggle flips `reviewed` correctly.
+- Local D1 needed `wrangler d1 execute orbit-catalog --local --file
+  d1/orbit.sql` re-run to pick up the new table — idempotent
+  (`CREATE TABLE IF NOT EXISTS`), safe against the existing schema. Anyone
+  else running this locally needs the same before the feedback endpoint
+  will persist (it fails quiet, same contract as `/api/hit`, so a missing
+  table doesn't surface as an error to the visitor).
+
 ## 2026-08-17 — Plan 34 Phase 3.4 batch close: two real mobile bugs found by GPU-rendered visual inspection
 
 **Docs-only commit (this session), plus a CSS fix in `public/spacetrack/spacetrack.css`.**

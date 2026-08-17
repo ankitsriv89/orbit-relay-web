@@ -128,6 +128,10 @@
                 <span class="hud-label">ORBIT</span>
                 <button type="button" id="revs-toggle" class="st-toggle-btn" data-revs-label aria-label="Cycle orbit revolution count">REV 1×</button>
             </div>
+            <div class="hud-row hud-row--toggle">
+                <span class="hud-label">PLANE RINGS</span>
+                <button type="button" id="rings-toggle" class="st-toggle-btn st-toggle-btn--on" aria-pressed="true" aria-label="Toggle orbital plane rings">ON</button>
+            </div>
         </div>
     </div>
 
@@ -179,6 +183,7 @@
         mountMissionClock(document.getElementById('mission-clock'));
     </script>
     <script src="/js/beacon.js" defer></script>
+    <script type="module" src="/shared/feedback.js"></script>
 </body>
 
 </html>

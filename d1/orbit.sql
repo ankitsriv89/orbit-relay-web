@@ -286,3 +286,23 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
   steps TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ingest_runs_ts ON ingest_runs(ts DESC);
+
+-- ── feedback ───────────────────────────────────────────────────────────────
+-- User-submitted bug reports / suggestions / feedback from the public
+-- floating widget (public/shared/feedback.js), written by POST /api/feedback.
+-- Same low-PII pattern as page_views: path + a bucketed ua_class, never the
+-- raw User-Agent. email is optional and user-supplied, so it is NOT hashed
+-- (unlike page_views.ip_hash, which is derived from data we don't want to
+-- store raw) — it is only ever shown to an authenticated admin.
+CREATE TABLE IF NOT EXISTS feedback (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts         INTEGER NOT NULL,
+  kind       TEXT NOT NULL,     -- bug | suggestion | feedback
+  message    TEXT NOT NULL,
+  email      TEXT,              -- optional, user-supplied
+  path       TEXT,              -- location.pathname at submit time
+  ua_class   TEXT,              -- mobile | tablet | desktop | bot | unknown
+  reviewed   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_ts       ON feedback(ts DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_reviewed ON feedback(reviewed);

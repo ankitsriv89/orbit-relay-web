@@ -70,6 +70,7 @@ let currentData = null;
 let satEntities = [];
 let ringEntities = [];
 let activeCount = 0;
+let ringsVisible = true;
 
 /* ── HUD toggles + mobile nav ──────────────────────────────────────────── */
 wireHudToggle('stats-hud',  'stats-hud-toggle',  'stats-hud-body');
@@ -226,6 +227,7 @@ function buildRings(planes) {
         p.ringPositions = positions;
         const color = shellColor(p.shell);
         ringEntities.push(engine.addManagedEntity(viewer.entities.add({
+            show: ringsVisible,
             polyline: {
                 positions,
                 width: 1.2,
@@ -237,6 +239,7 @@ function buildRings(planes) {
             },
         })));
         ringEntities.push(engine.addManagedEntity(viewer.entities.add({
+            show: ringsVisible,
             polyline: {
                 positions,
                 width: 0.6,
@@ -248,6 +251,12 @@ function buildRings(planes) {
             },
         })));
     }
+    engine.requestRender();
+}
+
+function setRingsVisible(visible) {
+    ringsVisible = visible;
+    for (const e of ringEntities) e.show = visible;
     engine.requestRender();
 }
 
@@ -386,6 +395,16 @@ if (elSlider) {
 document.querySelectorAll('.constellation-selector__btn').forEach(btn => {
     btn.addEventListener('click', () => loadConstellation(btn.dataset.constellation));
 });
+
+const ringsToggle = document.getElementById('rings-toggle');
+if (ringsToggle) {
+    ringsToggle.addEventListener('click', () => {
+        setRingsVisible(!ringsVisible);
+        ringsToggle.textContent = ringsVisible ? 'ON' : 'OFF';
+        ringsToggle.classList.toggle('st-toggle-btn--on', ringsVisible);
+        ringsToggle.setAttribute('aria-pressed', String(ringsVisible));
+    });
+}
 
 /* ── Click-to-inspect ──────────────────────────────────────────────── */
 const detailCard   = document.getElementById('sat-detail');

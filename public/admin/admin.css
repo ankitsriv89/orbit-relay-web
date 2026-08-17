@@ -555,6 +555,53 @@ body[data-page-id="admin"] {
     overflow-x: auto;
 }
 
+/* ── Feedback panel ────────────────────────────────────────────────────────── */
+.admin-feedback-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+.admin-feedback-item {
+    padding: 10px 12px;
+    border: 1px solid rgba(0, 210, 255, 0.12);
+    border-radius: 4px;
+    background: rgba(0, 210, 255, 0.03);
+}
+.admin-feedback-item--reviewed {
+    opacity: 0.55;
+}
+.admin-feedback-item__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.admin-feedback-kind {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--c-void);
+    background: var(--c-signal-dim);
+}
+.admin-feedback-kind--bug { background: var(--c-warn); }
+.admin-feedback-kind--suggestion { background: var(--c-signal); }
+.admin-feedback-item__message {
+    margin: 0 0 8px;
+    font-size: 0.7rem;
+    color: var(--c-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.admin-feedback-item__toggle {
+    padding: 6px 10px;
+    font-size: 0.55rem;
+    min-height: 36px;
+}
+
 .admin-refresh-btn {
     font-family: var(--font-mono);
     font-size: 0.55rem;

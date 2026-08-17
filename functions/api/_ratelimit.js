@@ -49,11 +49,12 @@ export const RATE_LIMIT = {
   windowSeconds: 60,
 };
 
-// /api/hit is the only POST here and the only endpoint that WRITES to D1 —
-// one INSERT per pageview. It must not share a budget with the read endpoints:
-// a visitor hitting the read limit would otherwise stop their own analytics
-// beacon, and an abusive beacon would consume the budget for real reads.
-const WRITE_PATHS = new Set(['/api/hit']);
+// /api/hit and /api/feedback are the only POSTs here and the only endpoints
+// that WRITE to D1 — one INSERT per call. They must not share a budget with
+// the read endpoints: a visitor hitting the read limit would otherwise stop
+// their own analytics beacon or feedback submission, and an abusive beacon
+// would consume the budget for real reads.
+const WRITE_PATHS = new Set(['/api/hit', '/api/feedback']);
 
 /**
  * The bucket key for a request: one budget per IP per class.

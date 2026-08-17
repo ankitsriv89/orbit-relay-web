@@ -4,5 +4,6 @@ import visitors from './panels/visitors.js';
 import cf from './panels/cf.js';
 import sql from './panels/sql.js';
 import briefEditor from './panels/brief-editor.js';
+import feedback from './panels/feedback.js';
 
-export const PANELS = [health, runs, visitors, cf, sql, briefEditor];
+export const PANELS = [health, runs, visitors, cf, sql, briefEditor, feedback];
