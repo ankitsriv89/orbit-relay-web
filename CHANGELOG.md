@@ -3,6 +3,67 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-17 — Delete `/starlink/`, `?c=` deep links on `/constellations/`, mobile nav cleanup, collapsible time-warp
+
+### Changed
+- **`/starlink/` deleted.** `_redirects` was already sending every spelling
+  to `/constellations/?c=starlink` (a plan 34 3.2 C3 rewrite) — the 988-line
+  route had no inbound links left and nothing in `public/` imported from it.
+  Retargeted the 15 remaining `STARLINK ↗` nav links across `/orbit/`,
+  `/constellations/`, and all five `/spacetrack/*` pages, promoted the
+  `_redirects` rule 302 → 301 (permanent now that there's no page to fall
+  back to), dropped its `_headers` cache block, and fixed stale `/starlink/`
+  comments in `sat-engine.js`, `hud.js`, `orbital-relay.js`, and
+  `constellations.js`.
+- **`/constellations/` gained a real `CONSTELLATIONS` nav entry** — it was
+  previously unlisted in every nav, the landing page, `/wiki/`, and
+  `/about/`. Added across all of them per the landing-sync rule in
+  `CLAUDE.md`, plus a `_headers` cache-control block for the route (the
+  test that checks this caught its own gap: it had been asserting a rule
+  for `/starlink/*` while never asserting one for `/constellations/*`).
+- **`?c=` on `/constellations/` is now a real deep link.** Switching tabs
+  calls `history.pushState`/`replaceState` and updates `<title>`
+  ("GPS — Orbital Plane View"); `popstate` walks Back/forward between tabs
+  instead of leaving the address bar stale.
+- **Mobile topbars carry no cross-app links** — only brand + hamburger.
+  `orbit.css` was force-showing `.spacetrack-nav__source-link` at ≤768px
+  (STARLINK/SPACE-TRACK/CONSTELLATIONS all stacked in the 390px bar); now
+  hidden, matching `/constellations/`'s own scoped rule. The five
+  `/spacetrack/*` pages had the opposite problem — their hamburger was
+  `display:none !important` with cross-app links reachable nowhere on
+  mobile, because the bottom nav was already 6 items at 52px (a 7th would
+  drop every target under the 44px floor). Re-enabled and styled the
+  hamburger there instead; `/spacetrack/analytics/` had shipped the button
+  without ever calling `initHamburgerMenu()`, so it was dead — wired it.
+- **`/constellations/` time-warp HUD is now collapsible**, reusing the
+  `key-hud`/`wireHudToggle` pattern already shared by `/spacetrack/`'s
+  `shared/globe.js` instead of the always-expanded button row. The
+  collapsed toggle shows the live rate (`1×`, or `❚❚` when paused) so
+  collapsing never hides that the clock is stopped.
+- **Fixed a real HUD overlap on `/constellations/`, not just a cosmetic
+  squeeze**: `.orbital-sat-bar` sat at the same `bottom: 24px` band as the
+  footer at every viewport (desktop included), so the Space-Track citation
+  rendered underneath the "TRACKING n SATELLITES" pill. Restacked the
+  bottom chrome into distinct bands (footer → sat-bar → time-warp → density
+  HUD, each explicitly clearing the one below) and tightened collapsed-panel
+  padding so the four HUDs cost ~34% of the 390px viewport instead of ~48%.
+
+### Verification
+- `npm test`: 81/81 syntax, all references resolve (65 files — down from 67
+  with `/starlink/` gone), full orbit-ingest suite green.
+- Playwright/GPU (D3D11 ANGLE) across `/orbit/`, `/constellations/`,
+  `/spacetrack/` + its four sub-pages: zero visible cross-app links in any
+  mobile topbar, zero horizontal scroll, all touch targets ≥44px, at
+  390/412/820/1133/1400px.
+- `?c=` sync: confirmed URL + title update on tab click, Back/forward
+  correctly restores the prior tab and label, and `/constellations/?c=galileo`
+  boots directly into that tab.
+- HUD layout: automated overlap check (bounding-box intersection) across all
+  five required viewports confirms no two fixed panels overlap, time-warp
+  starts collapsed and opens on click without collapsing sibling panels
+  (`exclusive: 'never'`), and the paused-state chip reads correctly when
+  collapsed.
+
 ## 2026-08-17 — Plane-rings toggle on `/constellations/`, site-wide feedback widget
 
 ### Added

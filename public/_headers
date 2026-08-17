@@ -43,7 +43,7 @@
 /spacetrack/*
   Cache-Control: public, no-cache, must-revalidate
 
-/starlink/*
+/constellations/*
   Cache-Control: public, no-cache, must-revalidate
 
 /about/*

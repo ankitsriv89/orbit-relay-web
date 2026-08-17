@@ -7,11 +7,13 @@
 
 /orbit                    /orbit/                    301
 # /starlink/ became a preset of the constellation view (plan 34 3.2 C3):
-# every spelling now lands on /constellations/?c=starlink. 302, not 301 —
-# public/starlink/ files still exist behind the redirect and may be deleted
-# in a pure-deletion pass once the rewrite is old enough to trust.
-/starlink                /constellations/?c=starlink   302
-/starlink/*              /constellations/?c=starlink   302
+# every spelling lands on /constellations/?c=starlink. The pure-deletion pass
+# this comment used to anticipate has now happened — public/starlink/ is gone,
+# nothing serves that path, and the redirect is the only thing keeping old
+# bookmarks and external links alive. Promoted 302 → 301 accordingly: the move
+# is permanent now that there is no page left to fall back to.
+/starlink                /constellations/?c=starlink   301
+/starlink/*              /constellations/?c=starlink   301
 /spacetrack               /spacetrack/               301
 /spacetrack/signal        /spacetrack/signal/        301
 /spacetrack/conjunctions  /spacetrack/conjunctions/  301

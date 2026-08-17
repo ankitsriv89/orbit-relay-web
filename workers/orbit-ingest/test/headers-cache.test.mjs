@@ -58,7 +58,7 @@ const cacheOf = (p) => {
 /* Routes whose files the browser executes. A stale copy here is a broken page,
    not a cosmetic difference. */
 const CODE_ROUTES = [
-  '/orbit/*', '/spacetrack/*', '/starlink/*', '/about/*', '/wiki/*',
+  '/orbit/*', '/spacetrack/*', '/constellations/*', '/about/*', '/wiki/*',
   '/orbit-engine/*', '/js/*',
 ];
 

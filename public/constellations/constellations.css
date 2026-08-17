@@ -411,15 +411,38 @@ body[data-page-id="constellation-view"] .sl-slider-val span {
 
 /* ── Time-warp controls ──────────────────────────────────────────────── */
 
+/* Collapsible (key-hud pattern): the toggle stacks above the body, so this is
+   a column — it was a single flex row back when the speed buttons were always
+   visible. The body's own row layout is restored by .tw-body below. */
 body[data-page-id="constellation-view"] .time-warp {
     bottom: calc(120px + var(--sa-bottom));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    align-items: stretch;
     padding: 8px 16px;
     min-width: 0;
+}
+body[data-page-id="constellation-view"] .tw-toggle {
+    justify-content: center;
+}
+/* The collapsed bar is only the toggle, so the running rate has to show there
+   — otherwise a paused clock reads as a live one. */
+body[data-page-id="constellation-view"] .tw-current-rate {
+    color: rgba(200, 240, 255, 0.9);
+    margin-left: 4px;
+}
+body[data-page-id="constellation-view"] .time-warp .key-hud-body.tw-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+body[data-page-id="constellation-view"] .time-warp .key-hud-body.tw-body[hidden] {
+    display: none;
 }
 body[data-page-id="constellation-view"] .tw-label {
     font-size: 0.58rem;
@@ -497,9 +520,13 @@ body[data-page-id="constellation-view"] .sat-detail .hud-title { color: rgba(0, 
 
 /* ── Bottom satellite count bar ──────────────────────────────────────── */
 
+/* 46px, not 24px: the footer is a fixed bottom-right citation block that wraps
+   to two lines at narrow widths, and at 24px this centred pill landed on top of
+   it at every viewport (the citation text rendered through the pill). The
+   bottom bands are footer → sat-bar → time-warp, each clearing the one below. */
 body[data-page-id="constellation-view"] .orbital-sat-bar {
     position: fixed;
-    bottom: calc(24px + var(--sa-bottom));
+    bottom: calc(46px + var(--sa-bottom));
     left: 50%;
     transform: translateX(-50%);
     z-index: 15;
@@ -620,6 +647,14 @@ body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visib
         display: flex;
     }
 
+    /* Cross-app links belong in the dropdown, never in the topbar. The
+       .mobile-menu overlay already carries every one of them, so hiding them
+       here loses no destination and keeps the 390px bar to brand + hamburger.
+       Same reasoning as orbit.css's rule at this breakpoint. */
+    body[data-page-id="constellation-view"] .spacetrack-nav__source-link {
+        display: none;
+    }
+
     /* Selector bar: full-width strip under the nav, horizontal scroll
        instead of centering. */
     body[data-page-id="constellation-view"] .constellation-selector {
@@ -638,21 +673,36 @@ body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visib
         font-size: max(0.68rem, 11px);
     }
 
-    /* Top HUDs stack rather than share a row: stats at 136, planes at 208.
+    /* Top HUDs stack rather than share a row: stats at 132, planes at 188.
        Side-by-side toggles (each ~200px wide) physically overlap on a 390px
-       screen, and the two-column desktop corner layout has no room there. */
+       screen, and the two-column desktop corner layout has no room there.
+       The 56px pitch tracks the ~50px collapsed panel height that the tighter
+       .orbital-hud padding above produces (was 72px, tuned for 62px panels —
+       which left a visible dead gap and pushed the stack further down the
+       globe than it needed to go). */
     body[data-page-id="constellation-view"] #stats-hud {
-        top: calc(136px + var(--sa-top));
+        top: calc(132px + var(--sa-top));
         left: calc(12px + var(--sa-left));
     }
     body[data-page-id="constellation-view"] #planes-hud {
-        top: calc(208px + var(--sa-top));
+        top: calc(192px + var(--sa-top));
         left: calc(12px + var(--sa-left));
         right: auto;
-        max-height: calc(100vh - 220px - 12px);
+        max-height: calc(100vh - 204px - 12px);
     }
+    /* Collapsed, these are just labelled handles — they should be as wide as
+       their title and no wider. Without this they stretch toward the panel's
+       expanded width and wall off the top third of the globe. */
+    body[data-page-id="constellation-view"] #stats-hud.key-hud--collapsed,
+    body[data-page-id="constellation-view"] #planes-hud.key-hud--collapsed,
+    body[data-page-id="constellation-view"] #density-hud.key-hud--collapsed {
+        width: fit-content;
+        max-width: min(70vw, 260px);
+    }
+    /* Clears the time-warp band (174 + ~50 collapsed) rather than landing on
+       top of it. */
     body[data-page-id="constellation-view"] #density-hud {
-        bottom: calc(112px + var(--sa-bottom));
+        bottom: calc(234px + var(--sa-bottom));
         right: calc(12px + var(--sa-right));
     }
     body[data-page-id="constellation-view"] #density-hud:not(.key-hud--collapsed),
@@ -661,9 +711,41 @@ body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visib
         z-index: 18;
     }
 
-    body[data-page-id="constellation-view"] .orbital-sat-bar { font-size: 0.58rem; }
+    /* ── Bottom stack ────────────────────────────────────────────────────
+       Four fixed elements share the bottom of a 390px screen and used to
+       overlap: the footer is a wrapping 72vw block anchored bottom-right,
+       which ran straight through the centred sat-bar and time-warp (the
+       citation text rendered *over* the TIME buttons). Give each one its own
+       band, bottom-up: footer 8, sat-bar 44, time-warp 74. The footer is the
+       one that has to shrink — it is a citation, not a control. */
+    /* Bottom bands, each clearing the one below it. The feedback button owns
+       0..70; footer 76..~131 (wraps to ~55px narrow); sat-bar 136..~169;
+       time-warp 174..~224. */
+    body[data-page-id="constellation-view"] .orbital-sat-bar {
+        font-size: 0.58rem;
+        bottom: calc(136px + var(--sa-bottom));
+    }
 
-    body[data-page-id="constellation-view"] .time-warp { bottom: calc(60px + var(--sa-bottom)); }
+    body[data-page-id="constellation-view"] .time-warp {
+        bottom: calc(174px + var(--sa-bottom));
+    }
+
+    /* Full-width, centred and single-purpose on mobile: the right-anchored
+       72vw box only makes sense where there is room beside it.
+       The right inset clears the site-wide feedback button (shared/feedback.js
+       pins it bottom-right at 16px, ~150px wide, z-index 40 — it sits *over*
+       this footer otherwise, and the Space-Track citation here is legally
+       required to stay legible, so the footer yields the corner rather than
+       being covered by it). */
+    body[data-page-id="constellation-view"] .orbital-footer {
+        left: calc(8px + var(--sa-left));
+        right: calc(8px + var(--sa-right));
+        bottom: calc(76px + var(--sa-bottom));
+        max-width: none;
+        justify-content: center;
+        text-align: center;
+        line-height: 1.25;
+    }
 
     body[data-page-id="constellation-view"] .sat-detail {
         left: calc(12px + var(--sa-left));
@@ -672,10 +754,20 @@ body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visib
         max-width: none;
     }
 
+    /* Collapsed panels are chrome, not content: 12px of vertical padding on
+       each of four stacked panels cost ~100px of globe for nothing. 6px keeps
+       the 44px toggle (which sets the real touch target) while shrinking each
+       collapsed panel from 62px to ~50px. Horizontal padding stays generous
+       so the titles don't crowd the border. */
     body[data-page-id="constellation-view"] .orbital-hud {
         font-size: 0.64rem;
-        padding: 12px 16px;
+        padding: 6px 14px;
         min-width: 0;
+    }
+    /* An expanded panel gets its breathing room back — the squeeze above is
+       only about the collapsed resting state. */
+    body[data-page-id="constellation-view"] .orbital-hud:not(.key-hud--collapsed) {
+        padding: 10px 14px;
     }
 
     body[data-page-id="constellation-view"] .tw-btn {
@@ -723,18 +815,30 @@ body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visib
         overflow-y: auto;
     }
     body[data-page-id="constellation-view"] .orbital-sat-bar { display: none; }
-    body[data-page-id="constellation-view"] .orbital-hud { padding: 10px 14px; }
+    /* Scoped to the expanded state — a collapsed panel is a handle and keeps
+       the tight padding, which matters most in landscape where vertical space
+       is the scarce axis. */
+    body[data-page-id="constellation-view"] .orbital-hud:not(.key-hud--collapsed) {
+        padding: 10px 14px;
+    }
 }
 
 @media (max-width: 480px) {
+    /* Collapsed panels are the resting state and should cost as little globe
+       as possible: 4px of vertical padding around a 44px toggle is a ~52px
+       handle. Expanded panels keep real padding (rule below). */
     body[data-page-id="constellation-view"] .orbital-hud {
         font-size: 0.58rem;
-        padding: 8px 10px;
+        padding: 4px 10px;
+    }
+    body[data-page-id="constellation-view"] .orbital-hud:not(.key-hud--collapsed) {
+        padding: 10px 12px;
     }
 
-    /* The time-warp wraps to two rows below 480px; raise density clear of it */
+    /* Density clears the time-warp band above it (see the bottom-stack note
+       at the 768px breakpoint — the two must move together). */
     body[data-page-id="constellation-view"] #density-hud {
-        bottom: calc(168px + var(--sa-bottom));
+        bottom: calc(234px + var(--sa-bottom));
     }
 
     body[data-page-id="constellation-view"] .time-warp {

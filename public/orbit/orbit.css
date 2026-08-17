@@ -594,10 +594,15 @@ body[data-page-id="spacetrack-catalog"] {
         display: flex;
     }
 
-    /* Not present in spacetrack.css at this breakpoint — real drift, not a
-       dupe, so it stays here rather than in css/chrome.css. */
+    /* Cross-app links live in the hamburger dropdown on mobile, never in the
+       topbar. This used to be `display: block`, which put every source-link
+       (CELESTRAK / SPACE-TRACK / STARLINK / CONSTELLATIONS) beside the brand
+       on a 390px bar — three or more of them wrap and crowd out the hamburger
+       itself. The .mobile-menu overlay already carries each of these links, so
+       hiding them here loses no destination. Matches spacetrack.css, which
+       never had the `display: block` override in the first place. */
     .spacetrack-nav__source-link {
-        display: block;
+        display: none;
     }
 
     /* ── HUD panels ─────────────────────────────────────────────────────── */

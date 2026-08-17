@@ -3,7 +3,7 @@
  *
  * CesiumJS 3D globe with real satellite orbits + live tracking, driven by
  * Celestrak group files (STATIONS + constellation groups). Starlink has its
- * own dedicated page at /starlink/.
+ * own tab on /constellations/ (?c=starlink).
  *
  * The rendering and propagation engine lives in `/orbit-engine/` and is shared
  * with `/spacetrack/` (plan 33 wave 3) — points in one PointPrimitiveCollection,
@@ -34,7 +34,7 @@ import { renderLayerList } from './layers.js';
 /* ── Token + constants ─────────────────────────────────────────────────── */
 // The previous orbit-page token was rejected by api.cesium.com with a 403,
 // and the globe silently rendered with NO imagery — a black ball that read
-// as "globe not rendering". This is the same token /spacetrack/ and /starlink/
+// as "globe not rendering". This is the same token /spacetrack/ and /constellations/
 // use, which api.cesium.com accepts.
 Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +

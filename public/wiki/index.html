@@ -128,9 +128,15 @@
             </div>
 
             <div class="docs-app">
-                <h3>Starlink Constellation <span class="docs-app__path">/starlink/</span></h3>
-                <p>The full live Starlink shell — the largest single constellation in
-                   the catalog — rendered as orbital planes on its own dedicated globe.</p>
+                <h3>Constellations <span class="docs-app__path">/constellations/</span></h3>
+                <p>Five constellations — Starlink, OneWeb, GPS, Galileo and Iridium —
+                   rendered as live orbital planes on one globe, one shell at a time.
+                   The active constellation is a tab in the selector bar and is also
+                   carried in the URL as <code>?c=</code> (for example
+                   <code>/constellations/?c=gps</code>), so a given shell is a
+                   shareable link and browser Back steps between tabs. The older
+                   <code>/starlink/</code> path redirects here as
+                   <code>?c=starlink</code>.</p>
             </div>
         </section>
 
@@ -271,7 +277,7 @@
                         <li><a href="/orbit/">Orbital Relay</a></li>
                         <li><a href="/spacetrack/">Space-Track Catalog</a></li>
                         <li><a href="/spacetrack/signal/">Signal</a></li>
-                        <li><a href="/starlink/">Starlink Constellation</a></li>
+                        <li><a href="/constellations/">Constellations</a></li>
                     </ul>
                 </nav>
 

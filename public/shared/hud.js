@@ -1,6 +1,6 @@
 /**
  * Shared HUD (collapsible panel) and mobile-nav logic, used by every page
- * that has the `.key-hud` panel pattern: /orbit/, /starlink/ and all of
+ * that has the `.key-hud` panel pattern: /orbit/, /constellations/ and all of
  * /spacetrack/.
  *
  * Provides:
@@ -215,7 +215,7 @@ export function initFilterDrawer() {
  * the current value).
  *
  * These are shared/hud.js exports (not spacetrack-internal) because every
- * route that draws `addInspectVisuals` — /orbit/, /starlink/ and all four
+ * route that draws `addInspectVisuals` — /orbit/, /constellations/ and all four
  * spacetrack pages — needs the same button semantics. */
 
 export const REVS_OPTIONS = [1, 3, 5];

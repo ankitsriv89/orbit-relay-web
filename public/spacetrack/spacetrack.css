@@ -25,11 +25,46 @@ body[data-page-id="spacetrack-catalog"] {
  * .spacetrack-nav__list/__link* and the .mobile-menu overlay are shared with
  * orbit.css and now live in css/chrome.css. */
 
-/* Hamburger hidden on desktop, shown on mobile. Kept here (not chrome.css):
- * this page has no hamburger UI, so it's `display:none` unconditionally —
- * orbit.css's `.hamburger-btn` is a fully styled, visible-on-mobile button. */
+/* Hamburger hidden on desktop, shown on mobile (the @768px block below flips
+ * it to flex). This used to be an unconditional `display:none` because these
+ * pages relied on the bottom nav alone — but the bottom nav is already 6 items
+ * at 52px wide on a 390px screen, so cross-app destinations (CONSTELLATIONS,
+ * CELESTRAK) had nowhere to go: a 7th item would push every target under the
+ * 44px floor. The dropdown carries them instead, leaving the bottom nav for
+ * the five in-app sections. Styling mirrors orbit.css's button so the two
+ * chromes match; the shared .mobile-menu overlay is already in chrome.css. */
 .hamburger-btn {
     display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: border-color 0.15s;
+    margin-left: auto;
+}
+.hamburger-line {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: rgba(200, 240, 255, 0.85);
+    border-radius: 1px;
+    transition: transform 0.2s, opacity 0.2s;
+}
+.hamburger-btn.hamburger--open .hamburger-line:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+}
+.hamburger-btn.hamburger--open .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+.hamburger-btn.hamburger--open .hamburger-line:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
 }
 
 /* .mobile-menu__inner: kept here — orbit.css adds `align-items: center` that
@@ -1147,7 +1182,9 @@ body[data-page-id="spacetrack-catalog"] #dossier {
      * Kept here (not chrome.css): orbit.css's mobile override is
      * `display:flex` (it reveals the button); this is `!important
      * display:none` (this page keeps it hidden). Real drift. */
-    .hamburger-btn { display: none !important; }
+    /* Was `display: none !important` — the bottom nav was the only mobile nav
+       and cross-app links had no home. See the base rule's note. */
+    .hamburger-btn { display: flex; }
 
     /* .spacetrack-nav__list { display:none } and .spacetrack-nav padding
      * (identical to orbit.css at this breakpoint) now live in css/chrome.css. */

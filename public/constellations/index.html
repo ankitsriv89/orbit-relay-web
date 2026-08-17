@@ -36,7 +36,7 @@
             <li><a href="/orbit/" class="spacetrack-nav__link" role="menuitem">ORBITAL RELAY</a></li>
             <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">SPACETRACK</a></li>
         </ul>
-        <a href="/starlink/" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
+        <a href="/constellations/?c=starlink" class="spacetrack-nav__source-link" title="Starlink constellation">STARLINK ↗</a>
         <a href="/spacetrack/" class="spacetrack-nav__source-link" title="Space-Track catalog">SPACE-TRACK ↗</a>
         <button id="hamburger-btn" class="hamburger-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
             <span class="hamburger-line"></span>
@@ -52,7 +52,6 @@
         <a href="/orbit/" class="mobile-menu__link">ORBITAL RELAY</a>
         <a href="/spacetrack/" class="mobile-menu__link">SPACETRACK</a>
         <hr class="mobile-menu__divider">
-        <a href="/starlink/" class="mobile-menu__link mobile-menu__source">STARLINK ↗</a>
         <a href="/spacetrack/" class="mobile-menu__link mobile-menu__source">SPACE-TRACK ↗</a>
     </div>
 
@@ -140,18 +139,27 @@
         TRACKING&nbsp;<span id="hud-sat-count">—</span>&nbsp;<span id="hud-sat-label">STARLINK</span>&nbsp;SATELLITES
     </div>
 
-    <!-- Time-warp controls -->
-    <div id="time-warp" class="orbital-hud time-warp" role="group" aria-label="Time warp controls">
-        <span class="tw-label">⏱ TIME</span>
-        <div class="tw-btns">
-            <button class="tw-btn" data-rate="0"    title="Pause">❚❚</button>
-            <button class="tw-btn tw-btn--active" data-rate="1"    title="Real time">1×</button>
-            <button class="tw-btn" data-rate="10"   title="10× speed">10×</button>
-            <button class="tw-btn" data-rate="100"  title="100× speed">100×</button>
-            <button class="tw-btn" data-rate="1000" title="1000× speed">1000×</button>
+    <!-- Time-warp controls — collapsible, same key-hud pattern as the other
+         HUDs on this page and as /spacetrack/'s (shared/globe.js builds the
+         equivalent markup there). Starts collapsed so the speed-button row
+         does not sit over the globe on load; the active rate stays readable
+         in the toggle's chip. -->
+    <div id="time-warp" class="orbital-hud time-warp key-hud key-hud--collapsed" role="group" aria-label="Time warp controls">
+        <button class="key-hud-toggle tw-toggle" id="time-warp-toggle" aria-expanded="false" aria-controls="time-warp-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="tw-label">⏱ TIME <span id="tw-current-rate" class="tw-current-rate">1×</span></span>
+        </button>
+        <div id="time-warp-body" class="key-hud-body tw-body" hidden>
+            <div class="tw-btns">
+                <button class="tw-btn" data-rate="0"    title="Pause">❚❚</button>
+                <button class="tw-btn tw-btn--active" data-rate="1"    title="Real time">1×</button>
+                <button class="tw-btn" data-rate="10"   title="10× speed">10×</button>
+                <button class="tw-btn" data-rate="100"  title="100× speed">100×</button>
+                <button class="tw-btn" data-rate="1000" title="1000× speed">1000×</button>
+            </div>
+            <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
+            <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
         </div>
-        <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
-        <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     </div>
 
     <!-- Satellite inspector card -->

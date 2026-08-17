@@ -28,7 +28,7 @@ all static ES modules with **no build step**:
 | `/spacetrack/conjunctions/` | Derived close-approach screening |
 | `/spacetrack/brief/` | Daily brief |
 | `/spacetrack/analytics/` | Catalog analytics |
-| `/starlink/` | Starlink constellation view |
+| `/constellations/` | Constellation plane view — Starlink/OneWeb/GPS/Galileo/Iridium, tab in `?c=` |
 | `/about/` | Data sources, how it works, privacy, legal |
 | `/wiki/` | Per-route app reference + glossary of derived terms |
 

@@ -10,10 +10,10 @@
  * flies the camera to any plane's ring, and the selector bar switches
  * constellation — Starlink / OneWeb / GPS / Galileo / Iridium.
  *
- * Data: Celestrak group TLEs via /api/tle (the same path /starlink/ uses),
+ * Data: Celestrak group TLEs via /api/tle (the same path /orbit/ uses),
  * parsed client-side. The full bundle is fetched at boot for every
  * constellation — the density slider's max needs the total from the start,
- * so there is deliberately NO fetch-all button (unlike /starlink/'s).
+ * so there is deliberately NO fetch-all button.
  *
  * Rings are Earth-fixed schematics of the inertial orbital plane, exactly
  * like the GEO belt and the regime shells — see compute.js's frame notes.
@@ -50,12 +50,15 @@ const SHELL_COLORS = {
     HEO: '#ff6ec7',
 };
 
+/* `label` is the HUD/bottom-bar token (all caps, reads as "TRACKING n STARLINK
+   SATELLITES"); `title` is the prose form used in <title> and the nav link, so
+   the tab and the address bar name the constellation currently on screen. */
 const CONSTELLATIONS = {
-    starlink: { label: 'STARLINK', group: 'starlink' },
-    oneweb:   { label: 'ONEWEB',   group: 'oneweb' },
-    gps:      { label: 'GPS',      group: 'gps-ops' },
-    galileo:  { label: 'GALILEO',  group: 'galileo' },
-    iridium:  { label: 'IRIDIUM',  group: 'iridium-NEXT' },
+    starlink: { label: 'STARLINK', title: 'Starlink',  group: 'starlink' },
+    oneweb:   { label: 'ONEWEB',   title: 'OneWeb',    group: 'oneweb' },
+    gps:      { label: 'GPS',      title: 'GPS',       group: 'gps-ops' },
+    galileo:  { label: 'GALILEO',  title: 'Galileo',   group: 'galileo' },
+    iridium:  { label: 'IRIDIUM',  title: 'Iridium',   group: 'iridium-NEXT' },
 };
 
 const SOURCE = 'celestrak';
@@ -346,7 +349,18 @@ function clearScene() {
     engine.requestRender();
 }
 
-async function loadConstellation(key) {
+/* Keep ?c= and the document title in step with the active tab, so the address
+   bar is always a shareable deep link to what is actually on screen and Back
+   walks the tabs. replaceState on the initial load (the URL already says what
+   we are showing); pushState only on a real user switch. */
+function syncLocation(key, def, { push }) {
+    document.title = `${def.title} — Orbital Plane View`;
+    const url = `${location.pathname}?c=${encodeURIComponent(key)}${location.hash}`;
+    if (push) history.pushState({ c: key }, '', url);
+    else history.replaceState({ c: key }, '', url);
+}
+
+async function loadConstellation(key, { push = true } = {}) {
     const def = CONSTELLATIONS[key];
     if (!def) return;
     document.querySelectorAll('.constellation-selector__btn').forEach(b => {
@@ -354,6 +368,7 @@ async function loadConstellation(key) {
         b.classList.toggle('constellation-selector__btn--active', on);
         b.setAttribute('aria-pressed', String(on));
     });
+    syncLocation(key, def, { push: push && currentKey !== null && currentKey !== key });
     if (currentKey === key && currentData) return;
 
     currentKey = key;
@@ -475,6 +490,18 @@ clickHandler.setInputAction((movement) => {
 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 /* ── Time-warp controls ────────────────────────────────────────────── */
+/* `exclusive: 'never'` — the time bar is a persistent control, not one of the
+   mutually-exclusive corner panels, so opening it must not close stats/planes
+   (same call /spacetrack/'s shared/globe.js makes). */
+wireHudToggle('time-warp', 'time-warp-toggle', 'time-warp-body', { exclusive: 'never' });
+
+/* The collapsed toggle still has to say what rate is running, or pausing then
+   collapsing leaves no indication the clock is stopped. */
+const elCurrentRate = document.getElementById('tw-current-rate');
+function syncCurrentRateChip(rate) {
+    if (elCurrentRate) elCurrentRate.textContent = rate === 0 ? '❚❚' : `${rate}×`;
+}
+
 document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
     btn.addEventListener('click', () => {
         const rate = parseInt(btn.dataset.rate, 10);
@@ -486,6 +513,7 @@ document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
         }
         document.querySelectorAll('.tw-btn[data-rate]').forEach(b =>
             b.classList.toggle('tw-btn--active', b === btn));
+        syncCurrentRateChip(rate);
     });
 });
 
@@ -532,4 +560,13 @@ window.__constellations = {
 
 /* ── Boot ──────────────────────────────────────────────────────────── */
 const preset = new URLSearchParams(location.search).get('c');
-loadConstellation(CONSTELLATIONS[preset] ? preset : 'starlink');
+loadConstellation(CONSTELLATIONS[preset] ? preset : 'starlink', { push: false });
+
+/* Back/forward walks the tabs. `push: false` — the entry already exists in the
+   history stack; pushing again would make Back a no-op that never unwinds. */
+window.addEventListener('popstate', (e) => {
+    const key = (e.state && e.state.c)
+        || new URLSearchParams(location.search).get('c')
+        || 'starlink';
+    if (CONSTELLATIONS[key]) loadConstellation(key, { push: false });
+});

@@ -141,7 +141,7 @@ function tuneCameraLimits(viewer) {
  * `positionCartographic.height` — entirely NaN. The globe disappears and no
  * error is thrown; the page just goes black and stops responding to input.
  *
- * Verified against production, on /orbit/, /starlink/ and /constellations/
+ * Verified against production, on /orbit/, /spacetrack/ and /constellations/
  * (every page that calls this), and reproducible in four steps: load, drag to
  * rotate, put the cursor over the globe, scroll. It is specific to that path —
  * wheel WITHOUT a preceding drag is fine, wheel over empty space is fine, and
@@ -385,7 +385,7 @@ export class SatEngine {
 
         // Bloom matches the initial cinematics level. This runs at construction
         // (not only on a setCinematics flip) so pages that never call
-        // setCinematics — /starlink/, /constellations/ — still inherit the
+        // setCinematics — /constellations/ — still inherits the
         // engine default 'high' exactly like the eclipse pass does.
         this._applyCinematics();
     }
@@ -1130,7 +1130,7 @@ export class SatEngine {
  * makes Cesium stop rendering and paint its error dialog across the globe.
  * A path that cannot be unpacked must degrade to "no ring drawn", never to
  * "the scene is dead". Observed in production as a RangeError dialog on
- * /orbit/, /starlink/ and /constellations/.
+ * /orbit/, /spacetrack/ and /constellations/.
  */
 function unpackPositions(xyz, count) {
     const n = Number(count);

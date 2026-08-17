@@ -1,10 +1,15 @@
 import { $, setText, num } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
 import { API } from '../shared/api.js';
-import { initMobileListener } from '/shared/hud.js';
+import { initMobileListener, initHamburgerMenu } from '/shared/hud.js';
 import { bars, stackedBars, svgLine, svgHistogram, cumulative } from '/shared/charts.js';
 
 initMobileListener();
+/* This page ships the same #hamburger-btn + .mobile-menu markup as its four
+   siblings but was the only one that never wired it — harmless while the CSS
+   hid the button, a dead control once the dropdown became the home for
+   cross-app links. */
+initHamburgerMenu();
 
 /* ── Analytics ────────────────────────────────────────────────────────────────
  * Catalog dashboard: KPI strip, growth, cohort survival, orbit distributions,
