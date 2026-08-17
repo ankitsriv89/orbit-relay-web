@@ -15,7 +15,7 @@
  *   - the summary and feed artifacts
  */
 
-import { operatorFor, OPERATOR_LABELS } from './operators.js';
+import { operatorFor } from './operators.js';
 
 /**
  * The citation is a **condition of the redistribution approval**, not a
@@ -458,13 +458,16 @@ export async function buildSummary(env, { groups = null } = {}) {
     citation: CITATION,
     tracked: total ? total.n : 0,
     last_elset_ingest: lastIngest ? lastIngest.t : null,
+    // All four breakdowns share one shape — `{KEY: n}` — so the API's
+    // tallyToRows() can read them uniformly. by_country/by_operator used to be
+    // arrays of {code/id, n, ...}, which tallyToRows() silently mis-read as
+    // Object.entries() of an array (index as key, whole object as n) —
+    // that produced the NaN counts and bogus option values seen in the
+    // unfiltered country/operator filter dropdowns.
     by_type: Object.fromEntries(byType.map((r) => [r.k || 'UNKNOWN', r.n])),
     by_regime: Object.fromEntries(byRegime.map((r) => [r.k || 'UNKNOWN', r.n])),
-    by_country: byCountry.map((r) => ({ code: r.k, n: r.n })),
-    by_operator: byOperator.map((r) => ({
-      id: r.k, label: OPERATOR_LABELS[r.k] || r.k, n: r.n,
-      derived: true,   // operator is OUR inference — see operators.js
-    })),
+    by_country: Object.fromEntries(byCountry.map((r) => [r.k || 'UNKNOWN', r.n])),
+    by_operator: Object.fromEntries(byOperator.map((r) => [r.k || 'UNKNOWN', r.n])),
     groups: groups || undefined,
     group_labels: Object.fromEntries(
       Object.entries(GROUPS).map(([k, g]) => [k, g.label])),

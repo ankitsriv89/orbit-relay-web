@@ -61,8 +61,12 @@ export const API = {
         return fetchJSON(`${API_BASE}/summary`);
     },
 
-    async facets() {
-        return fetchJSON(`${API_BASE}/search?facets=1`);
+    async facets(params = {}) {
+        const qs = new URLSearchParams({ facets: '1' });
+        Object.entries(params).forEach(([k, v]) => {
+            if (v !== '' && v != null) qs.set(k, v);
+        });
+        return fetchJSON(`${API_BASE}/search?${qs.toString()}`);
     },
 
     async object(norad) {

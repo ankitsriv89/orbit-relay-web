@@ -48,28 +48,33 @@ async function handle(context) {
   const url = new URL(request.url);
   const p = (k) => (url.searchParams.get(k) || '').trim();
 
-  const where = [];
-  const args  = [];
+  // Built as {param: [clause, ...args]} rather than flat arrays so facet mode
+  // can drop one dimension's own condition when computing that dimension's
+  // counts — see the `facet()` helper below. Everything that isn't tied to a
+  // single filter param (search text, decayed, era/year) lives under 'base'
+  // and always applies.
+  const whereByParam = { base: [] };
+  const pushWhere = (param, clause, ...vals) => {
+    (whereByParam[param] || (whereByParam[param] = [])).push([clause, vals]);
+  };
 
   // Decayed objects are excluded unless asked for. They are most of the
   // difference between "what is up there" and "what has ever been catalogued",
   // and defaulting to the former is what every count on the page means.
-  if (p('include_decayed') !== '1') where.push('DECAY_DATE IS NULL');
+  if (p('include_decayed') !== '1') pushWhere('base', 'DECAY_DATE IS NULL');
 
   const q = p('q');
   if (q) {
     if (/^\d+$/.test(q)) {
       // A bare number is a catalog number. Also matched against the name, so
       // searching "1408" still finds "COSMOS 1408".
-      where.push('(NORAD_CAT_ID = ? OR OBJECT_NAME LIKE ?)');
-      args.push(Number.parseInt(q, 10), `%${q}%`);
+      pushWhere('base', '(NORAD_CAT_ID = ? OR OBJECT_NAME LIKE ?)', Number.parseInt(q, 10), `%${q}%`);
     } else {
       // A contains-match on the name cannot use idx_objects_name — a leading
       // wildcard never can. That is accepted: the alternative is a prefix-only
       // search, and "starlink" would then miss "STARLINK-1234 DEB". The scan is
       // over ~28k rows of one indexed column, bounded by LIMIT.
-      where.push('(OBJECT_NAME LIKE ? OR OBJECT_ID LIKE ?)');
-      args.push(`%${q}%`, `${q}%`);
+      pushWhere('base', '(OBJECT_NAME LIKE ? OR OBJECT_ID LIKE ?)', `%${q}%`, `${q}%`);
     }
   }
 
@@ -78,7 +83,7 @@ async function handle(context) {
     ['operator', 'operator'], ['rcs', 'RCS_SIZE'], ['family', 'debris_family'],
   ]) {
     const v = p(param);
-    if (v) { where.push(`${column} = ?`); args.push(v); }
+    if (v) pushWhere(param, `${column} = ?`, v);
   }
 
   const era = p('era');
@@ -88,15 +93,34 @@ async function handle(context) {
       return json({ error: `Unknown era. Use one of: ${Object.keys(ERAS).join(', ')}` },
                   { status: 400 });
     }
-    where.push('launch_year BETWEEN ? AND ?');
-    args.push(range[0], range[1]);
+    pushWhere('era', 'launch_year BETWEEN ? AND ?', range[0], range[1]);
   }
   const from = Number.parseInt(p('year_from'), 10);
   const to   = Number.parseInt(p('year_to'), 10);
-  if (Number.isInteger(from)) { where.push('launch_year >= ?'); args.push(from); }
-  if (Number.isInteger(to))   { where.push('launch_year <= ?'); args.push(to); }
+  if (Number.isInteger(from)) pushWhere('era', 'launch_year >= ?', from);
+  if (Number.isInteger(to))   pushWhere('era', 'launch_year <= ?', to);
 
-  const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+  // Builds a WHERE clause + bound args from every param's conditions except
+  // `excludeParam` — used so a dimension's own facet counts (e.g. every
+  // country, with its catalog-wide total) aren't collapsed by the country
+  // filter the user picked, while still narrowing by every *other* active
+  // filter (type, regime, operator, era, search). That's what makes the
+  // filter panel cascade instead of each select only ever showing whatever
+  // was already chosen.
+  function buildClause(excludeParam) {
+    const clauses = [];
+    const boundArgs = [];
+    for (const [param, entries] of Object.entries(whereByParam)) {
+      if (param === excludeParam) continue;
+      for (const [clause, vals] of entries) {
+        clauses.push(clause);
+        boundArgs.push(...vals);
+      }
+    }
+    return { clause: clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '', args: boundArgs };
+  }
+
+  const { clause, args } = buildClause(null);
 
   // Sort keys are whitelisted, never interpolated from the query string — this
   // is the one place in the statement where a bound parameter cannot be used.
@@ -118,7 +142,12 @@ async function handle(context) {
   //
   // Only the unfiltered form: the artifact holds whole-catalog totals, so a
   // request carrying filters still has to ask D1, and falls through below.
-  if (p('facets') === '1' && where.length === 1 && args.length === 0) {
+  // include_decayed=1 counts as a filter too — it asks a different question
+  // than the artifact (which is built from DECAY_DATE IS NULL) answers, even
+  // though it doesn't add a 'base' condition of its own.
+  const isUnfiltered = p('include_decayed') !== '1'
+    && Object.keys(whereByParam).every((param) => param === 'base');
+  if (p('facets') === '1' && isUnfiltered) {
     const artifact = await readSummary(env);
     if (artifact) {
       return json(withCitation({
@@ -139,14 +168,21 @@ async function handle(context) {
     .prepare(`SELECT COUNT(*) AS n FROM objects${clause}`).bind(...args).first();
 
   // Facet mode returns the breakdown without the rows — what the filter chips
-  // need to show their counts, at a fraction of the payload.
+  // need to show their counts, at a fraction of the payload. Each dimension
+  // excludes its own filter param (see buildClause) so picking a country
+  // narrows the type/regime/operator lists without collapsing the country
+  // list down to the one already chosen — that's the cascade.
   if (p('facets') === '1') {
-    const facet = (col) => env.ORBIT_DB.prepare(
-      `SELECT ${col} AS k, COUNT(*) AS n FROM objects${clause} GROUP BY k ORDER BY n DESC LIMIT 40`
-    ).bind(...args).all();
+    const facet = (col, excludeParam) => {
+      const scoped = buildClause(excludeParam);
+      return env.ORBIT_DB.prepare(
+        `SELECT ${col} AS k, COUNT(*) AS n FROM objects${scoped.clause} GROUP BY k ORDER BY n DESC LIMIT 40`
+      ).bind(...scoped.args).all();
+    };
 
     const [type, country, regime, operator] = await Promise.all([
-      facet('OBJECT_TYPE'), facet('COUNTRY_CODE'), facet('regime'), facet('operator'),
+      facet('OBJECT_TYPE', 'type'), facet('COUNTRY_CODE', 'country'),
+      facet('regime', 'regime'), facet('operator', 'operator'),
     ]);
     return json(withCitation({
       total: total ? total.n : 0,
@@ -202,8 +238,17 @@ async function readSummary(env) {
     const parsed = JSON.parse(await object.text());
     // Guard the shape: a partial artifact (the D1-fallback form summary.js
     // writes when it has not been built yet, which carries `stale: true` and
-    // empty breakdowns) must not be served as a complete facet set.
-    if (!parsed || parsed.stale || !parsed.by_type || !parsed.by_country) return null;
+    // empty breakdowns) must not be served as a complete facet set. Also
+    // reject a pre-fix artifact still sitting in R2 from before by_country/
+    // by_operator were normalized to flat {key: n} objects — an old one has
+    // by_country as an array of {code, n}, which tallyToRows() misreads as
+    // NaN counts. Falling through to D1 here is what makes the shape fix take
+    // effect on deploy, without waiting for the next daily ingest run to
+    // overwrite the artifact.
+    if (!parsed || parsed.stale || !parsed.by_type || !parsed.by_country
+        || Array.isArray(parsed.by_country) || Array.isArray(parsed.by_operator)) {
+      return null;
+    }
     return parsed;
   } catch (_) {
     return null;

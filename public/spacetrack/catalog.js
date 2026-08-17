@@ -219,8 +219,8 @@ hoverHandler.setInputAction(() => {
 /* ── Filter drawer sync ────────────────────────────────────────────────────
  * On mobile, the filter drawer duplicates the filter form. We sync values
  * between the two sets of inputs so either surface controls the same state. */
-const FILTER_FIELDS = ['f-q', 'f-type', 'f-country', 'f-regime', 'f-era', 'f-operator'];
-const DRAWER_FIELDS = ['fd-q', 'fd-type', 'fd-country', 'fd-regime', 'fd-era', 'fd-operator'];
+const FILTER_FIELDS = ['f-q', 'f-country', 'f-type', 'f-regime', 'f-era', 'f-operator'];
+const DRAWER_FIELDS = ['fd-q', 'fd-country', 'fd-type', 'fd-regime', 'fd-era', 'fd-operator'];
 
 function syncDrawerFromForm() {
     FILTER_FIELDS.forEach((srcId, i) => {
@@ -243,7 +243,9 @@ function populateDrawerSelects() {
         const src = $(FILTER_FIELDS[i]);
         const dst = $(dstId);
         if (!src || !dst) return;
+        const prev = dst.value;
         dst.innerHTML = src.innerHTML;
+        dst.value = src.value || prev;
     });
 }
 
@@ -272,6 +274,16 @@ if (fdReset) {
         document.querySelectorAll('.st-preset-btn').forEach(b => b.classList.remove('st-preset-btn--active'));
     });
 }
+
+/* Drawer selects cascade too: mirror the changed value onto the main form's
+   field (loadFacets reads from FILTER_FIELDS, not DRAWER_FIELDS) and refetch. */
+const DRAWER_CASCADE = ['fd-country', 'fd-type', 'fd-regime', 'fd-operator'];
+DRAWER_CASCADE.forEach((dstId) => {
+    on(dstId, 'change', () => {
+        syncFormFromDrawer();
+        loadFacets();
+    });
+});
 
 /* Sync drawer when it opens (via the overlay click handler in hud.js) */
 const fdOverlay = $('filter-drawer-overlay');
@@ -311,13 +323,31 @@ async function loadSummary() {
 }
 
 /* ── Facets → filter options ──────────────────────────────────────────────── */
+// Country is the primary dimension: it's listed first in the panel and its
+// own option list always reflects the whole catalog (never narrowed by the
+// other filters, so switching country back and forth never loses options).
+// The other three cascade off whatever's currently selected — picking a
+// country narrows type/regime/operator to what's actually available for it.
+// The API does the narrowing (each dimension excludes its own filter param,
+// see functions/api/search.js's buildClause/facet()); this just decides which
+// query params to send and preserves each select's current value across a
+// refill so re-populating doesn't clear the user's other choices.
+const CASCADE_FIELDS = ['f-country', 'f-type', 'f-regime', 'f-operator'];
+
 async function loadFacets() {
     try {
-        const f = await API.facets();
+        const params = {};
+        for (const id of CASCADE_FIELDS) {
+            const key = id.slice(2); // 'f-country' -> 'country'
+            const v = $(id)?.value;
+            if (v) params[key] = v;
+        }
+        const f = await API.facets(params);
         fillSelect('f-type', f.facets?.type);
         fillSelect('f-country', f.facets?.country);
         fillSelect('f-regime', f.facets?.regime);
         fillSelect('f-operator', f.facets?.operator);
+        populateDrawerSelects();
     } catch (err) {
         console.warn('[catalog] facets failed:', err);
     }
@@ -326,13 +356,30 @@ async function loadFacets() {
 function fillSelect(id, entries) {
     const el = $(id);
     if (!el || !entries) return;
+    const prev = el.value;
     while (el.options.length > 1) el.remove(1);
     for (const e of entries) {
         if (e.key == null || e.key === '') continue;
+        const n = Number(e.n);
         const opt = document.createElement('option');
         opt.value = e.key;
-        opt.textContent = `${e.key} (${num(e.n)})`;
+        opt.textContent = Number.isFinite(n) ? `${e.key} (${num(n)})` : e.key;
         el.appendChild(opt);
+    }
+    // Restore the previous selection: appendChild doesn't re-select a
+    // matching <option> on its own, so without this the select falls back
+    // to "any" (value '') even when the fresh list still contains `prev`.
+    if (prev) el.value = prev;
+    // Keep the user's selection even if the fresh option list (now scoped to
+    // the other active filters) doesn't happen to include it as an <option> —
+    // re-adding it rather than silently resetting to "any" avoids the filter
+    // panel fighting the user's own choice mid-cascade.
+    if (prev && el.value !== prev) {
+        const opt = document.createElement('option');
+        opt.value = prev;
+        opt.textContent = prev;
+        el.appendChild(opt);
+        el.value = prev;
     }
 }
 
@@ -507,7 +554,8 @@ clickHandler.setInputAction((movement) => {
 
 /* ── Boot ────────────────────────────────────────────────────────────────── */
 loadSummary();
-loadFacets().then(() => populateDrawerSelects());
+loadFacets();
+CASCADE_FIELDS.forEach(id => on(id, 'change', loadFacets));
 
 /* ══════════════════════════════════════════════════════════════════════════════
    TIER 3.2 — TIME-BASED FILTER PRESETS
