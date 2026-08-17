@@ -143,9 +143,13 @@
 
     <div id="time-warp" class="orbital-hud time-warp" role="group" aria-label="Time warp controls"></div>
 
-    <div id="dossier" class="orbital-hud sat-detail st-dossier" hidden>
+    <div id="dossier" class="orbital-hud sat-detail st-dossier key-hud" hidden>
         <button id="dossier-close" class="sat-detail-close" aria-label="Close">✕</button>
-        <div class="hud-title" id="dossier-name">// OBJECT</div>
+        <button class="key-hud-toggle" id="dossier-toggle" aria-expanded="true" aria-controls="dossier-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="hud-title hud-title--bare" id="dossier-name">// OBJECT</span>
+        </button>
+        <div id="dossier-body" class="key-hud-body">
         <div class="st-dossier__id" id="dossier-designator">—</div>
         <div class="hud-row"><span class="hud-label">NORAD</span><span id="d-norad" class="hud-val">—</span></div>
         <div class="hud-row"><span class="hud-label">TYPE</span><span id="d-type" class="hud-val">—</span></div>
@@ -166,6 +170,7 @@
         <div class="hud-row"><span class="hud-label">ELSET</span><span id="d-epoch" class="hud-val">—</span></div>
         <div class="st-dossier__decay" id="dossier-decay" hidden></div>
         <div class="st-dossier__status" id="dossier-status"></div>
+        </div>
     </div>
 
     <footer class="orbital-footer">

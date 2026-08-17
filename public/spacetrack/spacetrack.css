@@ -699,6 +699,39 @@ body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scro
     margin-top: 0;
 }
 
+/* ── Time-warp collapse toggle (catalog, conjunctions, signal — wired by
+ * shared/globe.js's initTimeWarpButtons) ───────────────────────────────────
+ * Collapsed it reads as a compact "⏱ TIME 10×" chip instead of a full row
+ * of speed buttons, so it stops eating a full-width strip above the bottom
+ * nav on mobile when the user isn't actively scrubbing time. */
+.time-warp.key-hud {
+    padding: 8px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+}
+.tw-toggle {
+    justify-content: center;
+}
+.tw-current-rate {
+    color: rgba(200, 240, 255, 0.9);
+    margin-left: 4px;
+}
+.time-warp .key-hud-body.tw-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.time-warp .key-hud-body.tw-body[hidden] {
+    display: none;
+}
+.time-warp.key-hud--collapsed {
+    padding: 6px 14px;
+}
+
 /* ── Daily brief (wave 6) ────────────────────────────────────────────────────
  * Hidden until a brief artifact exists. The section itself is inside the
  * dropdown, so hidden means the tab shows nothing (greyed out or absent).
@@ -1048,11 +1081,14 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     }
 
     body[data-page-id="spacetrack-catalog"] #dossier {
-        left: 50%;
-        right: auto;
-        bottom: calc(72px + var(--sa-bottom));
-        transform: translateX(-50%);
+        top: calc(56px + var(--sa-top));
+        left: auto;
+        right: calc(16px + var(--sa-right));
+        bottom: auto;
+        transform: none;
         z-index: 30;
+        max-width: min(40vw, 220px);
+        max-height: min(55vh, 460px, calc(100vh - 56px - 96px - var(--sa-top) - var(--sa-bottom)));
     }
 
     .orbital-hud:not(.key-hud--collapsed) {
@@ -1162,16 +1198,27 @@ body[data-page-id="spacetrack-catalog"] #dossier {
         top: auto;
     }
 
-    /* Dossier: full-width above time controls */
+    /* Dossier: docked top-right, collapsible, capped well short of the
+     * screen so it never blocks the whole globe. Used to be a full-width
+     * sheet pinned to the bottom (up to 45vh) that sat right over the
+     * globe's center of interest; corner-docking plus the collapse toggle
+     * (see #dossier-toggle in shared/dossier.js) keeps it out of the way
+     * while a satellite is being inspected. */
     body[data-page-id="spacetrack-catalog"] #dossier,
     body[data-page-id="spacetrack-signal"] #dossier,
     body[data-page-id="spacetrack-conjunctions"] #dossier {
-        left: calc(8px + var(--sa-left));
+        top: calc(48px + var(--sa-top));
+        left: auto;
         right: calc(8px + var(--sa-right));
-        bottom: calc(130px + var(--sa-bottom));
+        bottom: auto;
         transform: none;
         z-index: 35;
-        max-height: 45vh;
+        max-width: min(62vw, 240px);
+        /* Fixed ceiling, not just viewport-relative — a fully-populated
+         * record (decay banner + all 13 fields) can still fill the looser
+         * calc() on a short phone; this keeps a real amount of the globe
+         * visible even for the tallest possible dossier content. */
+        max-height: min(52vh, 420px, calc(100vh - 48px - 64px - var(--sa-top) - var(--sa-bottom)));
     }
 
     /* Time warp: full-width dedicated row above bottom nav */

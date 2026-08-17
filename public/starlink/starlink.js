@@ -142,7 +142,7 @@ const slColor = Cesium.Color.fromCssColorString('#00ccff');
 
 function spawnStarlink(i) {
     const rec = slAllRecords[i];
-    return engine.addSatellite(rec.satrec, slColor, 4, false,
+    return engine.addSatellite(rec.satrec, slColor, 6, false,
         { satrec: rec.satrec, l1: rec.l1, l2: rec.l2,
           name: rec.name, group: 'STARLINK', pulse: false });
 }

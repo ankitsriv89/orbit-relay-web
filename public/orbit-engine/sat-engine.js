@@ -561,7 +561,7 @@ export class SatEngine {
             outlineColor:             Cesium.Color.BLACK.withAlpha(0.4),
             outlineWidth:             pointSize > 7 ? 1.5 : 0,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance:          new Cesium.NearFarScalar(1e6, 1.2, 2e7, 0.6),
+            scaleByDistance:          new Cesium.NearFarScalar(1e6, 1.2, 2e7, 0.85),
             show:                     true,
         });
 

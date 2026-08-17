@@ -14,7 +14,7 @@
 import { orbVel, fmtLat, fmtLon } from '/orbit-engine/astro.js';
 import { $, setText, relTime } from '/spacetrack/shared/utils.js';
 import { getApiBase } from '/spacetrack/shared/api.js';
-import { currentRevs } from '/shared/hud.js';
+import { currentRevs, expandHud, wireHudToggle } from '/shared/hud.js';
 
 const TRAIL_MAX = 60;            // max positions in the trail
 const TRAIL_STEP_MS = 2000;      // ms between trail samples
@@ -22,6 +22,8 @@ const TRAIL_STEP_MS = 2000;      // ms between trail samples
 export function createDossier({ viewer, engine, State, trail = false, revs } = {}) {
     const dossier = $('dossier');
     const dossierClose = $('dossier-close');
+    const dossierToggle = $('dossier-toggle');
+    const dossierBody = $('dossier-body');
     let dossierVisuals = null;
     let dossierVisualMeta = null;
     let dossierTimer = null;
@@ -83,6 +85,11 @@ export function createDossier({ viewer, engine, State, trail = false, revs } = {
     }
     dossierClose?.addEventListener('click', close);
 
+    // Collapsible like the other HUD panels (plan: newly-opened dossier
+    // always starts expanded — a returning user re-opening a satellite
+    // shouldn't have to remember it was left collapsed last time).
+    if (dossierToggle && dossierBody) wireHudToggle('dossier', 'dossier-toggle', 'dossier-body');
+
     function rebuildVisuals() {
         if (!dossierSatrec || !dossierVisualMeta) return;
         engine.removeEntities(dossierVisuals);
@@ -108,6 +115,7 @@ export function createDossier({ viewer, engine, State, trail = false, revs } = {
     async function open(norad, meta) {
         if (!dossier || norad == null) return;
         dossier.hidden = false;
+        if (dossierToggle) expandHud('dossier');
         setText('dossier-status', 'loading…');
 
         if (meta?.satrec) {

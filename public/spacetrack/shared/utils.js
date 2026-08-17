@@ -56,12 +56,12 @@ function inTime(ms) {
  * Returns a pixel size suitable for a PointPrimitive.
  */
 export function regimeSize(altKm) {
-    if (altKm == null) return 4;
-    if (altKm < 600)   return 3;    // LEO
-    if (altKm < 2000)  return 4;    // LEO upper
-    if (altKm < 10000) return 5;    // MEO
-    if (altKm < 36000) return 6;    // MEO upper / HEO
-    return 7;                        // GEO / beyond
+    if (altKm == null) return 6;
+    if (altKm < 600)   return 5;    // LEO
+    if (altKm < 2000)  return 6;    // LEO upper
+    if (altKm < 10000) return 7;    // MEO
+    if (altKm < 36000) return 8;    // MEO upper / HEO
+    return 10;                       // GEO / beyond
 }
 
 export function setText(id, value) {

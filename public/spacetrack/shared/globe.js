@@ -1,5 +1,6 @@
 import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../../orbit-engine/sat-engine.js';
 import { State } from './state.js';
+import { wireHudToggle } from '/shared/hud.js';
 
 Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
@@ -90,33 +91,46 @@ export function initTimeWarpButtons(container) {
         container = document.getElementById('time-warp');
         if (!container) return;
     }
+    container.classList.add('key-hud');
     container.innerHTML = `
-        <span class="tw-label">⏱ TIME</span>
-        <div class="tw-btns">
-            <button class="tw-btn" data-rate="0" title="Pause">❚❚</button>
-            <button class="tw-btn tw-btn--active" data-rate="1" title="Real time">1×</button>
-            <button class="tw-btn" data-rate="10" title="10× speed">10×</button>
-            <button class="tw-btn" data-rate="100" title="100× speed">100×</button>
-            <button class="tw-btn" data-rate="1000" title="1000× speed">1000×</button>
+        <button class="key-hud-toggle tw-toggle" id="time-warp-toggle" aria-expanded="true" aria-controls="time-warp-body">
+            <span class="key-hud-toggle-arrow">▶</span>
+            <span class="tw-label">⏱ TIME <span id="tw-current-rate" class="tw-current-rate">1×</span></span>
+        </button>
+        <div id="time-warp-body" class="key-hud-body tw-body">
+            <div class="tw-btns">
+                <button class="tw-btn" data-rate="0" title="Pause">❚❚</button>
+                <button class="tw-btn tw-btn--active" data-rate="1" title="Real time">1×</button>
+                <button class="tw-btn" data-rate="10" title="10× speed">10×</button>
+                <button class="tw-btn" data-rate="100" title="100× speed">100×</button>
+                <button class="tw-btn" data-rate="1000" title="1000× speed">1000×</button>
+            </div>
+            <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
+            <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
         </div>
-        <button id="recenter-btn" class="tw-btn recenter-btn" title="Recenter globe" aria-label="Recenter globe">⌖</button>
-        <span id="cam-alt" class="cam-alt" aria-label="Camera altitude above the surface"></span>
     `;
     if (viewer) mountCameraAltitudeHud(viewer, container.querySelector('#cam-alt'));
     const recenterBtn = container.querySelector('#recenter-btn');
     if (recenterBtn) recenterBtn.addEventListener('click', () => { if (viewer) flyHome(viewer); });
+    const currentRateEl = container.querySelector('#tw-current-rate');
+    const syncCurrentRateChip = (rate) => {
+        if (currentRateEl) currentRateEl.textContent = rate === 0 ? '❚❚' : `${rate}×`;
+    };
     document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
         btn.addEventListener('click', () => {
             const rate = Number(btn.dataset.rate);
             setTimeRate(rate);
             document.querySelectorAll('.tw-btn[data-rate]').forEach(b => b.classList.toggle('tw-btn--active', b === btn));
+            syncCurrentRateChip(rate);
         });
     });
     const savedRate = normalizeTimeRate(State.get('time.rate'));
     if (savedRate != null) {
         setTimeRate(savedRate);
         document.querySelectorAll('.tw-btn[data-rate]').forEach(b => b.classList.toggle('tw-btn--active', Number(b.dataset.rate) === savedRate));
+        syncCurrentRateChip(savedRate);
     }
+    wireHudToggle('time-warp', 'time-warp-toggle', 'time-warp-body', { exclusive: 'never' });
 }
 
 /** Legacy saved rates (0/1/60/600) map to the nearest new preset

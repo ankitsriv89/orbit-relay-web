@@ -89,7 +89,7 @@ function addObjects(rows) {
         try { satrec = satellite.twoline2satrec(row.TLE_LINE1, row.TLE_LINE2); }
         catch (_) { noElset++; continue; }
 
-        rendered.push(engine.addSatellite(satrec, colorFor(row.OBJECT_TYPE), 4, false, {
+        rendered.push(engine.addSatellite(satrec, colorFor(row.OBJECT_TYPE), 6, false, {
             satrec, l1: row.TLE_LINE1, l2: row.TLE_LINE2,
             name: row.OBJECT_NAME || String(row.NORAD_CAT_ID),
             group: row.OBJECT_TYPE || 'UNKNOWN',

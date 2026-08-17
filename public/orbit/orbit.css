@@ -525,6 +525,18 @@ body[data-page-id="spacetrack-catalog"] {
     margin: -4px 0 8px;
 }
 
+/* Dossier collapse toggle (only pages using shared/dossier.js — catalog,
+   conjunctions, signal — have #dossier-toggle in the markup; /orbit/'s
+   TLE-only #sat-detail has no toggle and is unaffected). Collapsed, the
+   card shrinks to just its title row so it stops covering the globe. */
+#dossier.key-hud--collapsed {
+    max-height: none;
+    overflow: visible;
+}
+#dossier .key-hud-toggle {
+    padding-right: 24px;
+}
+
 .orbital-footer {
     position: fixed;
     bottom: calc(8px + var(--sa-bottom));
@@ -617,11 +629,15 @@ body[data-page-id="spacetrack-catalog"] {
         border-radius: 6px;
     }
 
+    /* Docked top-right rather than a full-width bottom sheet — the bottom
+       dock used to sit right over the globe's center of interest. */
     .sat-detail {
-        left: calc(8px + var(--sa-left));
+        top: calc(48px + var(--sa-top));
+        left: auto;
         right: calc(8px + var(--sa-right));
-        bottom: calc(130px + var(--sa-bottom));
-        max-width: none;
+        bottom: auto;
+        max-width: min(62vw, 240px);
+        max-height: min(52vh, 420px, calc(100vh - 48px - 64px - var(--sa-top) - var(--sa-bottom)));
         z-index: 35;
     }
 
