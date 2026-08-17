@@ -646,50 +646,6 @@ State.subscribe('preferences.colorMode', (newMode) => {
     }
 });
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   TIER 3.4 — SCREENSHOT / SNAPSHOT BUTTON
-   ══════════════════════════════════════════════════════════════════════════════ */
-const screenshotBtn = $('screenshot-btn');
-if (screenshotBtn) {
-    screenshotBtn.addEventListener('click', async (e) => {
-        const canvas = viewer.scene.canvas;
-        let blob;
-        try {
-            blob = await new Promise((resolve, reject) => {
-                canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
-            });
-        } catch (err) {
-            console.warn('[catalog] screenshot failed:', err);
-            return;
-        }
-        if (e.shiftKey) {
-            try {
-                await navigator.clipboard.write([
-                    new ClipboardItem({ 'image/png': blob }),
-                ]);
-                screenshotBtn.classList.add('st-screenshot-btn--copied');
-                screenshotBtn.textContent = '✓';
-                setTimeout(() => {
-                    screenshotBtn.classList.remove('st-screenshot-btn--copied');
-                    screenshotBtn.textContent = '\u{1F4F7}';
-                }, 1500);
-            } catch (err) {
-                console.warn('[catalog] clipboard write failed:', err);
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
-            }
-        } else {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            a.download = `spacetrack-${ts}.png`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-    });
-}
-
 /* ── Default data: auto-render recent payloads on first load ────────────── */
 (async function loadDefault() {
     status('loading catalog…');
