@@ -37,6 +37,11 @@ Cesium.Ion.defaultAccessToken =
     'eyJqdGkiOiI2MjFjZDg5My0zMTRiLTQ3ZjMtOTNlNi1iM2E3ZGNjYWE5ZTQiLCJpZCI6MzkzOTM1LCJpYXQiOjE3NzE5Nzk4NTd9.' +
     'eAH51ApKzzuBIkgwf-rqo4G2U6cSBOQMTPFAALBb2Hg';
 
+/* Density slider defaults. DENSITY_MIN is the *desired* floor, not a hard
+   one: GPS (32) and Galileo (~30) have fewer objects than 40, so the real
+   min is `min(DENSITY_MIN, total)` per constellation. Clamping up to a
+   fixed 40 walked renderOrder past its end and threw, which loadConstellation's
+   catch swallowed into a silent empty globe. */
 const DENSITY_MIN  = 40;
 const DENSITY_STEP = 10;
 
@@ -293,7 +298,10 @@ function renderPlanesList(planes) {
 
 function renderSats(data, n) {
     if (!data) return;
-    const count = Math.max(DENSITY_MIN, Math.min(n, data.records.length));
+    /* Clamp DOWN to what exists first. renderOrder has exactly records.length
+       entries, so any count above it indexes undefined and throws. */
+    const total = data.records.length;
+    const count = Math.min(Math.max(1, Math.trunc(n) || 1), total);
 
     for (let i = satEntities.length; i < count; i++) {
         const recIdx = data.renderOrder[i];
@@ -337,6 +345,7 @@ const elSlider = document.getElementById('ct-slider');
 const elCountDisplay = document.getElementById('ct-count-display');
 const elTotalDisplay = document.getElementById('ct-total-display');
 const elLabelMax = document.getElementById('ct-label-max');
+const elLabelMin = document.getElementById('ct-label-min');
 
 function clearScene() {
     closeInspector();
@@ -381,19 +390,32 @@ async function loadConstellation(key, { push = true } = {}) {
         const data = cache[key] || (cache[key] = await fetchAndGroup(def));
         currentData = data;
 
+        /* Per-constellation range: a constellation smaller than DENSITY_MIN
+           (GPS 32, Galileo ~30) gets min === max === total, so the slider is
+           a no-op rather than a request for satellites that do not exist. */
+        const total = data.records.length;
+        const min   = Math.min(DENSITY_MIN, total);
         if (elSlider) {
-            elSlider.max = data.records.length;
-            elSlider.value = Math.max(DENSITY_MIN, Math.min(parseInt(elSlider.value, 10) || DENSITY_MIN, data.records.length));
+            elSlider.min  = min;
+            elSlider.max  = total;
+            elSlider.step = Math.max(1, Math.min(DENSITY_STEP, total - min));
+            const prev = parseInt(elSlider.value, 10);
+            elSlider.value = Math.min(Math.max(Number.isFinite(prev) ? prev : min, min), total);
         }
-        if (elLabelMax) elLabelMax.textContent = data.records.length;
-        if (elTotalDisplay) elTotalDisplay.textContent = data.records.length;
-        if (elCountDisplay) elCountDisplay.textContent = elSlider ? elSlider.value : DENSITY_MIN;
+        if (elLabelMin) elLabelMin.textContent = min;
+        if (elLabelMax) elLabelMax.textContent = total;
+        if (elTotalDisplay) elTotalDisplay.textContent = total;
+        if (elCountDisplay) elCountDisplay.textContent = elSlider ? elSlider.value : min;
 
         buildRings(data.planes);
         renderPlanesList(data.planes);
-        renderSats(data, elSlider ? parseInt(elSlider.value, 10) : DENSITY_MIN);
+        renderSats(data, elSlider ? parseInt(elSlider.value, 10) : min);
     } catch (err) {
         console.warn(`[constellations] ${def.group} load failed:`, err);
+        /* Surface it. This catch previously left the bar on INITIALIZING…
+           forever, which is how a hard TypeError in renderSats read as
+           "there is nothing to show" instead of "this broke". */
+        if (elCount) elCount.textContent = 'LOAD FAILED';
     }
 
     introFlyIn();
