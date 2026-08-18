@@ -685,6 +685,15 @@ body[data-page-id="spacetrack-catalog"] {
         padding-bottom: 10px;
     }
 
+    /* Recenter is a single-glyph square, so the shared .tw-btn min-width of
+       38px leaves it narrower than the 44px target the rest of this block
+       enforces — and it is the control a user reaches for precisely when the
+       globe has drifted off screen and they are least able to aim. */
+    .recenter-btn {
+        min-width: 44px;
+        font-size: 1.05rem;
+    }
+
     .refresh-btn {
         width: 44px;
         height: 44px;
@@ -825,9 +834,22 @@ body[data-page-id="spacetrack-catalog"] {
         padding:   8px 10px;
     }
 
+    /* The readout drops to its own line (flex-basis below); the CONTROLS are
+       meant to stay on one row. Tighten the gap/padding so the 44px recenter
+       target fits at 390px instead of wrapping the button to a second line and
+       making the panel taller than the globe needs it to be. */
     .time-warp {
         flex-wrap: wrap;
         row-gap: 4px;
+        gap: 6px;
+        padding: 8px 8px;
+    }
+
+    .tw-btns { gap: 3px; }
+
+    .tw-btn {
+        padding-left: 6px;
+        padding-right: 6px;
     }
 
     .cam-alt {

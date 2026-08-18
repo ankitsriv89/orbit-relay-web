@@ -88,7 +88,12 @@ const PULSE_TICK_MS = SAT_TICK_MS;
  */
 const DESKTOP_DPR_CAP = 2;
 
-export function tuneViewerForDevice(viewer, { mobileMaxWidth = 600 } = {}) {
+/* 768 to match `isMobile()` in /shared/hud.js, which is what picks the
+ * cinematics level. At the previous 600 a 601-768px viewport (large phones in
+ * landscape, iPad mini portrait) got cinematics 'low' — correctly identified as
+ * a weak device — while still being handed the DESKTOP resolution path at up to
+ * 2x DPR, i.e. the expensive half of the budget. One breakpoint, one answer. */
+export function tuneViewerForDevice(viewer, { mobileMaxWidth = 768 } = {}) {
     const scene = viewer.scene;
 
     scene.requestRenderMode         = true;
@@ -100,6 +105,16 @@ export function tuneViewerForDevice(viewer, { mobileMaxWidth = 600 } = {}) {
         // Unchanged mobile path — see the note above.
         viewer.useBrowserRecommendedResolution = true;
         viewer.resolutionScale = 0.85;
+
+        /* FXAA is a full-screen post-process pass that Cesium leaves ON by
+         * default. With bloom already disabled at cinematics 'low' it is the
+         * last such pass a phone pays for, and at resolutionScale 0.85 the
+         * softening it fights is not what limits perceived sharpness anyway.
+         * Guarded: `fxaa` is a lazy getter and postProcessStages needs WebGL2,
+         * so a restricted renderer must boot without it (same discipline as the
+         * bloom guard in _applyCinematics). */
+        const fxaa = scene.postProcessStages && scene.postProcessStages.fxaa;
+        if (fxaa) fxaa.enabled = false;
     } else {
         viewer.useBrowserRecommendedResolution = false;
         const dpr = Number(window.devicePixelRatio) || 1;
@@ -117,16 +132,21 @@ export function tuneViewerForDevice(viewer, { mobileMaxWidth = 600 } = {}) {
  * Cesium's default `maximumZoomDistance` is unbounded, so a fast trackpad/
  * scroll-wheel flick (or a pinch on mobile) can push the globe past the far
  * clipping plane or shrink it to a few pixels off-center — it reads as "the
- * globe fell out of the screen." GEO altitude is ~35,786 km; 110,000 km is
- * >3x that, so geostationary shells (and everything below) stay comfortably
- * in frame at every viewport size while still capping the runaway zoom-out.
- * `minimumZoomDistance` stops the inverse case — zooming inside the globe
- * and clipping through the surface.
+ * globe fell out of the screen." `minimumZoomDistance` stops the inverse case
+ * — zooming inside the globe and clipping through the surface.
+ *
+ * The ceiling was 110,000 km, chosen as ">3x GEO". That prevents the extreme
+ * failure but not the practical one: measured on a 390px viewport, ~35 wheel
+ * ticks reach the cap exactly, and by then the globe is a small dot lost in
+ * empty space with no on-screen cue for how to get back. GEO (~35,786 km) is
+ * the outermost thing this product actually plots, so 60,000 km still frames
+ * the full geostationary shell with generous margin at every viewport size
+ * while keeping Earth a recognisable object rather than a speck.
  */
 function tuneCameraLimits(viewer) {
     const controller = viewer.scene.screenSpaceCameraController;
     controller.minimumZoomDistance = 500;
-    controller.maximumZoomDistance = 1.1e8;
+    controller.maximumZoomDistance = 6.0e7;
     controller.enableInputs = true;
 
     guardCameraAgainstNaN(viewer);
@@ -218,10 +238,16 @@ function guardCameraAgainstNaN(viewer) {
     });
 }
 
-/** The same top-down framing every page boots into — see the `setView` calls
- *  in orbital-relay.js / globe.js / starlink.js. Kept here too so `flyHome`
- *  has a default that matches "home" without a caller having to repeat it. */
-const HOME_DESTINATION = Cesium.Cartesian3.fromDegrees(20, 25, 40000000);
+/** The top-down framing every page comes to REST at.
+ *
+ *  Boot is two-stage: an initial `setView` at 40,000 km, then `introFlyIn()`
+ *  settles to 22,000 km (orbital-relay.js / constellations.js) — the latter is
+ *  what a user actually sees and calls "how the page looked". This constant was
+ *  40,000,000 m, i.e. the fly-in's STARTING point, so recentering from the
+ *  110,000 km zoom cap left the globe at 40,000 km: still a small dot, and
+ *  visibly not a reset. Matching the resting altitude is what makes one press
+ *  of the button restore the view the user loaded with. */
+const HOME_DESTINATION = Cesium.Cartesian3.fromDegrees(20, 25, 22000000);
 
 /**
  * Recenter the globe: fly back to a fixed top-down destination with a level
@@ -821,11 +847,23 @@ export class SatEngine {
     }
 
     /** The procedural star skyBox (C4): six canvas faces of a deterministic
-     *  3D star field, encoded as PNG data URLs — a few KB of generated image
-     *  strings, no external assets (the plan §1.3 lesson). See
-     *  starfield.js for the pure math. */
+     *  3D star field, encoded as PNG data URLs — no external assets (the plan
+     *  §1.3 lesson). See starfield.js for the pure math.
+     *
+     *  Face size is device-dependent. Measured cost of buildSkyFaceSources()
+     *  (desktop GPU, so a phone is worse): 2048 -> 200 ms / 0.91 MB of data
+     *  URL; 512 -> 44 ms / 0.13 MB. That is synchronous main-thread work in the
+     *  constructor, before the first frame. Small screens take 512 for two
+     *  reasons: they boot at cinematics 'low', where the skyBox is built and
+     *  then immediately hidden (see _applyCinematics) so the texture is never
+     *  sampled; and the 2048 rationale in starfield.js is explicitly about
+     *  magnification on a 1440p display, which does not describe a phone.
+     *  The preemption of Cesium's Tycho-2 CDN fetch only needs a skyBox to
+     *  EXIST, not to be large — so the small texture keeps that intact. */
     _buildSkyBox() {
-        return new Cesium.SkyBox({ sources: buildSkyFaceSources(), show: true });
+        const small = window.matchMedia('(max-width: 768px)').matches;
+        const sources = buildSkyFaceSources(small ? { size: 512 } : {});
+        return new Cesium.SkyBox({ sources, show: true });
     }
 
     /**

@@ -7,6 +7,13 @@
     <meta name="description" content="Space-Track Catalog — discover, filter, and visualize the full USSPACECOM object catalog on a 3D globe.">
     <meta name="theme-color" content="#000000">
     <title>Space-Track Catalog — Orbital Relay</title>
+    <!-- Boot contacts four cross-origin hosts (library, Ion token, imagery
+         tiles). Hinting them here starts DNS+TCP+TLS during HTML parse instead
+         of at discovery, which on a high-latency mobile link is the single
+         largest fixed cost on the critical path. -->
+    <link rel="preconnect" href="https://cesium.com" crossorigin>
+    <link rel="preconnect" href="https://api.cesium.com" crossorigin>
+    <link rel="dns-prefetch" href="https://assets.ion.cesium.com">
     <!-- CesiumJS -->
     <script src="../orbit-engine/cesium-base.js"></script>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>

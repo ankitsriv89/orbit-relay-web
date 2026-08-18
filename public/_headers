@@ -67,6 +67,14 @@
 /js/*
   Cache-Control: public, no-cache, must-revalidate
 
+# Shared ES modules (hud.js, feedback.js, mission-clock.js, dossier.js, ...).
+# Same reasoning as /js/* — executable, un-hashed, imported by every route, so
+# a stale copy fails exactly like a stale app module. These previously matched
+# no rule at all and fell through to the catch-all, which sets security headers
+# but no Cache-Control, leaving the policy up to whatever Pages defaults to.
+/shared/*
+  Cache-Control: public, no-cache, must-revalidate
+
 /icon.svg
   Cache-Control: public, max-age=86400
 

@@ -776,6 +776,13 @@ body[data-page-id="constellation-view"] .constellation-selector__btn:focus-visib
         padding-bottom: 10px;
     }
 
+    /* Single-glyph square — the shared .tw-btn min-width of 38px leaves it
+       under the 44px target. Mirrors the rule in orbit.css. */
+    body[data-page-id="constellation-view"] .recenter-btn {
+        min-width: 44px;
+        font-size: 1.05rem;
+    }
+
     body[data-page-id="constellation-view"] .sat-detail-close {
         width: 44px;
         height: 44px;

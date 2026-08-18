@@ -4,16 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta name="description" content="Orbital Relay — live satellite constellation and ISS telemetry on a 3D globe.">
     <meta name="theme-color" content="#000000">
     <title>Orbital Relay — Live Satellite Tracker</title>
+    <!-- Boot contacts four cross-origin hosts (library, Ion token, imagery
+         tiles). Hinting them here starts DNS+TCP+TLS during HTML parse instead
+         of at discovery, which on a high-latency mobile link is the single
+         largest fixed cost on the critical path. -->
+    <link rel="preconnect" href="https://cesium.com" crossorigin>
+    <link rel="preconnect" href="https://api.cesium.com" crossorigin>
+    <link rel="dns-prefetch" href="https://assets.ion.cesium.com">
     <!-- CesiumJS — deferred: cesium-base.js (sync, above) runs first, then
          this, then the module scripts, so the HUD/nav chrome paints while the
          ~3.4 MB library downloads instead of blocking the parser. -->
     <script src="../orbit-engine/cesium-base.js"></script>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js" defer></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <!-- Non-blocking: every Viewer widget is disabled (orbital-relay.js), so this
+         styles almost nothing visible, yet as a plain stylesheet it gated first
+         paint on a cesium.com round trip — cancelling out the defer above. The
+         media/onload swap loads it at low priority and applies it once fetched. -->
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css"
+          rel="stylesheet" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="orbit.css">
     <link rel="stylesheet" href="/css/chrome.css">
 </head>
@@ -31,7 +45,7 @@
     <!-- Top Navigation Bar -->
     <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="Orbital Relay navigation">
         <a href="/" class="spacetrack-nav__brand" aria-label="Home">
-            <img src="logo.png" alt="" class="spacetrack-nav__logo" width="28" height="28">
+            <img src="/icons/logo.png" alt="" class="spacetrack-nav__logo" width="28" height="28">
             HOME
         </a>
         <ul class="spacetrack-nav__list" role="menubar">
@@ -53,7 +67,7 @@
     <div id="mobile-menu" class="mobile-menu" hidden role="navigation" aria-label="Navigation menu">
         <button id="mobile-menu-close" class="mobile-menu__close" aria-label="Close navigation menu" type="button">&#10005;</button>
         <div class="mobile-menu__inner">
-            <img src="logo.png" alt="" class="mobile-menu__logo" width="48" height="48">
+            <img src="/icons/logo.png" alt="" class="mobile-menu__logo" width="48" height="48">
             <a href="/orbit/" class="mobile-menu__link mobile-menu__link--active">ORBITAL RELAY</a>
             <a href="/spacetrack/" class="mobile-menu__link">SPACETRACK</a>
             <a href="/constellations/" class="mobile-menu__link">CONSTELLATIONS</a>
