@@ -30,8 +30,7 @@
  */
 
 import {
-    geoAt, orbitalPeriodMin, footprintRadiusM, farSideFade, eclipseShadowFactor,
-    sunDirectionEcef,
+    geoAt, orbitalPeriodMin, footprintRadiusM, farSideFade,
 } from './astro.js';
 import { buildSkyFaceSources } from './starfield.js';
 import { markerCanvas, shapeForType } from './markers.js';
@@ -401,13 +400,14 @@ export class SatEngine {
         this._geoScratch = { lat: 0, lon: 0, alt: 0 };
         /** Comm-links renderer (ground-to-satellite RF links) */
         this._commLinks = null;
-        /** Cinematic quality (plan 34 §3.3): 'high' shades satellites inside
-         *  Earth's umbra via eclipseShadowFactor (the eclipse pass below),
-         *  enables the bloom post-process stage (C3) AND replaces the scene
-         *  skyBox with the procedural starfield (C4); 'low' keeps only the
-         *  camera-based far-side fade, bloom off and the skyBox hidden.
-         *  /orbit/ owns the persisted toggle; pages without one keep the
-         *  engine default. */
+        /** Cinematic quality (plan 34 §3.3): 'high' enables the bloom
+         *  post-process stage (C3) AND replaces the scene skyBox with the
+         *  procedural starfield (C4); 'low' turns both off. It no longer
+         *  gates any per-satellite shading — the eclipse pass it used to
+         *  drive was removed so night-side objects stay fully visible (see
+         *  _refreshOcclusion). The camera-based far-side fade runs at both
+         *  levels. /orbit/ owns the persisted toggle; pages without one keep
+         *  the engine default. */
         this.cinematics = 'high';
         /** The procedural star skyBox (C4), built lazily on the first
          *  _applyCinematics call — see _buildSkyBox(). Recreated never. */
@@ -829,29 +829,24 @@ export class SatEngine {
     _refreshOcclusion() {
         const cam = this.viewer.camera.positionWC;
         if (!cam) return;
-        // Eclipse shading (plan 34 §3.3, quality gate): the sun direction is a
-        // function of the clock, not of the camera, so it is computed ONCE per
-        // drawn frame and shared by every sat. sunDirectionEcef returns a unit
-        // ECEF vector — the same metres-frame as prim.position — and is pure
-        // math from astro.js (satellite.js has no sun module and Cesium 1.113
-        // dropped SunPosition; see its doc comment). One call per frame is the
-        // whole budget of the pass, matching the "deliberately does NOT call
-        // requestRender()" discipline above.
-        const sun = this.cinematics === 'high'
-            ? sunDirectionEcef(this.now())
-            : null;
+        // Eclipse shading was removed deliberately (it used to multiply this
+        // fade by eclipseShadowFactor at cinematics 'high'). Dimming every
+        // satellite inside Earth's umbra is a lighting cue, not a tracking one:
+        // it made the whole night hemisphere's traffic near-invisible, which is
+        // exactly the half an operator most needs to read. The umbra maths
+        // stays in astro.js — it is still tested, and it is what a future
+        // "sunlit / eclipsed" *badge* would use — but it no longer touches
+        // opacity. The globe pages disable sun lighting for the same reason.
+        //
+        // Camera occlusion still applies: a dot genuinely behind the Earth from
+        // the current viewpoint is faded, because that is a depth cue about
+        // *this* view rather than about the sun.
         for (let i = 0; i < this.allSats.length; i++) {
             const s = this.allSats[i];
             const prim = s.primitive;
             if (!prim.show) continue;
-            const fade = farSideFade(prim.position, cam);
-            // The two occluders multiply: the camera fades far-side dots, the
-            // sun dims dots inside the shadow cylinder. eclipseShadowFactor is
-            // 1 for every day-side sat, so 'low' (sun = null) is exactly the
-            // old behaviour and the sunlit majority of 'high' costs one extra
-            // multiply plus a dot product per sat.
-            const alpha = sun ? fade * eclipseShadowFactor(prim.position, sun) : fade;
-            s.farSide = fade < 1;
+            const alpha = farSideFade(prim.position, cam);
+            s.farSide = alpha < 1;
             if (Math.abs(alpha - s._appliedFade) < 0.01) continue;
             s._appliedFade = alpha;
             // Rebuild from the base snapshot, never from prim.color: the getter
@@ -952,16 +947,14 @@ export class SatEngine {
     }
 
     /**
-     * Set the cinematic quality (plan 34 §3.3 — the eclipse shading + bloom
-     * passes + star skyBox).
+     * Set the cinematic quality (plan 34 §3.3 — bloom + star skyBox).
      *
-     * 'high' shades satellites inside Earth's umbra via eclipseShadowFactor,
-     * enables the bloom post-process stage and shows the procedural star
-     * skyBox; 'low' disables all three and leaves the far-side fade alone.
-     * The first frame after a change rewrites every
-     * visible point — the pass compares against the last applied multiplier,
-     * which the flip invalidates — so requestRender() makes the change visible
-     * immediately rather than waiting for the next propagation tick.
+     * 'high' enables the bloom post-process stage and shows the procedural
+     * star skyBox; 'low' disables both. Neither level changes satellite
+     * opacity any more: the eclipse pass this used to gate was removed so
+     * night-side objects stay fully visible, and the camera-based far-side
+     * fade runs unconditionally. requestRender() makes the scene-level change
+     * visible immediately rather than waiting for the next propagation tick.
      *
      * @param {'high'|'low'} level
      */

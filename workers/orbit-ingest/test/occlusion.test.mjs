@@ -225,6 +225,41 @@ await test('the engine drives occlusion from the frame, not the propagation tick
             'the fade must not be computed inside the propagation tick');
 });
 
+await test('night-side objects are never dimmed by the sun', () => {
+  // The globe pages are object-tracking views, not day/night renders. Two
+  // separate sun effects used to hide the entire night hemisphere's traffic:
+  // the engine multiplied each dot's alpha by eclipseShadowFactor (at
+  // cinematics 'high'), and the pages turned on Cesium's sun-driven terrain
+  // lighting, which painted the night side nearly black so even a full-alpha
+  // dot had no contrast. Both are lighting cues, not tracking cues.
+  //
+  // eclipseShadowFactor itself stays in astro.js and stays tested — a future
+  // "sunlit / eclipsed" badge is exactly what it is for — it just must not
+  // touch opacity or globe brightness again.
+  const eng = read('public/orbit-engine/sat-engine.js');
+  const pass = eng.slice(eng.indexOf('_refreshOcclusion()'), eng.indexOf('setSatColor('));
+  assert.ok(!/eclipseShadowFactor\s*\(/.test(pass),
+            'the occlusion pass must not dim satellites by the sun');
+  assert.ok(/farSideFade\s*\(/.test(pass),
+            'the camera-based far-side fade must still run — it is a depth cue about this view');
+
+  for (const f of ['public/orbit/orbital-relay.js',
+                   'public/constellations/constellations.js',
+                   'public/spacetrack/shared/globe.js']) {
+    const src = read(f);
+    for (const prop of ['enableLighting',
+                        'dynamicAtmosphereLighting',
+                        'dynamicAtmosphereLightingFromSun']) {
+      const m = src.match(new RegExp('globe\\.' + prop + '\\s*=\\s*([^;\\n]+)'));
+      assert.ok(m, `${f}: globe.${prop} must be set explicitly, not left to the Cesium default`);
+      assert.equal(m[1].trim(), 'false',
+                   `${f}: globe.${prop} must stay false — sun lighting blacks out the night hemisphere`);
+    }
+    assert.ok(!/nightFade(In|Out)Distance/.test(src),
+              `${f}: night-side dimming must not come back`);
+  }
+});
+
 await test('bloom never sets glowOnly, which would discard the whole scene', () => {
   // Cesium's bloom `glowOnly` uniform is a BOOLEAN: any truthy value makes the
   // stage output the glow alone and throw the rendered scene away. Plan 39 set

@@ -23,6 +23,7 @@
  *     entries array.
  */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -351,6 +352,103 @@ await test('ring is closed (last point equals first)', () => {
   const pts = planeRingDeg({ raanDeg: 123, inclDeg: 71, radiusKm: 8000 }, 180);
   approx(pts[pts.length - 1].lat, pts[0].lat, 1e-12);
   approx(pts[pts.length - 1].lon, pts[0].lon, 1e-12);
+});
+
+/* ── The fly-in must frame the shell it is showing ────────────────────── */
+
+await test('the intro fly-in altitude is derived from the shell, not hardcoded', () => {
+  // THE REGRESSION GUARD for "GPS and Galileo render nothing". introFlyIn()
+  // hardcoded 22,000 km — a framing tuned for LEO. GPS (~20,200 km) and
+  // Galileo (~23,200 km) are MEO, so that camera sits ON or INSIDE their
+  // shell: the sats were created, shown and fully opaque, but only ~9 of 32
+  // projected onto the canvas, in the corners behind the HUD. The plane rings
+  // still drew (sweeping off-screen), which is exactly why it read as "the tab
+  // is broken" rather than "the camera is in the wrong place".
+  const src = fs.readFileSync(
+    path.resolve(HERE, '../../../public/constellations/constellations.js'), 'utf8');
+  const fly = src.slice(src.indexOf('function flyInAltitude'),
+                        src.indexOf('/* ── Debug handle'));
+  assert.ok(/function flyInAltitude/.test(src),
+            'constellations.js must derive the fly-in altitude from the loaded planes');
+  assert.ok(/altKm/.test(fly),
+            'flyInAltitude must read the planes\' altKm — the shell is what sets the framing');
+  assert.ok(/introFlyIn\(currentData\)/.test(src),
+            'introFlyIn must be handed the loaded constellation, not called bare');
+});
+
+await test('a MEO shell frames further out than a LEO one', () => {
+  // Reimplements flyInAltitude's arithmetic against the constants the page
+  // declares, so a change to either that stops separating LEO from MEO fails
+  // here rather than on the GPS tab.
+  const src = fs.readFileSync(
+    path.resolve(HERE, '../../../public/constellations/constellations.js'), 'utf8');
+  // Reads the declared value as an EXPRESSION (CAMERA_FOV_RAD is Math.PI / 3),
+  // so the test tracks whatever the page actually declares rather than a
+  // second copy of the number that could silently drift from it.
+  const num = (name) => {
+    const m = src.match(new RegExp('const\\s+' + name + '\\s*=\\s*([^;]+);'));
+    assert.ok(m, `constellations.js must declare ${name}`);
+    const v = Function('Math', `"use strict"; return (${m[1].split('//')[0]});`)(Math);
+    assert.ok(Number.isFinite(v), `${name} must evaluate to a finite number`);
+    return v;
+  };
+  const R = num('EARTH_R_M'), FOV = num('CAMERA_FOV_RAD');
+  const MARGIN = num('FRAME_MARGIN');
+  const MIN = num('MIN_FLY_ALT_M'), MAX = num('MAX_FLY_ALT_M');
+  const camRadius = (altKm) => (R + altKm * 1000) / Math.tan(FOV / 2 * MARGIN);
+  const alt = (altKm) => Math.min(Math.max(camRadius(altKm) - R, MIN), MAX);
+
+  // LEO keeps the framing that already looked right.
+  assert.equal(alt(550), MIN, 'Starlink must keep the LEO framing');
+  assert.equal(alt(1200), MIN, 'OneWeb must keep the LEO framing');
+
+  // MEO must pull the camera outside its own shell, or the sats leave frame.
+  for (const [name, shellKm] of [['GPS', 20251], ['Galileo', 23242]]) {
+    const cam = alt(shellKm);
+    assert.ok(cam > shellKm * 1000,
+              `${name}: camera ${Math.round(cam / 1000)} km must sit outside the ${shellKm} km shell`);
+    assert.ok(cam > MIN,
+              `${name}: camera must pull back further than the LEO framing`);
+    // The real requirement: the plane RING, a full shell diameter wide, must
+    // subtend less than the frame. This is what the first (tuned, 1.9) attempt
+    // got wrong — the sats were on screen but every ring still ran off it.
+    const shellR = R + shellKm * 1000;
+    const halfAngle = Math.atan(shellR / camRadius(shellKm));
+    assert.ok(halfAngle < FOV / 2,
+              `${name}: the plane ring must fit inside the ${(FOV * 180 / Math.PI).toFixed(0)}° frame ` +
+              `(subtends ${(halfAngle * 2 * 180 / Math.PI).toFixed(1)}°)`);
+  }
+
+  // The margin must actually leave room — a ring that exactly fills the frame
+  // lands under the corner HUD panels.
+  assert.ok(MARGIN > 0 && MARGIN < 1, 'FRAME_MARGIN must leave headroom for the HUD');
+
+  // The framing must use the NARROWER screen axis. Cesium applies `fov` to the
+  // wider axis, so on a 390x844 portrait phone the horizontal half-angle binds
+  // and is roughly half the vertical one. Framing off the vertical fov alone
+  // fit 19 of 32 GPS sats at 390px while desktop was fine — right maths, wrong
+  // axis. Reimplemented here against the page's own frameHalfAngle().
+  assert.ok(/function frameHalfAngle/.test(src),
+            'constellations.js must derive the binding half-angle from the canvas aspect');
+  assert.ok(/Math\.min\(w, h\)[\s\S]{0,40}Math\.max\(w, h\)/.test(src),
+            'frameHalfAngle must compare the narrow axis against the wide one');
+
+  const halfAngleFor = (w, h) => {
+    const half = FOV / 2;
+    return Math.min(half, Math.atan(Math.tan(half) * Math.min(w, h) / Math.max(w, h)));
+  };
+  // Portrait phone is tighter than desktop, and both must still fit the ring.
+  assert.ok(halfAngleFor(390, 844) < halfAngleFor(1400, 900),
+            'a portrait phone must frame from a tighter half-angle than desktop');
+  for (const [w, h, name] of [[390, 844, 'iPhone 14'], [412, 915, 'Pixel 7'],
+                              [1133, 744, 'iPad Mini landscape'], [1400, 900, 'desktop']]) {
+    const shellR = R + 23242 * 1000;                       // Galileo, the outermost
+    const camR = shellR / Math.tan(halfAngleFor(w, h) * MARGIN);
+    assert.ok(Math.atan(shellR / camR) < halfAngleFor(w, h),
+              `${name}: the Galileo ring must fit the binding axis at ${w}x${h}`);
+  }
+  // Never past what tuneCameraLimits will accept.
+  assert.ok(alt(400000) <= MAX, 'the fly-in must stay inside maximumZoomDistance');
 });
 
 /* ── Summary ──────────────────────────────────────────────────────────── */

@@ -23,14 +23,18 @@ export function initGlobe(containerId = 'cesium-container', viewerOptions = {}) 
     });
     window.viewer = viewer;
 
-    viewer.scene.globe.enableLighting = true;
-    viewer.scene.globe.dynamicAtmosphereLighting = true;
-    viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
-    viewer.scene.skyAtmosphere.show = true;
+    // Flat, fully-lit globe — object tracking, not a day/night render. Sun-driven
+    // terrain lighting hid every satellite on the night hemisphere behind an
+    // unlit, near-black Earth; the terminator is not a tracking cue, so the globe
+    // is lit uniformly and the atmosphere is left static rather than sun-driven.
+    // See also SatEngine's eclipse pass, removed for the same reason.
+    viewer.scene.globe.enableLighting          = false;
+    viewer.scene.globe.dynamicAtmosphereLighting = false;
+    viewer.scene.globe.dynamicAtmosphereLightingFromSun = false;
+    viewer.scene.skyAtmosphere.show            = true;
+    viewer.scene.skyAtmosphere.hueShift        = 0.0;
     viewer.scene.skyAtmosphere.saturationShift = -0.1;
     viewer.scene.skyAtmosphere.brightnessShift = -0.1;
-    viewer.scene.globe.nightFadeOutDistance = 1.0e7;
-    viewer.scene.globe.nightFadeInDistance = 5.0e7;
 
     viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
         Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);

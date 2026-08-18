@@ -110,15 +110,18 @@ window.viewer = viewer;
 tuneViewerForDevice(viewer);
 mountCameraAltitudeHud(viewer, document.getElementById('cam-alt'));
 
-viewer.scene.globe.enableLighting          = true;
-viewer.scene.globe.dynamicAtmosphereLighting = true;
-viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
+// Flat, fully-lit globe — object tracking, not a day/night render. Sun-driven
+// terrain lighting hid every satellite on the night hemisphere behind an
+// unlit, near-black Earth; the terminator is not a tracking cue, so the globe
+// is lit uniformly and the atmosphere is left static rather than sun-driven.
+// See also SatEngine's eclipse pass, removed for the same reason.
+viewer.scene.globe.enableLighting          = false;
+viewer.scene.globe.dynamicAtmosphereLighting = false;
+viewer.scene.globe.dynamicAtmosphereLightingFromSun = false;
 viewer.scene.skyAtmosphere.show            = true;
 viewer.scene.skyAtmosphere.hueShift        = 0.0;
 viewer.scene.skyAtmosphere.saturationShift = -0.1;
 viewer.scene.skyAtmosphere.brightnessShift = -0.1;
-viewer.scene.globe.nightFadeOutDistance = 1.0e7;
-viewer.scene.globe.nightFadeInDistance  = 5.0e7;
 
 viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
     Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK
@@ -428,7 +431,9 @@ async function loadConstellation(key, { push = true } = {}) {
         if (elCount) elCount.textContent = 'LOAD FAILED';
     }
 
-    introFlyIn();
+    /* currentData, not the local `data`: on the failure path there is none, and
+       flyInAltitude falls back to the LEO framing rather than throwing. */
+    introFlyIn(currentData);
 }
 
 if (elSlider) {
@@ -553,9 +558,74 @@ document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
 document.getElementById('recenter-btn')?.addEventListener('click', () => flyHome(viewer));
 
 /* ── Fly-to cinematics ─────────────────────────────────────────────── */
-function introFlyIn() {
+
+/* The fly-in altitude is DERIVED from the constellation being shown, never
+   fixed. It used to be a hardcoded 22,000 km, which frames LEO — Starlink
+   (~550 km) and OneWeb (~1,200 km) fill the screen at it. GPS (~20,200 km)
+   and Galileo (~23,200 km) are MEO: their shells sit at or beyond that camera,
+   so the sats flew off the edges and only ~9 of 32 landed on the canvas, in
+   the corners behind the HUD panels. The plane rings still drew, sweeping off
+   screen, which is what made it read as "the tab renders nothing" rather than
+   "the camera is inside the shell."
+
+   The framing ratio is GEOMETRY, not a tuned constant. What has to fit is the
+   plane RING, whose great circle extends a full shell radius r in every
+   direction from Earth's centre — so the camera distance d from centre must
+   satisfy r/d <= tan(halfFov), i.e. d = r / tan(halfFov). A tuned multiplier
+   is what produced the first attempt at this fix (1.9), and it under-framed:
+   the rings still ran off every edge, because a ratio picked against the
+   sats' scatter ignores that the ring is a full diameter wide.
+
+   FRAME_MARGIN shrinks the half-angle rather than padding the distance, which
+   is the same correction the HUD needs anyway — the stats/planes/density
+   panels overlay the corners, so a ring that mathematically just fits still
+   lands underneath them. 0.75 leaves the ring inside the panel gutters.
+
+   The LEO floor keeps the small-shell case at the framing that already looked
+   right rather than diving to a few hundred km, and the cap is
+   tuneCameraLimits' maximumZoomDistance so the fly-to can never request a
+   camera the controller will refuse. */
+const EARTH_R_M      = 6371e3;
+const CAMERA_FOV_RAD = Math.PI / 3;  // Cesium's default vertical fov (60°)
+const FRAME_MARGIN   = 0.75;         // fraction of the half-angle the ring may fill
+const MIN_FLY_ALT_M  = 22000000;     // the old LEO framing, now a floor
+const MAX_FLY_ALT_M  = 1.35e8;       // tuneCameraLimits' maximumZoomDistance
+
+/* The half-angle actually available, which on a portrait phone is NOT the
+   vertical fov. Cesium's PerspectiveFrustum applies `fov` to the WIDER screen
+   axis and derives the narrower one from the aspect ratio, so on a 390x844
+   phone the *horizontal* half-angle is the binding constraint — roughly half
+   the vertical one. Framing off the vertical fov alone is why the first
+   geometric pass still fit only 19 of 32 GPS sats at 390px while desktop was
+   fine: the maths was right for the axis it measured and blind to the one that
+   clipped. Taking the min of the two axes frames the ring on whichever is
+   tighter, which is the whole point of a "fit" calculation. */
+function frameHalfAngle() {
+    const half = CAMERA_FOV_RAD / 2;
+    const canvas = viewer.scene.canvas;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return half;
+    // Cesium puts `fov` on the wider axis; the narrower follows from aspect.
+    const narrow = Math.atan(Math.tan(half) * Math.min(w, h) / Math.max(w, h));
+    return Math.min(half, narrow);
+}
+
+function flyInAltitude(data) {
+    const planes = data && data.planes;
+    if (!planes || !planes.length) return MIN_FLY_ALT_M;
+    let maxAltKm = 0;
+    for (const p of planes) {
+        if (Number.isFinite(p.altKm) && p.altKm > maxAltKm) maxAltKm = p.altKm;
+    }
+    if (!maxAltKm) return MIN_FLY_ALT_M;
+    const shellRadiusM = EARTH_R_M + maxAltKm * 1000;
+    const camRadiusM = shellRadiusM / Math.tan(frameHalfAngle() * FRAME_MARGIN);
+    return Math.min(Math.max(camRadiusM - EARTH_R_M, MIN_FLY_ALT_M), MAX_FLY_ALT_M);
+}
+
+function introFlyIn(data) {
     viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(20, 25, 22000000),
+        destination: Cesium.Cartesian3.fromDegrees(20, 25, flyInAltitude(data)),
         duration: 2.6,
         easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT,
     });
