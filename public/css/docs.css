@@ -92,6 +92,33 @@ a {
     color: var(--c-signal);
 }
 
+/* ── BETA badge ───────────────────────────────────────────────────────────
+ * Public-beta marker. Attached to `.wordmark`, which appears exactly twice
+ * per page — the sticky header and the footer brand — so one rule covers
+ * both with zero HTML edits.
+ *
+ * Deliberately NOT applied to the 7 app pages (/orbit/, /spacetrack/*,
+ * /constellations/): their nav brand is a back-link reading "HOME" / "◂ HOME",
+ * so a badge there renders as "HOME BETA" rather than marking the product.
+ * /constellations/ also does not link orbit.css at all, so a
+ * `.spacetrack-nav__brand::after` would have missed it regardless.
+ *
+ * pointer-events:none so it never eats part of the wordmark link's hit area. */
+.wordmark::after {
+    content: "BETA";
+    font-size: 0.6em;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    padding: 0.25em 0.4em;
+    border: 1px solid var(--c-line);
+    border-radius: 3px;
+    color: var(--c-signal);
+    background: rgba(0, 210, 255, 0.1);
+    pointer-events: none;
+    flex: none;
+}
+
 .header-cta {
     padding: 0.5rem 1rem;
     border: 1px solid var(--c-signal);
