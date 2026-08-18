@@ -135,18 +135,40 @@ export function tuneViewerForDevice(viewer, { mobileMaxWidth = 768 } = {}) {
  * globe fell out of the screen." `minimumZoomDistance` stops the inverse case
  * — zooming inside the globe and clipping through the surface.
  *
- * The ceiling was 110,000 km, chosen as ">3x GEO". That prevents the extreme
- * failure but not the practical one: measured on a 390px viewport, ~35 wheel
- * ticks reach the cap exactly, and by then the globe is a small dot lost in
- * empty space with no on-screen cue for how to get back. GEO (~35,786 km) is
- * the outermost thing this product actually plots, so 60,000 km still frames
- * the full geostationary shell with generous margin at every viewport size
- * while keeping Earth a recognisable object rather than a speck.
+ * The ceiling was 110,000 km, chosen as ">3x GEO", then cut to 60,000 km to
+ * stop the practical failure: measured on a 390px viewport, ~35 wheel ticks
+ * reached the cap exactly, and by then the globe was a small dot lost in empty
+ * space with no on-screen cue for how to get back.
+ *
+ * 60,000 km was wrong, and the reasoning that picked it conflated two
+ * different distances. `maximumZoomDistance` is measured from the ellipsoid
+ * SURFACE, but an orbital shell's on-screen size is set by its radius from
+ * Earth's CENTRE, and what fits on screen additionally depends on the vertical
+ * field of view. Measured against the live page rather than reasoned about:
+ *
+ *   shell radii from centre   LEO 7,578 · MEO 26,578 · GEO 42,164 · HEO 45,378 km
+ *   visible half-extent @ 60,000 km cap, 1400x900 (fovy 40.7 deg):  24,636 km
+ *
+ * So the old comment's claim that 60,000 km "frames the full geostationary
+ * shell with generous margin" was false by a factor of ~1.7 — GEO and HEO were
+ * clipped off the edges of the screen at maximum zoom-out, at every viewport.
+ * Note Cesium applies its 60 deg FOV to the SHORTER axis, so a wide desktop
+ * window has a NARROWER vertical FOV than a phone and is the binding case:
+ * fovy measures 60.0 deg at 390x844 but 40.7 deg at 1400x900.
+ *
+ * 135,000 km is the smallest round cap that frames the outermost shell (HEO,
+ * 45,378 km radius) with ~15% margin at that narrowest measured fovy. The
+ * "globe is a lost dot" problem the 60,000 km cut was reaching for is handled
+ * by the affordance that was missing back then and exists now: every globe
+ * page has a recenter button (⌖) wired to flyHome() — /orbit/ and
+ * /constellations/ in their own markup, the four /spacetrack/ globe pages via
+ * initTimeWarpButtons() in spacetrack/shared/globe.js — plus a live camera
+ * altitude readout next to it. There is a way back, and it is on screen.
  */
 function tuneCameraLimits(viewer) {
     const controller = viewer.scene.screenSpaceCameraController;
     controller.minimumZoomDistance = 500;
-    controller.maximumZoomDistance = 6.0e7;
+    controller.maximumZoomDistance = 1.35e8;
     controller.enableInputs = true;
 
     guardCameraAgainstNaN(viewer);
