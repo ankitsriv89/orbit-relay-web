@@ -4,9 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta name="description" content="Conjunction screening — derived close-approach analysis between objects on the globe.">
     <meta name="theme-color" content="#000000">
     <title>Conjunctions — Space-Track</title>
+    <link rel="canonical" href="https://orbitalrelay.space/spacetrack/conjunctions/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Orbital Relay">
+    <meta property="og:title" content="Conjunctions — Orbital Relay">
+    <meta property="og:description" content="Derived close-approach screening between catalogued objects. Unofficial analysis — not for collision avoidance.">
+    <meta property="og:url" content="https://orbitalrelay.space/spacetrack/conjunctions/">
+    <meta property="og:image" content="https://orbitalrelay.space/icons/og-cover.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Conjunctions — Orbital Relay">
+    <meta name="twitter:description" content="Derived close-approach screening between catalogued objects. Unofficial analysis — not for collision avoidance.">
+    <meta name="twitter:image" content="https://orbitalrelay.space/icons/og-cover.png">
+    <meta name="twitter:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
     <!-- Boot contacts four cross-origin hosts (library, Ion token, imagery
          tiles). Hinting them here starts DNS+TCP+TLS during HTML parse instead
          of at discovery, which on a high-latency mobile link is the single
@@ -22,12 +40,14 @@
     <link rel="stylesheet" href="/css/chrome.css">
 </head>
 <body data-page-id="spacetrack-conjunctions">
+    <a class="skip-link" href="#main">Skip to content</a>
+
 
     <div class="vfx-overlay" aria-hidden="true"><div class="noise-layer"></div></div>
     <div id="cesium-container" aria-hidden="true"></div>
 
     <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="SpaceTrack main navigation">
-        <a href="/" class="spacetrack-nav__brand">◂ HOME</a>
+        <a href="/" class="spacetrack-nav__brand" aria-label="Home">◂ HOME</a>
         <ul class="spacetrack-nav__list" role="menubar">
             <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">CATALOG</a></li>
             <li><a href="/spacetrack/signal/" class="spacetrack-nav__link" role="menuitem">SIGNAL</a></li>
@@ -59,6 +79,10 @@
         </div>
     </div>
 
+    <!-- Landmark for the skip link. A plain wrapper: every HUD panel inside is
+         position:fixed, so this creates no containing block and changes no
+         layout. Not a styled element - do not hang CSS off it. -->
+    <main id="main" tabindex="-1">
     <div id="catalog-hud" class="orbital-hud key-hud key-hud--collapsed">
         <button class="key-hud-toggle" id="catalog-hud-toggle" aria-expanded="false" aria-controls="catalog-hud-body">
             <span class="key-hud-toggle-arrow">▶</span>
@@ -135,6 +159,8 @@
         <div class="st-dossier__status" id="dossier-status"></div>
         </div>
     </div>
+
+    </main>
 
     <footer class="orbital-footer">
         <span id="footer-source">Live data: Space-Track</span>

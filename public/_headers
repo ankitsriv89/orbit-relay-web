@@ -81,6 +81,14 @@
 /icons/*
   Cache-Control: public, max-age=86400
 
+# Crawler-facing files. Short TTL so a routes change (a new /something/ added
+# to sitemap.xml) reaches crawlers within the hour rather than in a day.
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+
 # Admin pages — no caching, no indexing.
 /admin/*
   Cache-Control: no-store, no-cache, must-revalidate

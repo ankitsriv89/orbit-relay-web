@@ -1,0 +1,9 @@
+# orbitalrelay.space
+User-agent: *
+Allow: /
+
+# Operational surfaces — not content, and /admin/ is password-gated.
+Disallow: /admin/
+Disallow: /api/
+
+Sitemap: https://orbitalrelay.space/sitemap.xml

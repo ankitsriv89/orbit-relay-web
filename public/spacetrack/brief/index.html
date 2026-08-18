@@ -4,9 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta name="description" content="Daily brief — automated digest of catalog changes, reentry watch, and orbital statistics.">
     <meta name="theme-color" content="#000000">
     <title>Daily Brief — Space-Track</title>
+    <link rel="canonical" href="https://orbitalrelay.space/spacetrack/brief/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Orbital Relay">
+    <meta property="og:title" content="Daily Brief — Orbital Relay">
+    <meta property="og:description" content="An automated daily digest of catalog changes, reentry watch and orbital statistics.">
+    <meta property="og:url" content="https://orbitalrelay.space/spacetrack/brief/">
+    <meta property="og:image" content="https://orbitalrelay.space/icons/og-cover.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Daily Brief — Orbital Relay">
+    <meta name="twitter:description" content="An automated daily digest of catalog changes, reentry watch and orbital statistics.">
+    <meta name="twitter:image" content="https://orbitalrelay.space/icons/og-cover.png">
+    <meta name="twitter:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
     <link rel="stylesheet" href="../../orbit/orbit.css">
     <link rel="stylesheet" href="../spacetrack.css">
     <link rel="stylesheet" href="/css/chrome.css">
@@ -16,11 +34,12 @@
     </style>
 </head>
 <body data-page-id="spacetrack-brief">
+    <a class="skip-link" href="#brief-grid">Skip to content</a>
 
     <div class="vfx-overlay" aria-hidden="true"><div class="noise-layer"></div></div>
 
     <nav class="spacetrack-nav" id="main-nav" role="navigation" aria-label="SpaceTrack main navigation">
-        <a href="/" class="spacetrack-nav__brand">◂ HOME</a>
+        <a href="/" class="spacetrack-nav__brand" aria-label="Home">◂ HOME</a>
         <ul class="spacetrack-nav__list" role="menubar">
             <li><a href="/spacetrack/" class="spacetrack-nav__link" role="menuitem">CATALOG</a></li>
             <li><a href="/spacetrack/signal/" class="spacetrack-nav__link" role="menuitem">SIGNAL</a></li>
@@ -52,7 +71,7 @@
         </div>
     </div>
 
-    <main class="st-brief-grid" id="brief-grid">
+    <main class="st-brief-grid" id="brief-grid" tabindex="-1">
         <div class="st-brief-grid__main">
             <section class="st-card st-card--chart" id="archive-card" aria-labelledby="archive-card-title">
                 <h2 class="st-card__title" id="archive-card-title">// ARCHIVE</h2>

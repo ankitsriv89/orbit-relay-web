@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Page not found — Orbital Relay</title>
+    <meta name="description" content="That page is not in orbit. Head back to the Orbital Relay globe, the Space-Track catalog, or the wiki.">
+    <meta name="theme-color" content="#050810">
+    <meta name="robots" content="noindex">
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/docs.css">
+    <style>
+        /* Centre the sparse 404 body in the viewport rather than letting it
+           sit against the header — this page has no long-form content to
+           carry the docs-main rhythm. */
+        .nf-main {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 60vh;
+        }
+        /* .docs-hero p (0,2,0) sets --c-text-dim; match its specificity so the
+           404 numeral keeps the signal accent. */
+        .docs-hero .nf-code {
+            font-family: var(--font-mono);
+            font-size: clamp(3rem, 14vw, 6rem);
+            font-weight: 700;
+            line-height: 1;
+            color: var(--c-signal);
+            letter-spacing: 0.04em;
+        }
+        .nf-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding: 0;
+            list-style: none;
+        }
+        .nf-links a {
+            display: inline-block;
+            padding: 0.7rem 1.1rem;
+            min-height: 44px;
+            box-sizing: border-box;
+            border: 1px solid var(--c-line);
+            border-radius: 4px;
+            background: var(--c-panel);
+            color: var(--c-text);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            letter-spacing: 0.06em;
+            text-decoration: none;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .nf-links a:hover,
+        .nf-links a:focus-visible {
+            border-color: var(--c-signal);
+            color: var(--c-signal);
+        }
+    </style>
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                <img src="/icons/logo.png" alt="" width="28" height="28" class="wordmark__logo">
+                ORBITAL<span class="wordmark__accent">·</span>RELAY
+            </a>
+            <a class="header-cta" href="/orbit/">LAUNCH →</a>
+        </div>
+    </header>
+
+    <main id="main" class="docs-main nf-main">
+        <div class="docs-hero">
+            <p class="eyebrow">Signal lost</p>
+            <p class="nf-code">404</p>
+            <h1>That page is not in orbit</h1>
+            <p>The URL you followed does not match anything Orbital Relay serves. It may
+               have moved, or the link may have been mistyped. Everything the site does
+               is reachable from here:</p>
+        </div>
+
+        <nav aria-label="Suggested destinations">
+            <ul class="nf-links">
+                <li><a href="/">HOME</a></li>
+                <li><a href="/orbit/">ORBITAL RELAY</a></li>
+                <li><a href="/spacetrack/">SPACE-TRACK CATALOG</a></li>
+                <li><a href="/constellations/">CONSTELLATIONS</a></li>
+                <li><a href="/wiki/">WIKI</a></li>
+                <li><a href="/about/">ABOUT</a></li>
+            </ul>
+        </nav>
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <div class="site-footer__grid">
+                <div class="site-footer__brand">
+                    <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                        <img src="/icons/logo.png" alt="" width="24" height="24" class="wordmark__logo">
+                        ORBITAL<span class="wordmark__accent">·</span>RELAY
+                    </a>
+                    <p class="site-footer__tagline">Every tracked object in orbit, rendered live.</p>
+                </div>
+
+                <nav class="site-footer__col" aria-labelledby="footer-views">
+                    <h3 id="footer-views">Views</h3>
+                    <ul>
+                        <li><a href="/orbit/">Orbital Relay</a></li>
+                        <li><a href="/spacetrack/">Space-Track Catalog</a></li>
+                        <li><a href="/spacetrack/signal/">Signal</a></li>
+                        <li><a href="/constellations/">Constellations</a></li>
+                    </ul>
+                </nav>
+
+                <nav class="site-footer__col" aria-labelledby="footer-intel">
+                    <h3 id="footer-intel">Intelligence</h3>
+                    <ul>
+                        <li><a href="/spacetrack/conjunctions/">Conjunctions</a></li>
+                        <li><a href="/spacetrack/brief/">Daily Brief</a></li>
+                        <li><a href="/spacetrack/analytics/">Analytics</a></li>
+                    </ul>
+                </nav>
+
+                <nav class="site-footer__col" aria-labelledby="footer-about">
+                    <h3 id="footer-about">About</h3>
+                    <ul>
+                        <li><a href="/about/">About</a></li>
+                        <li><a href="/wiki/">Wiki</a></li>
+                    </ul>
+                </nav>
+            </div>
+
+            <div class="site-footer__bottom">
+                <p class="site-footer__meta">© 2026 Orbital Relay · Data source: Space-Track.org (USSPACECOM / 18th Space Defense Squadron), redistributed under USSPACECOM express blanket approval for basic SSA data, plus CelesTrak GP element sets.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

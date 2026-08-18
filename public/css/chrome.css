@@ -30,6 +30,32 @@
    See the plan doc / commit message for the full drift report.
    ========================================================================== */
 
+/* ── Skip link ─────────────────────────────────────────────────────────────
+ * Keyboard escape past the fixed nav into the page's <main> landmark. The
+ * docs pages (/, /about/, /wiki/) get theirs from landing.css/docs.css; this
+ * is the app-page copy, since those link chrome.css but neither of those two.
+ * Body values match docs.css:38-54 so the affordance looks the same site-wide.
+ * z-index must clear .spacetrack-nav (25). */
+.skip-link {
+    position: absolute;
+    top: -100%;
+    left: 1rem;
+    z-index: 100;
+    padding: 0.6rem 1rem;
+    background: #00d2ff;
+    color: #001018;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: top 0.15s ease;
+}
+.skip-link:focus {
+    top: calc(1rem + var(--sa-top));
+}
+
 /* ── Top navigation (shared across /orbit/ and /spacetrack/ pages) ────────── */
 .spacetrack-nav {
     position: fixed;
