@@ -30,6 +30,7 @@ import {
 } from '/shared/hud.js';
 import { State } from '/spacetrack/shared/state.js';
 import { planeElements, groupConstellation, planeRingDeg } from './compute.js';
+import { shapeForShell } from '/orbit-engine/markers.js';
 
 /* ── Token + constants ─────────────────────────────────────────────────── */
 Cesium.Ion.defaultAccessToken =
@@ -307,7 +308,16 @@ function renderSats(data, n) {
         const recIdx = data.renderOrder[i];
         const rec = data.records[recIdx];
         const plane = data.planeOf.get(recIdx);
-        satEntities.push(engine.addSatellite(rec.satrec, shellColor(plane.shell), 3, false, {
+        /* 5, not 3: at 3 these dots were ~3 screen px against ~1.5px star
+           cores, close enough that the two read as the same mark. /orbit/
+           already used 5 for its sats.
+
+           `shape` is what actually separates them: a star is always round, so
+           an angular marker cannot be mistaken for one however small it gets.
+           Shaped by orbit shell, the same axis the colour already encodes —
+           see SHELL_SHAPE in markers.js. */
+        satEntities.push(engine.addSatellite(rec.satrec, shellColor(plane.shell), 5, false, {
+            shape: shapeForShell(plane.shell),
             satrec: rec.satrec,
             l1: rec.l1,
             l2: rec.l2,

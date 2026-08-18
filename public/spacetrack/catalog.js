@@ -482,6 +482,11 @@ function addObjects(rows) {
             satrec, l1: row.TLE_LINE1, l2: row.TLE_LINE2,
             name: row.OBJECT_NAME || String(row.NORAD_CAT_ID),
             group: row.OBJECT_TYPE || 'UNKNOWN',
+            /* Shape encodes OBJECT_TYPE (markers.js): payload square, rocket
+               body triangle, debris diamond, unknown circle. Type is already
+               in the colour, but colour alone is lost to colourblind viewers
+               and to the far-side fade; shape survives both. */
+            objectType: row.OBJECT_TYPE || null,
             norad: row.NORAD_CAT_ID,
             pulse: isPayload,
             row,

@@ -143,8 +143,12 @@ export function drawSkyFace(ctx, size, stars, face) {
      */
     const REF_FACE = 2048;
     const k = size / REF_FACE;
-    const CORE_BASE = 0.18;   // radius floor, reference-face px
-    const CORE_GAIN = 0.80;   // × b², so only the brightest reach ~1 screen px
+    /* Sized so stars stay clearly SUB-satellite. The satellite dots are
+       3-5 screen px; at CORE_GAIN 0.80 the brightest star core reached
+       ~1.5 screen px, close enough to a 3px dot that the two read as the
+       same kind of mark. 0.50 puts every star under ~1 px. */
+    const CORE_BASE = 0.14;   // radius floor, reference-face px
+    const CORE_GAIN = 0.50;   // × b², so only the brightest reach ~1 screen px
     const GLOW_BASE = 0.9;
     const GLOW_GAIN = 2.1;
     const GLOW_HALF = 3.4;    // glow rect half-width; must cover GLOW radius
@@ -156,7 +160,7 @@ export function drawSkyFace(ctx, size, stars, face) {
         if (!uv) continue;
         const px = (uv.u + 1) * half;
         const py = (1 - uv.v) * half;
-        if (s.b < 0.72) continue;
+        if (s.b < 0.80) continue;   // fewer, fainter glows — see CORE_GAIN note
         const g = ctx.createRadialGradient(px, py, 0, px, py, (GLOW_BASE + s.b * GLOW_GAIN) * k);
         const t = s.tint;
         g.addColorStop(0, `rgba(${Math.round(255 * t.r)},${Math.round(255 * t.g)},${Math.round(255 * t.b)},${(0.30 * s.b).toFixed(3)})`);

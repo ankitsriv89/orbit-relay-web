@@ -34,6 +34,7 @@ import {
     sunDirectionEcef,
 } from './astro.js';
 import { buildSkyFaceSources } from './starfield.js';
+import { markerCanvas, shapeForType } from './markers.js';
 import { renderCommLinks } from './comm-links.js';
 
 const SAT_TICK_MS   = 280;   // position refresh (a sat moves ~metres in this time)
@@ -371,6 +372,10 @@ export class SatEngine {
         this.viewer = viewer;
         this.clock  = viewer.clock;
         this.satCollection = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+        /** Shaped markers (see markers.js) live in their own collection, built
+         *  lazily: a page that never passes `shape` never pays for it. Both
+         *  collections are batched draws, so the split costs one extra call. */
+        this.markerCollection = null;
 
         /** @type {SatPoint[]} every sat, for the shared tick + pulse loops */
         this.allSats = [];
@@ -612,16 +617,46 @@ export class SatEngine {
             ? Cesium.Cartesian3.fromDegrees(geo.lon, geo.lat, geo.alt * 1000)
             : Cesium.Cartesian3.ZERO.clone();
 
-        const primitive = this.satCollection.add({
-            position:                 pos,
-            pixelSize:                pointSize,
-            color:                    color,
-            outlineColor:             Cesium.Color.BLACK.withAlpha(0.4),
-            outlineWidth:             pointSize > 7 ? 1.5 : 0,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance:          new Cesium.NearFarScalar(1e6, 1.2, 2e7, 0.85),
-            show:                     true,
-        });
+        /* A shaped marker if the caller asked for one (or the meta carries an
+           OBJECT_TYPE that maps to a shape), else the classic round point.
+           Both end up as `primitive` and expose position/show/color, so every
+           downstream path — the tick, the far-side fade, pick() — is unchanged.
+           `_isBillboard` marks the one property that differs: size. */
+        const shape = safeMeta.shape
+            || (safeMeta.objectType ? shapeForType(safeMeta.objectType) : null);
+        let primitive;
+        if (shape && shape !== 'circle') {
+            if (!this.markerCollection) {
+                this.markerCollection =
+                    this.viewer.scene.primitives.add(new Cesium.BillboardCollection());
+            }
+            primitive = this.markerCollection.add({
+                position:                 pos,
+                image:                    markerCanvas(shape, color.toCssHexString()),
+                width:                    pointSize * 2.2,
+                height:                   pointSize * 2.2,
+                color:                    Cesium.Color.WHITE,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                scaleByDistance:          new Cesium.NearFarScalar(1e6, 1.2, 2e7, 0.85),
+                show:                     true,
+            });
+            primitive._isBillboard = true;
+            primitive._baseWidth = pointSize * 2.2;
+        } else {
+            primitive = this.satCollection.add({
+                position:                 pos,
+                pixelSize:                pointSize,
+                color:                    color,
+                outlineColor:             Cesium.Color.BLACK.withAlpha(0.55),
+                /* Outlined at EVERY size, not just > 7. The dark ring is what
+                   makes a 3-4px dot read as an object rather than a star; the
+                   unoutlined small dots were the confusion this fixes. */
+                outlineWidth:             pointSize > 7 ? 1.5 : 1,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                scaleByDistance:          new Cesium.NearFarScalar(1e6, 1.2, 2e7, 0.85),
+                show:                     true,
+            });
+        }
 
         const sat = new SatPoint(this, primitive, satrec, safeMeta, pointSize,
                                  !!(meta && meta.pulse));
@@ -629,7 +664,13 @@ export class SatEngine {
         // (the dimmed non-matching set on /spacetrack/) and may reuse one Color
         // instance for a whole layer, so copying the components here is what
         // keeps the far-side pass from smearing across a shared instance.
-        sat.baseColor = { r: color.red, g: color.green, b: color.blue, a: color.alpha };
+        /* A billboard's colour is baked into its texture and its `color` acts
+           as a MULTIPLIER, so its base must be white — otherwise the far-side
+           fade would square the tint and the marker would render near-black.
+           Points keep the real colour, snapshotted by value (see below). */
+        sat.baseColor = primitive._isBillboard
+            ? { r: 1, g: 1, b: 1, a: color.alpha }
+            : { r: color.red, g: color.green, b: color.blue, a: color.alpha };
         primitive.id = sat;          // scene.pick() returns this → click-to-inspect
         this.allSats.push(sat);
         if (sat.pulse) this.pulseSats.push(sat);
@@ -660,7 +701,10 @@ export class SatEngine {
      */
     removeSat(sat) {
         if (!sat) return;
-        if (sat.primitive) this.satCollection.remove(sat.primitive);
+        if (sat.primitive) {
+            if (sat.primitive._isBillboard) this.markerCollection.remove(sat.primitive);
+            else this.satCollection.remove(sat.primitive);
+        }
         if (sat.ring) { this.viewer.entities.remove(sat.ring); sat.ring = null; }
         const i = this.allSats.indexOf(sat);
         if (i !== -1) this.allSats.splice(i, 1);
@@ -743,8 +787,16 @@ export class SatEngine {
             const next = s.baseSize + Math.sin(t * 2 + i) * (s.baseSize * 0.35);
             // Skip no-op writes (near the sine's extrema) so the render request
             // below is only ever for pixels that actually moved.
-            if (Math.abs(next - s.primitive.pixelSize) < 0.02) continue;
-            s.primitive.pixelSize = next;
+            if (s.primitive._isBillboard) {
+                // Billboards size by width/height, not pixelSize.
+                const w = next * 2.2;
+                if (Math.abs(w - s.primitive.width) < 0.04) continue;
+                s.primitive.width = w;
+                s.primitive.height = w;
+            } else {
+                if (Math.abs(next - s.primitive.pixelSize) < 0.02) continue;
+                s.primitive.pixelSize = next;
+            }
             changed = true;
         }
         if (changed) this.requestRender();
@@ -824,8 +876,19 @@ export class SatEngine {
      */
     setSatColor(sat, color) {
         if (!sat || !color) return;
-        sat.baseColor = { r: color.red, g: color.green, b: color.blue, a: color.alpha };
         const fade = sat._appliedFade;
+        if (sat.primitive._isBillboard) {
+            // A shaped marker carries its colour in the texture, so recolouring
+            // means swapping to the cached canvas for the new colour (one per
+            // shape+colour, shared across every marker using it) and keeping
+            // `color` a pure white->alpha multiplier for the fade.
+            sat.primitive.image = markerCanvas(sat.meta.shape
+                || shapeForType(sat.meta.objectType), color.toCssHexString());
+            sat.baseColor = { r: 1, g: 1, b: 1, a: color.alpha };
+            sat.primitive.color = new Cesium.Color(1, 1, 1, color.alpha * (fade < 1 ? fade : 1));
+            return;
+        }
+        sat.baseColor = { r: color.red, g: color.green, b: color.blue, a: color.alpha };
         sat.primitive.color = fade < 1
             ? new Cesium.Color(color.red, color.green, color.blue, color.alpha * fade)
             : color;
@@ -1171,12 +1234,19 @@ export class SatEngine {
             this.viewer.scene.preRender.removeEventListener(this._occludeFrame);
             this._occludeFrame = null;
         }
+        if (this.markerCollection) {
+            this.viewer.scene.primitives.remove(this.markerCollection);
+            this.markerCollection = null;
+        }
         if (this.worker) { this.worker.terminate(); this.worker = null; }
     }
 
     /* ── Introspection (console + tests/e2e/test_orbit.py) ──────────────── */
 
-    get satPointCount() { return this.satCollection.length; }
+    get satPointCount() {
+        return this.satCollection.length
+             + (this.markerCollection ? this.markerCollection.length : 0);
+    }
     get registered()    { return this._satById.size; }
 }
 
