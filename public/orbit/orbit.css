@@ -957,19 +957,12 @@ body[data-page-id="spacetrack-catalog"] {
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
 
 /* ── Top navigation (shared with spacetrack pages) ──────────────────────────
- * Most .spacetrack-nav* rules live in css/chrome.css. `.spacetrack-nav__brand`
- * stays here — orbit.css's body differs from spacetrack.css's (adds
- * `display:flex; align-items:center; gap:6px` for a logo+text layout).
- * `.spacetrack-nav__logo` also stays — only /orbit/index.html uses it, it was
- * never defined in spacetrack.css, so it was never actually a dupe. */
+ * Most .spacetrack-nav* rules live in css/chrome.css, including the
+ * `.spacetrack-nav__brand` base body. Only the logo+text layout additions
+ * stay here — /orbit/'s brand is an <img> plus text, every other page's is
+ * text-only. `.spacetrack-nav__logo` also stays: only /orbit/index.html uses
+ * it, so it was never actually a dupe. */
 .spacetrack-nav__brand {
-    color: rgba(0, 210, 255, 0.9);
-    text-decoration: none;
-    font-weight: 700;
-    letter-spacing: 2px;
-    white-space: nowrap;
-    pointer-events: auto;
-    transition: color 0.15s;
     display: flex;
     align-items: center;
     gap: 6px;

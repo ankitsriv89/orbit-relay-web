@@ -3,6 +3,58 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-19 — Night-side objects stay visible, derived constellation framing, uniform HOME link
+
+### Fixed
+- **The night hemisphere's traffic is no longer hidden.** Two independent
+  sun-driven effects stacked: `SatEngine`'s occlusion pass multiplied each
+  dot's alpha by `eclipseShadowFactor` at cinematics `'high'`, and all three
+  globe pages enabled Cesium's sun-driven terrain lighting, which painted the
+  night side near-black so even a full-alpha dot had no contrast. A sun cue is
+  a lighting cue, not a tracking cue — and it was obscuring exactly the half an
+  operator most needs to read. Both removed. Camera-based `farSideFade` still
+  runs at both quality levels, because a dot genuinely behind the Earth *from
+  this viewpoint* is a depth cue about the current view. `eclipseShadowFactor`
+  stays in `astro.js` and stays tested — a future "sunlit / eclipsed" badge is
+  what it is for — it just no longer touches opacity. `cinematics` now gates
+  only bloom + the star skyBox.
+- **MEO constellation tabs looked like they rendered nothing.** The fly-in was
+  a hardcoded 22,000 km, which frames LEO; GPS (~20,200 km) and Galileo
+  (~23,200 km) shells sit at or beyond that camera, so only ~9 of 32 sats
+  landed on canvas, in the corners behind the HUD panels — while the plane
+  rings still drew, sweeping off screen. `flyInAltitude()` now derives the
+  distance from the shell radius as geometry (`d = r / tan(halfAngle)`, since
+  the ring extends a full radius in every direction from Earth's centre),
+  floored at the old LEO framing and capped at `tuneCameraLimits`'
+  `maximumZoomDistance`. `frameHalfAngle()` takes the min of both screen axes:
+  Cesium applies `fov` to the *wider* one, so framing off the vertical fov
+  alone fit only 19 of 32 GPS sats at 390px while desktop looked fine.
+- **`/constellations/`'s HOME link was unstyled and unclickable.** `.spacetrack-nav`
+  sets `pointer-events: none` so the bar does not block the globe, and each
+  child re-enables it; the brand's rule body — including that re-enable — lived
+  only in `orbit.css` and `spacetrack.css`, duplicated between them.
+  `/constellations/` links neither, so its HOME link fell back to default
+  anchor styling (blue, underlined) *and* inherited `pointer-events: none`.
+  The markup was already uniform — all three pages ship the same
+  `.spacetrack-nav__brand` anchor — so this survived a visual pass on the two
+  pages that did link the rule. Base body moved to `css/chrome.css`, which
+  every app page links; `spacetrack.css`'s copy deleted, `orbit.css`'s trimmed
+  to just its logo-layout additions.
+
+### Verification
+- `npm test`: 82/82 syntax, all references resolve (67 files), 22 orbit-ingest
+  suites, exit 0.
+- Two new guardrails, both written against the real bugs: the occlusion pass
+  must contain no `eclipseShadowFactor(` and must still call `farSideFade(`,
+  and all three pages must set the three lighting props explicitly `false` with
+  no `nightFade*`; plus fly-in framing maths including the portrait-axis case
+  the vertical-fov-only version failed.
+- Playwright (GPU, D3D11 ANGLE): brand computed style identical across
+  `/constellations/`, `/orbit/`, `/spacetrack/` — `pointer-events: auto`, no
+  underline, 700/2px — and `elementFromPoint` at the link's centre returns the
+  anchor itself on each. HOME navigates to `/` at 390x844 and 1400x900, no
+  horizontal page scroll.
+
 ## 2026-08-17 — Delete `/starlink/`, `?c=` deep links on `/constellations/`, mobile nav cleanup, collapsible time-warp
 
 ### Changed

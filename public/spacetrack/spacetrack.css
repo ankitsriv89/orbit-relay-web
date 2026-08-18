@@ -837,20 +837,10 @@ body[data-page-id="spacetrack-catalog"] #dossier {
  * dedicated top nav bar that is consistent across all SpaceTrack pages.
  * Nav links are hidden (in the hamburger menu); only brand + source + hamburger
  * are visible in the topbar.
- * .spacetrack-nav / __source-link and the shared hover states now live in
- * css/chrome.css. `.spacetrack-nav__brand` (non-hover) stays here — its body
- * differs from orbit.css's (no `display:flex; align-items:center; gap:6px`,
- * this page's brand is text-only). */
-
-.spacetrack-nav__brand {
-    color: rgba(0, 210, 255, 0.9);
-    text-decoration: none;
-    font-weight: 700;
-    letter-spacing: 2px;
-    white-space: nowrap;
-    pointer-events: auto;
-    transition: color 0.15s;
-}
+ * .spacetrack-nav / __source-link, the shared hover states and the
+ * `.spacetrack-nav__brand` base body now all live in css/chrome.css. This
+ * page's brand is text-only, which is exactly the shared body — nothing to
+ * override here. */
 
 /* ── Bars (analytics) ──────────────────────────────────────────────────────── */
 .st-bars {

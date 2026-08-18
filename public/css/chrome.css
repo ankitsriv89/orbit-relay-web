@@ -24,9 +24,9 @@
                                keep it hidden)
      - .mobile-menu__inner   (orbit.css adds `align-items: center`;
                                spacetrack.css does not)
-     - .spacetrack-nav__brand (orbit.css adds `display:flex; align-items:
-                               center; gap:6px` for a logo+text layout;
-                               spacetrack.css's brand is text-only)
+     - .spacetrack-nav__brand (base body is here; orbit.css adds only
+                               `display:flex; align-items:center; gap:6px`
+                               for its logo+text layout)
    See the plan doc / commit message for the full drift report.
    ========================================================================== */
 
@@ -88,6 +88,22 @@
     margin: 0;
     padding: 0;
     pointer-events: auto;
+}
+
+/* Brand / HOME link. Base body lives here so every page linking chrome.css
+ * gets it — /constellations/ links neither orbit.css nor spacetrack.css, and
+ * without this its HOME link fell back to default anchor styling AND inherited
+ * .spacetrack-nav's `pointer-events: none`, i.e. it was unclickable.
+ * orbit.css still adds `display:flex; align-items:center; gap:6px` on top for
+ * its logo+text layout — that drift is intentional. */
+.spacetrack-nav__brand {
+    color: rgba(0, 210, 255, 0.9);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: color 0.15s;
 }
 
 .spacetrack-nav__link {
