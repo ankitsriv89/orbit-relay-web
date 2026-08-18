@@ -388,9 +388,12 @@ orbit-ingest suites). Plan-by-plan:
   `.st-country-matrix` keeps its own `overflow-x: auto`. Plan 38 as a whole is closed.
 
 **Net: the only concretely unstarted item across all tracked plans is plan 34
-3.4's batch-close.** Repo is ahead of `origin` — recent batches were
-deliberately not pushed pending user review (see each batch's CHANGELOG entry); confirm
-with `git log origin/main..HEAD` before assuming what's live in production.
+3.4's batch-close.** As of 2026-08-19 the repo is **in sync with `origin/main`**
+(`3cd2abdb`, Cloudflare Pages check green) — the earlier backlog of
+deliberately-unpushed batches has all shipped. Still confirm with
+`git log origin/main..HEAD` before assuming what's live in production, and check
+the Pages check-run after a push: `ci.yml` only runs `npm test`, so a green CI
+says nothing about whether the deploy succeeded.
 
 ### Admin dashboard (plan 36) — status 2026-08-01
 
