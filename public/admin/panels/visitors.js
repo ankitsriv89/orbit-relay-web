@@ -81,5 +81,40 @@ export default {
       table.appendChild(tbody);
       el.appendChild(table);
     }
+
+    if (data.byCountry?.length) {
+      const heading = document.createElement('p');
+      heading.style.cssText = 'margin:16px 0 4px;color:var(--c-signal);font-size:0.6rem;letter-spacing:1px;';
+      heading.textContent = '// BY COUNTRY (7d)';
+      el.appendChild(heading);
+
+      const max = data.byCountry[0]?.views || 1;
+      const list = document.createElement('div');
+      for (const row of data.byCountry) {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'admin-bar-row';
+
+        const label = document.createElement('span');
+        label.className = 'admin-bar-row__label';
+        label.textContent = row.country;
+
+        const track = document.createElement('span');
+        track.className = 'admin-bar-row__track';
+        const fill = document.createElement('span');
+        fill.className = 'admin-bar-row__fill';
+        fill.style.width = `${Math.max(2, (row.views / max) * 100)}%`;
+        track.appendChild(fill);
+
+        const value = document.createElement('span');
+        value.className = 'admin-bar-row__value';
+        value.textContent = row.views;
+
+        rowEl.appendChild(label);
+        rowEl.appendChild(track);
+        rowEl.appendChild(value);
+        list.appendChild(rowEl);
+      }
+      el.appendChild(list);
+    }
   },
 };

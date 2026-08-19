@@ -10,7 +10,7 @@ export async function onRequest(context) {
   const todayStart = now - (now % dayMs);
   const weekStart = todayStart - 6 * dayMs;
 
-  const result = { today: 0, thisWeek: 0, uniqueToday: 0, topPages: [] };
+  const result = { today: 0, thisWeek: 0, uniqueToday: 0, topPages: [], byCountry: [] };
 
   try {
     const r = await db.prepare('SELECT COUNT(*) AS n FROM page_views WHERE ts >= ?').bind(todayStart).first();
@@ -33,6 +33,16 @@ export async function onRequest(context) {
       .bind(weekStart)
       .all();
     result.topPages = results;
+  } catch (_) {}
+
+  try {
+    const { results } = await db
+      .prepare(
+        "SELECT country, COUNT(*) AS views FROM page_views WHERE ts >= ? AND country != '' GROUP BY country ORDER BY views DESC LIMIT 20",
+      )
+      .bind(weekStart)
+      .all();
+    result.byCountry = results;
   } catch (_) {}
 
   return adminJson(result);

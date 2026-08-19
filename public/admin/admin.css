@@ -493,6 +493,42 @@ body[data-page-id="admin"] {
     padding: 8px 0;
 }
 
+/* Horizontal bar chart (e.g. visitors-by-country) — plain divs, width set
+   inline per-row as a % of the top value. */
+.admin-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+.admin-bar-row__label {
+    flex: 0 0 64px;
+    font-size: 0.62rem;
+    color: var(--c-text-dim);
+    letter-spacing: 1px;
+}
+.admin-bar-row__track {
+    flex: 1;
+    height: 14px;
+    background: rgba(0, 210, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.admin-bar-row__fill {
+    height: 100%;
+    background: var(--c-signal);
+    border-radius: 2px;
+    min-width: 2px;
+}
+.admin-bar-row__value {
+    flex: 0 0 auto;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--c-text);
+    min-width: 32px;
+    text-align: right;
+}
+
 /* Ingest-run step expander */
 .admin-table summary {
     cursor: pointer;
