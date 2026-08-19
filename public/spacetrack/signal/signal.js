@@ -3,6 +3,7 @@ import { degToRad, eciToEcf, coverageRadiusDeg, coverageCircleDeg, visibilityWin
 import { initGlobe, initTimeWarpButtons } from '../shared/globe.js';
 import { State } from '../shared/state.js';
 import { $, on, setText, fmtLat, fmtLon } from '../shared/utils.js';
+import { showFooterFreshness } from '../shared/api.js';
 import { exposeDebug } from '../shared/debug.js';
 import { requestPermission, scheduleNotifications, clearNotifications } from './notifications.js';
 import {
@@ -18,6 +19,7 @@ wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');
 wireHudToggle('analysis-hud', 'analysis-hud-toggle', 'analysis-hud-body');
 wireTabs(document.getElementById('analysis-hud-body'));
 initHamburgerMenu();
+showFooterFreshness();
 
 /* ── Time-warp ────────────────────────────────────────────────────────────── */
 initTimeWarpButtons($('time-warp'));

@@ -97,3 +97,25 @@ export const API = {
         return fetchJSON(`${API_BASE}/analytics`);
     },
 };
+
+/**
+ * Fills the `#footer-source` badge with a real elset-ingest freshness value
+ * (`summary().last_elset_ingest`/`generated_at` — the same field the
+ * /spacetrack/ HUD's ELSETS row already reads) instead of the static "Live
+ * data: Space-Track" text every Space-Track page used to ship, which implied
+ * a live stream when the R2 bundle is only regenerated on a 6-hourly cron.
+ * Pass an already-fetched summary() result to skip a duplicate request.
+ * Best-effort: leaves the markup's fallback text in place on failure.
+ */
+export async function showFooterFreshness(summary) {
+    const el = document.getElementById('footer-source');
+    if (!el) return;
+    try {
+        const { relTime } = await import('./utils.js');
+        const s = summary !== undefined ? summary : await API.summary();
+        const when = s && (s.last_elset_ingest || s.generated_at);
+        el.textContent = when ? `Data: Space-Track (updated ${relTime(when)})` : 'Data: Space-Track';
+    } catch (_) {
+        el.textContent = 'Data: Space-Track';
+    }
+}

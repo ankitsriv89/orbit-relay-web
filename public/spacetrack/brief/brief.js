@@ -1,11 +1,12 @@
 import { $, setText, num, relTime } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
-import { API } from '../shared/api.js';
+import { API, showFooterFreshness } from '../shared/api.js';
 import { initHamburgerMenu } from '/shared/hud.js';
 import { colorForBoxCode } from '/theme/palette.js';
 import { boxSegments, svgLine } from '/shared/charts.js';
 
 initHamburgerMenu();
+showFooterFreshness();
 
 /* ── Brief ────────────────────────────────────────────────────────────────────
  * A once-a-day artifact, read flat. Nothing here calls a model — the card was

@@ -1,6 +1,6 @@
 import { $, setText, num } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
-import { API } from '../shared/api.js';
+import { API, showFooterFreshness } from '../shared/api.js';
 import { initMobileListener, initHamburgerMenu } from '/shared/hud.js';
 import { bars, stackedBars, svgLine, svgHistogram, cumulative } from '/shared/charts.js';
 
@@ -10,6 +10,7 @@ initMobileListener();
    hid the button, a dead control once the dropdown became the home for
    cross-app links. */
 initHamburgerMenu();
+showFooterFreshness();
 
 /* ── Analytics ────────────────────────────────────────────────────────────────
  * Catalog dashboard: KPI strip, growth, cohort survival, orbit distributions,

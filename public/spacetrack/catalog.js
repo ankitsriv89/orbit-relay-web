@@ -6,7 +6,7 @@
 import { createDossier } from '/shared/dossier.js';
 import { initGlobe, initTimeWarpButtons } from './shared/globe.js';
 import { State } from './shared/state.js';
-import { API } from './shared/api.js';
+import { API, showFooterFreshness } from './shared/api.js';
 import {
     wireHudToggle, initHamburgerMenu, initFilterDrawer, closeAllHuds,
     wireRevsButton, syncRevsButtons, currentRevs,
@@ -314,6 +314,7 @@ async function loadSummary() {
         setText('cat-geo', num(regime.GEO));
         setText('cat-heo', num(regime.HEO));
         setText('cat-updated', relTime(s.last_elset_ingest || s.generated_at));
+        showFooterFreshness(s);
 
         if (s.stale) status('catalog summary is being counted live — no artifact yet');
     } catch (err) {

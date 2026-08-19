@@ -6,7 +6,7 @@ import { State } from '../shared/state.js';
 import { $, on, setText, num, fmtMiss, fmtWhen, fmtRelSpeed, fmtElsetAge } from '../shared/utils.js';
 import { exposeDebug } from '../shared/debug.js';
 import { colorFor } from '/theme/palette.js';
-import { API } from '../shared/api.js';
+import { API, showFooterFreshness } from '../shared/api.js';
 import { wireHudToggle, initHamburgerMenu, wireTabs } from '/shared/hud.js';
 import { createDossier } from '/shared/dossier.js';
 
@@ -20,6 +20,7 @@ wireHudToggle('catalog-hud', 'catalog-hud-toggle', 'catalog-hud-body');
 wireHudToggle('screening-hud', 'screening-hud-toggle', 'screening-hud-body');
 wireTabs(document.getElementById('screening-hud-body'));
 initHamburgerMenu();
+showFooterFreshness();
 
 /* ── Time-warp ────────────────────────────────────────────────────────────── */
 initTimeWarpButtons($('time-warp'));
