@@ -26,13 +26,11 @@
     <meta name="twitter:description" content="Live 3D satellite orbits and ISS telemetry on a cinematic globe, propagated in-browser from CelesTrak element sets.">
     <meta name="twitter:image" content="https://orbitalrelay.space/icons/og-cover.png">
     <meta name="twitter:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
-    <!-- Boot contacts four cross-origin hosts (library, Ion token, imagery
-         tiles). Hinting them here starts DNS+TCP+TLS during HTML parse instead
-         of at discovery, which on a high-latency mobile link is the single
-         largest fixed cost on the critical path. -->
+    <!-- Boot contacts the CesiumJS CDN (cesium.com) for the library script and
+         widget stylesheet below. Hinting it here starts DNS+TCP+TLS during HTML
+         parse instead of at discovery, which on a high-latency mobile link is
+         one of the largest fixed costs on the critical path. -->
     <link rel="preconnect" href="https://cesium.com" crossorigin>
-    <link rel="preconnect" href="https://api.cesium.com" crossorigin>
-    <link rel="dns-prefetch" href="https://assets.ion.cesium.com">
     <!-- CesiumJS — deferred: cesium-base.js (sync, above) runs first, then
          this, then the module scripts, so the HUD/nav chrome paints while the
          ~3.4 MB library downloads instead of blocking the parser. -->

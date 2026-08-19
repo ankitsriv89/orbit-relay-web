@@ -172,6 +172,23 @@ true on *this* box, verified directly rather than assumed:
   the GPU isn't the bottleneck at that concurrency. `npm test` itself (syntax/resolve/
   orbit-ingest) is already seconds and offline — this parallel runner is for the live
   Playwright visual suite, not for `npm test`.
+- **`test_orbit.py`'s "worker positions match the sync fallback" is flaky at its bound,
+  and its perf gate crashes on Windows.** Two pre-existing issues, neither caused by
+  recent work — don't spend a session chasing either as a new regression:
+  - The drift check allows `< 1.0 m` between the worker and the synchronous fallback.
+    Measured repeatedly on this box it reads 0.96–1.33 m, i.e. it straddles its own
+    threshold run to run. The propagation is fine — `test_imagery.py` independently
+    verifies drawn ECEF against main-thread SGP4 at ~1.1 m worst case on the same code.
+    The tolerance is simply too tight for Float32 ECEF quantisation plus tick timing.
+  - `perf_gate` prints a `→` (U+2192) and dies with `UnicodeEncodeError` under the
+    default cp1252 console, *after* its checks have passed. Run with
+    `PYTHONIOENCODING=utf-8` to get past it.
+  - Past that, the suite still does not reach its summary: `perf_gate`'s heap check fails
+    (+36.6 MB over 47 s at 1466 sats against a `< 25` bound) and `spacetrack_gate` then
+    throws on `__spacetrack.loadFeed is not a function`. **Both were confirmed on a clean
+    baseline** (stash `public/`, re-run) on 2026-08-19, so they are unrelated to the
+    imagery work — the signal-feed debug handles look to have been renamed or dropped
+    since the suite was written. `test_imagery.py` is the currently-green e2e gate.
 - **`jq` is not installed** and not on PATH. This matters because
   `.claude/hooks/check-public.sh` (the PostToolUse guardrail that runs `syntax.mjs` +
   `resolve.mjs` after every `public/*.{js,html,css}` edit) pipes through `jq` twice. On
@@ -305,6 +322,18 @@ Do not "fix" these without reading the reasoning first:
 - **Sats on `/orbit/` are PointPrimitives in one collection, never Entities.** Anything
   added via `viewer.entities.add` escapes `engine.destroy()` cleanup
   ([sat-engine.js:581](public/orbit-engine/sat-engine.js#L581)).
+- **No globe route may reacquire Cesium ion.** Imagery is the bundled offline
+  `NaturalEarthII` tileset; terrain is `EllipsoidTerrainProvider`, **passed explicitly**
+  because `Cesium.Viewer` silently defaults both to ion (that default is how
+  `/constellations/` used ion without naming it, and it burned the account's monthly
+  quota). `tests/e2e/test_imagery.py` asserts the network log is ion-free on all five
+  routes.
+- **`tuneBaseImagery()` is load-bearing, not polish.** The globe is deliberately unlit, so
+  the base texture composites at full value — and NaturalEarthII unlit is a glowing cyan
+  ball. Tone the *imagery layer*, never the lighting: re-enabling lighting would darken
+  the disc but restore the night-side blindness flat lighting exists to prevent. The
+  values are from a measured sweep, and **darker is not strictly better** — past ~0.30
+  brightness the ocean goes grey and the land/sea boundary flattens.
 - **Celestrak baseline filenames are lowercase** even when the group name is not.
 
 ---

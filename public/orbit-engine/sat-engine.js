@@ -126,6 +126,51 @@ export function tuneViewerForDevice(viewer, { mobileMaxWidth = 768 } = {}) {
     return viewer;
 }
 
+/* Tone curve for the offline base imagery.
+ *
+ * Every globe page draws an UNLIT globe on purpose (`enableLighting = false`)
+ * so satellites on the night side stay visible — see the comment at each
+ * viewer's setup. Unlit means the base texture is composited at full value with
+ * no falloff, which was unremarkable over ion's dark Bing aerial photography
+ * but not over the bundled NaturalEarthII relief map: that tileset is a bright
+ * pastel cartographic texture, and at full value the Earth rendered as a
+ * glowing cyan ball with the coastlines washed out.
+ *
+ * These are IMAGERY-LAYER dials, deliberately not lighting ones. Re-enabling
+ * lighting would darken the disc but reintroduce exactly the night-side
+ * blindness the flat-lighting decision exists to avoid, so the texture is
+ * toned instead: pull the value down, drop the pastel saturation toward a
+ * truer ocean blue, and lift gamma slightly so the darkened land keeps its
+ * relief instead of crushing to a flat navy.
+ *
+ * The defaults were picked by rendering a sweep and measuring the disc, not by
+ * taste alone. Untoned, every route read ~225 mean luminance (the glowing cyan
+ * ball); these land /orbit/ at ~112 and the sat-less /spacetrack/ pages at
+ * ~142 — the difference is framing, not settings, since satellites and orbit
+ * rings darken /orbit/'s frame. Coastlines stay legible and the ocean stays
+ * blue at both. Going further (0.30/0.70/1.8 and darker was tried) keeps
+ * dimming but desaturates the ocean toward grey and flattens the land/sea
+ * boundary — darker is NOT strictly better here, which is why these numbers
+ * are pinned rather than left to "turn it down until it looks dark".
+ *
+ * Applied to layer 0 (the base layer). Overlay layers added later are
+ * untouched — they carry their own styling.
+ */
+export function tuneBaseImagery(viewer, { brightness = 0.50, saturation = 0.80, gamma = 1.4 } = {}) {
+    const layers = viewer.scene.imageryLayers;
+    if (!layers || layers.length === 0) return viewer;
+
+    const base = layers.get(0);
+    if (!base) return viewer;
+
+    base.brightness = brightness;
+    base.saturation = saturation;
+    base.gamma      = gamma;
+
+    viewer.scene.requestRender();
+    return viewer;
+}
+
 /**
  * Clamp how far the camera can pull out.
  *

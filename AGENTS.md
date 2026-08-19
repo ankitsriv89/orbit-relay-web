@@ -44,7 +44,7 @@ resolves it faster and more reliably than either.
 | `public/starlink/` | Starlink constellation view | Linked from 13 places across the spacetrack nav and `/orbit/` |
 | `public/admin/` | **Admin dashboard** (plan 36) | Password-protected; login via `POST /api/admin/login` → HttpOnly HMAC cookie. Panels via `registry.js` — one new file + one line each. `cron.js` computes next-due **client-side from the Actions crons**, never `wrangler.toml`'s (deployable-and-unused). Not in the public nav — reached by typing the URL. 401/400/503 status semantics are **load-bearing** (frontend `api.js` maps bare statuses to messages) — do not regress `adminJson()` to options-object style |
 | `public/js/beacon.js` | Pageview beacon, all 8 public pages | Whole body in `try/catch`, no imports — a throwing module here is an 8-page outage. `hit.js` ignores bots, records origin-only referrer, daily-rotating `ip_hash` |
-| `public/orbit-engine/` | **Shared globe engine** | `astro.js` + `tle.js` + `sat-engine.js` + `propagate.worker.js` + vendored `satellite.min.js`. Imported by `/orbit/` AND `/spacetrack/` — it had already been fixed twice in two copies, so do not fork it. The worker URL is **absolute**: a relative one resolves against the page and silently falls back to synchronous SGP4 |
+| `public/orbit-engine/` | **Shared globe engine** | `astro.js` + `tle.js` + `sat-engine.js` + `propagate.worker.js` + vendored `satellite.min.js`. Imported by `/orbit/` AND `/spacetrack/` — it had already been fixed twice in two copies, so do not fork it. The worker URL is **absolute**: a relative one resolves against the page and silently falls back to synchronous SGP4. `tuneBaseImagery()` here is the single copy of the base-imagery tone curve all five globe routes apply — see "No Cesium ion" below |
 | `public/orbit-engine/conjunction.js` + `screen.worker.js` + `screen-client.js` | Close-approach screening | The maths takes its propagator by **injection**, so it is unit-tested in Node against analytic orbits with closed-form answers. Screening runs in a SECOND, **module** worker — never the 280ms render tick — and has **no synchronous fallback** on purpose. The coarse gate is derived from the step (`threshold + 22.4·Δt/2`), never tuned: a tuned gate misses conjunctions silently and looks like "there were none" |
 | `public/data/tle/celestrak/` | Shipped TLE baseline | `tle.js` reads `/data/tle`. Refresh with `scripts/snapshot_tle.sh` |
 | `functions/api/tle.js` | Pages Function | TLE proxy + edge cache; falls back to the shipped baseline, or reads the R2 bundle for `source=spacetrack` |
@@ -113,6 +113,40 @@ Useful to know before you spend time on it:
   matching CSS rules.
 - `catalog.js:775-882` ≡ `conjunctions.js:289-376`, ~95 lines verbatim.
 
+### No Cesium ion — imagery and terrain are self-contained
+
+All five globe routes (`/orbit/`, `/spacetrack/`, `/spacetrack/signal/`,
+`/spacetrack/conjunctions/`, `/constellations/`) draw the **CesiumJS-bundled offline
+`NaturalEarthII` tileset** over an **`EllipsoidTerrainProvider`**. There is no ion
+account, token, or quota in the picture, and `tests/e2e/test_imagery.py` asserts on the
+network log that no request reaches an ion host on any route.
+
+This replaced ion World Imagery (Bing aerial) + ion World Terrain, which billed every
+page load as an "imagery session" and blew the account's monthly quota (1145/1000 in
+August 2026) rendering what is a **tracking backdrop, not a map**.
+
+Three things here are load-bearing and look like bugs if you don't know why:
+
+- **`terrainProvider` must be passed explicitly.** `Cesium.Viewer` silently defaults to
+  ion World Terrain when it is omitted — which is exactly how `/constellations/` was
+  pulling ion without ever naming it in the source.
+- **`tuneBaseImagery()` (`sat-engine.js`) is not cosmetic polish.** The globe is
+  deliberately **unlit** (`enableLighting = false`, so night-side objects stay visible —
+  see the 2026-08-19 changelog entry), which means the base texture composites at full
+  value. That was unremarkable over ion's dark aerial photography, but NaturalEarthII is
+  a bright pastel relief map and rendered as a glowing cyan ball. The fix tones the
+  *imagery layer* (`brightness`/`saturation`/`gamma`), never the lighting — re-enabling
+  lighting would darken the disc but reintroduce the night-side blindness the flat
+  lighting exists to prevent. The numbers were picked from a measured sweep, and **darker
+  is not strictly better**: past ~0.30 brightness the ocean desaturates toward grey and
+  the land/sea boundary flattens.
+- **`skyAtmosphere.brightnessShift` is −0.45, not the old −0.1.** The rim is additive over
+  the globe edge; at −0.1 over the brighter base texture it left a blown-out cyan halo.
+
+Known tradeoff, accepted deliberately: NaturalEarthII is a low-resolution global tileset,
+so **close zooms (~1,200 km and below) are visibly blurry** where ion/Bing was sharp. At
+the 6,000 km+ range these pages are actually used at, it reads well.
+
 ## Verification
 
 - `npm test` — syntax + resolve checks + the orbit-ingest suite. Offline, seconds.
@@ -126,6 +160,13 @@ Useful to know before you spend time on it:
   bottleneck, not CPU).
 - **Every UI change is verified at the mobile viewports** in
   `tests/e2e/test_mobile_responsive.py`. See CLAUDE.md's mobile section for the contract.
+- `tests/e2e/test_imagery.py` — the ion-free imagery/terrain gate, all five globe routes
+  (92 checks). Asserts the network log is ion-free, the provider identity, that the globe
+  renders **actual pixels** in neither failure direction (black ball *or* blown out), and
+  that drawn ECEF still agrees with independent main-thread SGP4. Launch args are the
+  D3D11 ones, not SwiftShader — it reads back rendered pixels. Note it discriminates
+  provider types with `instanceof`, never `constructor.name`: the CDN build is minified,
+  so `EllipsoidTerrainProvider` reports as e.g. `"U1"`.
 
 ## Data & attribution
 

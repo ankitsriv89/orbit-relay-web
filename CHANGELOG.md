@@ -3,6 +3,67 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-19 — Cesium ion removed: self-contained imagery and terrain
+
+### Changed
+- **All five globe routes now render without Cesium ion.** `/orbit/`, `/spacetrack/`,
+  `/spacetrack/signal/`, `/spacetrack/conjunctions/` and `/constellations/` draw the
+  CesiumJS-bundled offline `NaturalEarthII` tileset over an `EllipsoidTerrainProvider`.
+  No ion account, token or quota is involved.
+
+  The trigger was a quota email: **1145 of 1000 monthly imagery sessions**. Every page
+  load of a globe route streamed ion World Imagery (Bing aerial) and, less visibly, ion
+  World Terrain — for a view that is a satellite-tracking backdrop, not a map. Local
+  dev and the Playwright suites hit the same live token, so testing consumed production
+  quota.
+
+  Two of the three routes named ion explicitly (a hardcoded token in
+  `orbital-relay.js` and `spacetrack/shared/globe.js`). **`/constellations/` did not** —
+  it simply omitted `imageryProvider`/`terrainProvider`, and `Cesium.Viewer` defaults
+  both to ion. That silent default is why `terrainProvider` is now passed explicitly on
+  every route rather than left to fall through.
+
+  `/orbit/`'s ion-with-ArcGIS-fallback base layer is gone with it: the fallback existed
+  to survive a token 403, and there is no longer a token to fail.
+
+### Fixed
+- **The new base texture rendered as a glowing cyan ball.** The globe is deliberately
+  *unlit* (`enableLighting = false`, so night-side objects stay visible — see the entry
+  below), which means the base texture composites at full value with no falloff. That was
+  unremarkable over ion's dark aerial photography; NaturalEarthII is a bright pastel
+  relief map, and unlit it washed out to ~225 mean luminance with the coastlines gone.
+
+  Fixed with `tuneBaseImagery()` in `sat-engine.js` — one shared copy, applied by all
+  five routes — which tones the **imagery layer** (`brightness` 0.50, `saturation` 0.80,
+  `gamma` 1.4) and dims `skyAtmosphere.brightnessShift` from −0.1 to −0.45, since the
+  additive rim over a brighter texture left a blown-out halo.
+
+  Deliberately *not* fixed by re-enabling lighting: that would darken the disc but
+  reintroduce exactly the night-side blindness flat lighting exists to prevent. The
+  values come from a measured sweep, not taste — and **darker is not strictly better**:
+  below ~0.30 brightness the ocean desaturates toward grey and the land/sea boundary
+  flattens. Settled readings are ~112 on `/orbit/` and ~142 on the sat-less
+  `/spacetrack/` pages, against ~225 untoned.
+
+### Added
+- `tests/e2e/test_imagery.py` — 92 checks across all five globe routes. Asserts on the
+  **network log** that nothing reaches an ion host (the actual quota fix; a page can look
+  perfect while silently re-acquiring ion imagery through a default), the provider
+  identity, and that the globe renders real pixels in **neither** failure direction — not
+  a black ball (the old ion 403 threw no exception, it just never became ready) and not
+  blown out. Also re-verifies drawn ECEF against independent main-thread SGP4, since the
+  change touched the `Viewer` constructor on every route and a viewer misconfiguration
+  would move where dots are *drawn* without moving the propagator's numbers.
+
+  Written before the tone fix and watched go red on the real bug (225 vs the 160 bound),
+  per CLAUDE.md's guardrail rule.
+
+### Known tradeoff
+- NaturalEarthII is a low-resolution global tileset, so **close zooms (~1,200 km and
+  below) are visibly blurry** where ion/Bing was sharp, with tile seams. Accepted: these
+  are tracking views used at 6,000 km and up, where it reads well. Sharp close-in imagery
+  would mean either paying for ion or self-hosting a tile source.
+
 ## 2026-08-19 — Night-side objects stay visible, derived constellation framing, uniform HOME link
 
 ### Fixed

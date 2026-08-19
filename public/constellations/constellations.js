@@ -19,7 +19,7 @@
  * like the GEO belt and the regime shells — see compute.js's frame notes.
  */
 
-import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '/orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice, tuneBaseImagery, mountCameraAltitudeHud, flyHome } from '/orbit-engine/sat-engine.js';
 import { parseTLE, parseTLEChunked, fetchTLE } from '/orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
@@ -32,11 +32,14 @@ import { State } from '/spacetrack/shared/state.js';
 import { planeElements, groupConstellation, planeRingDeg } from './compute.js';
 import { shapeForShell } from '/orbit-engine/markers.js';
 
-/* ── Token + constants ─────────────────────────────────────────────────── */
-Cesium.Ion.defaultAccessToken =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
-    'eyJqdGkiOiI2MjFjZDg5My0zMTRiLTQ3ZjMtOTNlNi1iM2E3ZGNjYWE5ZTQiLCJpZCI6MzkzOTM1LCJpYXQiOjE3NzE5Nzk4NTd9.' +
-    'eAH51ApKzzuBIkgwf-rqo4G2U6cSBOQMTPFAALBb2Hg';
+/* ── Constants ──────────────────────────────────────────────────────────── */
+// Dot-tracking view, not a photorealistic map — the CesiumJS-bundled offline
+// NaturalEarthII tileset + a plain ellipsoid need no Cesium ion account/token.
+const baseLayer = Cesium.ImageryLayer.fromProviderAsync(
+    Cesium.TileMapServiceImageryProvider.fromUrl(
+        Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+    )
+);
 
 /* Density slider defaults. DENSITY_MIN is the *desired* floor, not a hard
    one: GPS (32) and Galileo (~30) have fewer objects than 40, so the real
@@ -94,6 +97,7 @@ wireRevsButton(document.getElementById('revs-toggle'));
 /* ── Cesium Viewer ─────────────────────────────────────────────────── */
 const viewer = new Cesium.Viewer('cesium-container', {
     animation:             false,
+    baseLayer:             baseLayer,
     baseLayerPicker:       false,
     fullscreenButton:      false,
     geocoder:              false,
@@ -104,6 +108,7 @@ const viewer = new Cesium.Viewer('cesium-container', {
     timeline:              false,
     navigationHelpButton:  false,
     shouldAnimate:         true,
+    terrainProvider:       new Cesium.EllipsoidTerrainProvider(),
 });
 
 window.viewer = viewer;
@@ -121,7 +126,13 @@ viewer.scene.globe.dynamicAtmosphereLightingFromSun = false;
 viewer.scene.skyAtmosphere.show            = true;
 viewer.scene.skyAtmosphere.hueShift        = 0.0;
 viewer.scene.skyAtmosphere.saturationShift = -0.1;
-viewer.scene.skyAtmosphere.brightnessShift = -0.1;
+// See tuneBaseImagery: the additive atmosphere rim over the bright offline
+// imagery left a blown-out cyan halo at the old -0.1.
+viewer.scene.skyAtmosphere.brightnessShift = -0.45;
+
+// Tone the bright NaturalEarthII base texture down under the deliberately
+// unlit globe above — imagery-layer dials, not lighting. See sat-engine.js.
+tuneBaseImagery(viewer);
 
 viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
     Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK

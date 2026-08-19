@@ -1,11 +1,14 @@
-import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../../orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice, tuneBaseImagery, mountCameraAltitudeHud, flyHome } from '../../orbit-engine/sat-engine.js';
 import { State } from './state.js';
 import { wireHudToggle } from '/shared/hud.js';
 
-Cesium.Ion.defaultAccessToken =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
-    'eyJqdGkiOiI2MjFjZDg5My0zMTRiLTQ3ZjMtOTNlNi1iM2E3ZGNjYWE5ZTQiLCJpZCI6MzkzOTM1LCJpYXQiOjE3NzE5Nzk4NTd9.' +
-    'eAH51ApKzzuBIkgwf-rqo4G2U6cSBOQMTPFAALBb2Hg';
+// Dot-tracking view, not a photorealistic map — the CesiumJS-bundled offline
+// NaturalEarthII tileset + a plain ellipsoid need no Cesium ion account/token.
+const OFFLINE_IMAGERY = () => Cesium.ImageryLayer.fromProviderAsync(
+    Cesium.TileMapServiceImageryProvider.fromUrl(
+        Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+    )
+);
 
 let viewer = null;
 let engine = null;
@@ -19,6 +22,8 @@ export function initGlobe(containerId = 'cesium-container', viewerOptions = {}) 
         geocoder: false, homeButton: false, infoBox: false, sceneModePicker: false,
         selectionIndicator: false, timeline: false, navigationHelpButton: false,
         shouldAnimate: true,
+        baseLayer: OFFLINE_IMAGERY(),
+        terrainProvider: new Cesium.EllipsoidTerrainProvider(),
         ...viewerOptions,
     });
     window.viewer = viewer;
@@ -34,7 +39,13 @@ export function initGlobe(containerId = 'cesium-container', viewerOptions = {}) 
     viewer.scene.skyAtmosphere.show            = true;
     viewer.scene.skyAtmosphere.hueShift        = 0.0;
     viewer.scene.skyAtmosphere.saturationShift = -0.1;
-    viewer.scene.skyAtmosphere.brightnessShift = -0.1;
+    // See tuneBaseImagery: the additive atmosphere rim over the bright offline
+    // imagery left a blown-out cyan halo at the old -0.1.
+    viewer.scene.skyAtmosphere.brightnessShift = -0.45;
+
+    // Tone the bright NaturalEarthII base texture down under the deliberately
+    // unlit globe above — imagery-layer dials, not lighting. See sat-engine.js.
+    tuneBaseImagery(viewer);
 
     viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
         Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);

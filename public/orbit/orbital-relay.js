@@ -16,7 +16,7 @@
  * animated orbit trails, constellation pulse FX.
  */
 
-import { SatEngine, tuneViewerForDevice, mountCameraAltitudeHud, flyHome } from '../orbit-engine/sat-engine.js';
+import { SatEngine, tuneViewerForDevice, tuneBaseImagery, mountCameraAltitudeHud, flyHome } from '../orbit-engine/sat-engine.js';
 import { parseTLE, parseTLEChunked, fetchTLE } from '../orbit-engine/tle.js';
 import {
     orbitalPeriodMin, orbitRegime, orbVel, fmtLat, fmtLon,
@@ -31,26 +31,13 @@ import { syncCheckboxes } from '/shared/sync-checkbox.js';
 import { State } from '/spacetrack/shared/state.js';
 import { renderLayerList } from './layers.js';
 
-/* ── Token + constants ─────────────────────────────────────────────────── */
-// The previous orbit-page token was rejected by api.cesium.com with a 403,
-// and the globe silently rendered with NO imagery — a black ball that read
-// as "globe not rendering". This is the same token /spacetrack/ and /constellations/
-// use, which api.cesium.com accepts.
-Cesium.Ion.defaultAccessToken =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
-    'eyJqdGkiOiI2MjFjZDg5My0zMTRiLTQ3ZjMtOTNlNi1iM2E3ZGNjYWE5ZTQiLCJpZCI6MzkzOTM1LCJpYXQiOjE3NzE5Nzk4NTd9.' +
-    'eAH51ApKzzuBIkgwf-rqo4G2U6cSBOQMTPFAALBb2Hg';
-
-// Ion-first base layer with a tokenless fallback. The 403 above was silent —
-// no exception, just an imagery layer that never became ready — so a second
-// failure of the token (expiry, quota, revocation) must not be able to kill
-// the globe again. If the world-imagery promise rejects, swap in ArcGIS
-// World Imagery, which needs no token.
+/* ── Constants ──────────────────────────────────────────────────────────── */
+// This is a dot-tracking view, not a photorealistic map — imagery and terrain
+// are the CesiumJS-bundled offline NaturalEarthII tileset and a plain
+// ellipsoid, so the globe needs no Cesium ion account/token/quota at all.
 const baseLayer = Cesium.ImageryLayer.fromProviderAsync(
-    Cesium.createWorldImageryAsync().catch(() =>
-        Cesium.ArcGisMapServerImageryProvider.fromUrl(
-            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-        )
+    Cesium.TileMapServiceImageryProvider.fromUrl(
+        Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
     )
 );
 
@@ -287,6 +274,7 @@ const viewer = new Cesium.Viewer('cesium-container', {
     timeline:              false,
     navigationHelpButton:  false,
     shouldAnimate:         true,
+    terrainProvider:       new Cesium.EllipsoidTerrainProvider(),
 });
 
 // Expose the viewer for console debugging / inspection.
@@ -308,7 +296,17 @@ viewer.scene.globe.dynamicAtmosphereLightingFromSun = false;
 viewer.scene.skyAtmosphere.show            = true;
 viewer.scene.skyAtmosphere.hueShift        = 0.0;
 viewer.scene.skyAtmosphere.saturationShift = -0.1;
-viewer.scene.skyAtmosphere.brightnessShift = -0.1;
+// The atmosphere rim is additive over the globe edge. With the bright offline
+// imagery below it, the old -0.1 left a blown-out cyan halo that swallowed the
+// limb; -0.45 keeps the rim readable without lighting the disc.
+viewer.scene.skyAtmosphere.brightnessShift = -0.45;
+
+// Tone the base imagery down. The globe is deliberately UNLIT (above), so the
+// texture is drawn at full value — fine over dark aerial photography, but
+// NaturalEarthII is a bright pastel relief map and rendered as a glowing cyan
+// ball. These are imagery-layer dials, not lighting: they darken the texture
+// while leaving the flat-lighting decision above intact.
+tuneBaseImagery(viewer);
 
 viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
     Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK
