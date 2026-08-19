@@ -266,10 +266,23 @@ CREATE INDEX IF NOT EXISTS idx_api_calls_ts ON api_calls(ts DESC);
 -- First-party analytics beacon. One row per pageview, written by /api/hit.
 -- IP is hashed with a daily-rotating salt (derived, not stored) so uniques
 -- are countable per day but not correlatable across days.
+--
+-- city/lat/lon are Cloudflare's own edge-derived geolocation (request.cf.city/
+-- latitude/longitude) — ISP/city-resolution, not a precise address. Disclosed
+-- in /about/#privacy. NOTE: this table predates these three columns, so on an
+-- already-provisioned remote DB this CREATE is a no-op (table exists) and the
+-- columns must be added once by hand:
+--   ALTER TABLE page_views ADD COLUMN city TEXT;
+--   ALTER TABLE page_views ADD COLUMN lat  REAL;
+--   ALTER TABLE page_views ADD COLUMN lon  REAL;
+-- (SQLite has no `ADD COLUMN IF NOT EXISTS`, so re-running those three against
+-- a DB that already has them will error with "duplicate column name" — that's
+-- expected, not a failure to investigate.)
 CREATE TABLE IF NOT EXISTS page_views (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts INTEGER NOT NULL, path TEXT NOT NULL, referrer TEXT,
-  country TEXT, ip_hash TEXT, ua_class TEXT
+  country TEXT, ip_hash TEXT, ua_class TEXT,
+  city TEXT, lat REAL, lon REAL
 );
 CREATE INDEX IF NOT EXISTS idx_page_views_ts   ON page_views(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views(path);

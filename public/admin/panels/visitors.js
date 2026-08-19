@@ -116,5 +116,98 @@ export default {
       }
       el.appendChild(list);
     }
+
+    if (data.byCity?.length) {
+      const heading = document.createElement('p');
+      heading.style.cssText = 'margin:16px 0 4px;color:var(--c-signal);font-size:0.6rem;letter-spacing:1px;';
+      heading.textContent = '// VISITOR MAP (7d, by city)';
+      el.appendChild(heading);
+      el.appendChild(renderMap(data.byCity));
+    }
   },
 };
+
+const MAP_W = 720;
+const MAP_H = 360;
+
+// Equirectangular: lon -180..180 -> x 0..MAP_W, lat 90..-90 -> y 0..MAP_H.
+function project(lat, lon) {
+  const x = ((lon + 180) / 360) * MAP_W;
+  const y = ((90 - lat) / 180) * MAP_H;
+  return [x, y];
+}
+
+function renderMap(points) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;margin-top:8px;overflow-x:auto;';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${MAP_W} ${MAP_H}`);
+  svg.setAttribute('width', '100%');
+  svg.style.cssText = 'display:block;min-width:480px;background:rgba(0,210,255,0.03);border:1px solid rgba(0,210,255,0.12);border-radius:4px;';
+
+  // Graticule: equator + tropics/polar circles, prime meridian + every 30deg.
+  const graticule = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  graticule.setAttribute('stroke', 'rgba(0,210,255,0.1)');
+  graticule.setAttribute('stroke-width', '1');
+  for (let lon = -180; lon <= 180; lon += 30) {
+    const [x] = project(0, lon);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x); line.setAttribute('x2', x);
+    line.setAttribute('y1', 0); line.setAttribute('y2', MAP_H);
+    graticule.appendChild(line);
+  }
+  for (const lat of [-60, -30, 0, 30, 60]) {
+    const [, y] = project(lat, 0);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', 0); line.setAttribute('x2', MAP_W);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('stroke-width', lat === 0 ? '1.5' : '1');
+    line.setAttribute('stroke', lat === 0 ? 'rgba(0,210,255,0.22)' : 'rgba(0,210,255,0.1)');
+    graticule.appendChild(line);
+  }
+  svg.appendChild(graticule);
+
+  const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  border.setAttribute('x', 0); border.setAttribute('y', 0);
+  border.setAttribute('width', MAP_W); border.setAttribute('height', MAP_H);
+  border.setAttribute('fill', 'none');
+  border.setAttribute('stroke', 'rgba(0,210,255,0.18)');
+  svg.appendChild(border);
+
+  const max = points.reduce((m, p) => Math.max(m, p.views), 1);
+  const dots = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+  const tooltip = document.createElement('div');
+  tooltip.style.cssText = 'position:absolute;pointer-events:none;padding:4px 8px;background:rgba(8,18,28,0.96);border:1px solid rgba(0,210,255,0.4);border-radius:3px;font-size:0.6rem;color:var(--c-text);white-space:nowrap;transform:translate(-50%,-130%);display:none;z-index:5;';
+  wrap.appendChild(tooltip);
+
+  for (const p of points) {
+    const [x, y] = project(p.lat, p.lon);
+    const r = 2 + Math.sqrt(p.views / max) * 8;
+
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', x);
+    dot.setAttribute('cy', y);
+    dot.setAttribute('r', r);
+    dot.setAttribute('fill', 'rgba(0,210,255,0.55)');
+    dot.setAttribute('stroke', 'var(--c-signal)');
+    dot.setAttribute('stroke-width', '1');
+    dot.style.cursor = 'pointer';
+
+    const label = `${p.city}, ${p.country} — ${p.views} view${p.views === 1 ? '' : 's'}`;
+    dot.addEventListener('mouseenter', () => {
+      tooltip.textContent = label;
+      tooltip.style.left = `${(x / MAP_W) * 100}%`;
+      tooltip.style.top = `${(y / MAP_H) * 100}%`;
+      tooltip.style.display = 'block';
+    });
+    dot.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+    dots.appendChild(dot);
+  }
+  svg.appendChild(dots);
+
+  wrap.appendChild(svg);
+  return wrap;
+}

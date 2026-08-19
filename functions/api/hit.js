@@ -1,7 +1,9 @@
 // Public pageview beacon. Not under /api/admin/ — no auth required.
 //
 // Records: ts, path, referrer (origin only — never the full third-party URL),
-// country (request.cf.country), ip_hash, ua_class (bucketed mobile|tablet|desktop|bot,
+// country (request.cf.country), city/lat/lon (Cloudflare's own edge-derived
+// geolocation — ISP/city-resolution, not a precise address; disclosed in
+// /about/#privacy), ip_hash, ua_class (bucketed mobile|tablet|desktop|bot,
 // never the raw UA).
 //
 // IP hashing — daily-rotating salt, derived not stored:
@@ -50,6 +52,9 @@ export async function onRequest(context) {
     try { referrer = new URL(body.ref).origin; } catch (_) { referrer = ''; }
   }
   const country = request.cf?.country || '';
+  const city = request.cf?.city || '';
+  const lat = typeof request.cf?.latitude === 'string' ? parseFloat(request.cf.latitude) : null;
+  const lon = typeof request.cf?.longitude === 'string' ? parseFloat(request.cf.longitude) : null;
   const ip = request.headers.get('CF-Connecting-IP') || '';
   const dayStamp = new Date().toISOString().slice(0, 10);
 
@@ -64,8 +69,8 @@ export async function onRequest(context) {
 
   context.waitUntil(
     db.prepare(
-      'INSERT INTO page_views (ts, path, referrer, country, ip_hash, ua_class) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(Date.now(), path, referrer, country, ipHash, ua).run()
+      'INSERT INTO page_views (ts, path, referrer, country, ip_hash, ua_class, city, lat, lon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(Date.now(), path, referrer, country, ipHash, ua, city, lat, lon).run()
       .catch(() => {}),
   );
 

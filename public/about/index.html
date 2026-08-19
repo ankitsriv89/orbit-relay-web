@@ -155,7 +155,10 @@
             <ul>
                 <li>Timestamp and the page path visited</li>
                 <li>Referring site's origin only (never a full referring URL)</li>
-                <li>Country, derived from the request (not city- or address-level)</li>
+                <li>Approximate location, derived from the request at Cloudflare's
+                    network edge — country and an ISP/city-resolution city, latitude
+                    and longitude (not a precise address, and not derived from GPS
+                    or device permissions, which this site never requests)</li>
                 <li>A one-way hash of your IP address, salted and rotated daily — this
                     supports counting unique visitors per day without the raw IP being
                     stored, and the hash cannot be linked across different days</li>

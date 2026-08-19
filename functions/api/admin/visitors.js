@@ -10,7 +10,7 @@ export async function onRequest(context) {
   const todayStart = now - (now % dayMs);
   const weekStart = todayStart - 6 * dayMs;
 
-  const result = { today: 0, thisWeek: 0, uniqueToday: 0, topPages: [], byCountry: [] };
+  const result = { today: 0, thisWeek: 0, uniqueToday: 0, topPages: [], byCountry: [], byCity: [] };
 
   try {
     const r = await db.prepare('SELECT COUNT(*) AS n FROM page_views WHERE ts >= ?').bind(todayStart).first();
@@ -43,6 +43,21 @@ export async function onRequest(context) {
       .bind(weekStart)
       .all();
     result.byCountry = results;
+  } catch (_) {}
+
+  try {
+    const { results } = await db
+      .prepare(
+        `SELECT city, country, lat, lon, COUNT(*) AS views
+         FROM page_views
+         WHERE ts >= ? AND city != '' AND lat IS NOT NULL AND lon IS NOT NULL
+         GROUP BY city, country, lat, lon
+         ORDER BY views DESC
+         LIMIT 200`,
+      )
+      .bind(weekStart)
+      .all();
+    result.byCity = results;
   } catch (_) {}
 
   return adminJson(result);
