@@ -57,6 +57,20 @@ const tle = (group, live) => fetchTLE(group, { source: SOURCE, live });
 
 wireHudToggle('iss-hud',      'iss-hud-toggle',      'iss-hud-body');
 wireHudToggle('layers-hud',   'layers-hud-toggle',   'layers-hud-body');
+wireHudToggle('time-warp',    'time-warp-toggle',    'time-warp-body', { exclusive: 'never' });
+
+// Collapsed by default on mobile, same as every other HUD panel — desktop
+// keeps it expanded since there's no space pressure there.
+if (isMobile()) {
+    const timeWarpHud = document.getElementById('time-warp');
+    const timeWarpToggle = document.getElementById('time-warp-toggle');
+    const timeWarpBody = document.getElementById('time-warp-body');
+    if (timeWarpHud && timeWarpToggle && timeWarpBody) {
+        timeWarpHud.classList.add('key-hud--collapsed');
+        timeWarpToggle.setAttribute('aria-expanded', 'false');
+        timeWarpBody.hidden = true;
+    }
+}
 
 initHamburgerMenu();
 
@@ -560,6 +574,7 @@ clickHandler.setInputAction((movement) => {
 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 /* ── Time-warp controls ────────────────────────────────────────────────── */
+const twCurrentRateEl = document.getElementById('tw-current-rate');
 document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
     btn.addEventListener('click', () => {
         const rate = parseInt(btn.dataset.rate, 10);
@@ -571,6 +586,7 @@ document.querySelectorAll('.tw-btn[data-rate]').forEach(btn => {
         }
         document.querySelectorAll('.tw-btn[data-rate]').forEach(b =>
             b.classList.toggle('tw-btn--active', b === btn));
+        if (twCurrentRateEl) twCurrentRateEl.textContent = rate === 0 ? '❚❚' : `${rate}×`;
     });
 });
 
