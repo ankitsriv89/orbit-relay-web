@@ -116,6 +116,37 @@ body[data-page-id="spacetrack-catalog"] #results-hud {
     top: auto;
 }
 
+/* Applied-filters summary — centered under the top nav, always visible once
+ * a filter is rendered (independent of the Filters/Results HUD collapse
+ * state, since those are corner-docked and closed by default). */
+.st-applied-filters {
+    position: fixed;
+    top: calc(56px + 10px + var(--sa-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    max-width: min(70vw, 640px);
+    padding: 0 8px;
+    pointer-events: none;
+}
+.st-applied-filters[hidden] { display: none; }
+.st-applied-filters__chip {
+    font-family: "SFMono-Regular", "JetBrains Mono", "Roboto Mono", "Courier New", monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #00d2ff;
+    background: rgba(6, 14, 24, 0.82);
+    border: 1px solid rgba(0, 210, 255, 0.3);
+    border-radius: 999px;
+    padding: 3px 10px;
+    white-space: nowrap;
+}
+
 /* ── Tab styles (inside HUD bodies) ────────────────────────────────────────── */
 
 /* ── HUD viewport cap + scroll ──────────────────────────────────────────────
@@ -1205,6 +1236,13 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     body[data-page-id="spacetrack-conjunctions"] #catalog-hud {
         top: calc(48px + var(--sa-top));
         left: calc(8px + var(--sa-left));
+    }
+
+    .st-applied-filters {
+        /* Below the collapsed catalog-hud toggle row (~44px) so chips don't
+           sit on top of it at the same top-left corner. */
+        top: calc(48px + 44px + 12px + var(--sa-top));
+        max-width: calc(100vw - 16px);
     }
 
     /* Top-right: filters / analysis / screening → hidden on mobile (drawer) */

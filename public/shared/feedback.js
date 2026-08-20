@@ -17,6 +17,13 @@ const STYLE = `
     z-index: 40;
     font-family: "SFMono-Regular", "JetBrains Mono", "Roboto Mono", "Courier New", monospace;
 }
+@media (max-width: 768px) {
+    /* Lift above .mobile-bottom-nav (chrome.css) — 56px + safe-area, plus a
+       gap — so the tab doesn't sit on top of the bottom nav's tap targets. */
+    .fb-tab {
+        bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 12px);
+    }
+}
 .fb-tab__btn {
     display: flex;
     align-items: center;

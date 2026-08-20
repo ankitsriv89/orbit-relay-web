@@ -271,6 +271,7 @@ if (fdReset) {
         renderList([]);
         setText('results-count', '');
         status('ready');
+        renderAppliedFilters();
         document.querySelectorAll('.st-preset-btn').forEach(b => b.classList.remove('st-preset-btn--active'));
     });
 }
@@ -436,6 +437,45 @@ function status(msg) {
     if (el) el.textContent = msg;
 }
 
+/* Applied-filters chip row — always visible (not gated on the Filters/Results
+   HUD being open), so a filtered view stays legible while panels are
+   collapsed. Reads the same FILTER_FIELDS the query is built from, so it
+   never drifts from what's actually applied. */
+const APPLIED_FILTER_LABELS = {
+    'f-q': 'SEARCH',
+    'f-country': 'COUNTRY',
+    'f-type': 'TYPE',
+    'f-regime': 'REGIME',
+    'f-era': 'ERA',
+    'f-operator': 'OPERATOR',
+};
+function renderAppliedFilters() {
+    const el = $('applied-filters');
+    if (!el) return;
+    el.textContent = '';
+    const chips = FILTER_FIELDS
+        .map(id => {
+            const field = $(id);
+            if (!field || !field.value) return null;
+            const label = APPLIED_FILTER_LABELS[id] || id;
+            let text = id === 'f-q' ? field.value : (field.selectedOptions?.[0]?.textContent || field.value);
+            text = text.replace(/\s*\(\d+\)\s*$/, ''); // strip trailing facet count, e.g. "US (3)"
+            return `${label}: ${text.toUpperCase()}`;
+        })
+        .filter(Boolean);
+    if (!chips.length) {
+        el.hidden = true;
+        return;
+    }
+    for (const c of chips) {
+        const chip = document.createElement('span');
+        chip.className = 'st-applied-filters__chip';
+        chip.textContent = c;
+        el.appendChild(chip);
+    }
+    el.hidden = false;
+}
+
 async function render() {
     const params = currentQuery();
     lastQuery = params.toString();
@@ -465,6 +505,7 @@ async function render() {
     if (noElset) msg += ` · ${noElset} without an elset`;
     status(msg);
     setText('results-count', shown ? `(${num(shown)})` : '');
+    renderAppliedFilters();
 }
 
 function addObjects(rows) {
@@ -543,6 +584,7 @@ on('f-reset', 'click', () => {
     renderList([]);
     setText('results-count', '');
     status('ready');
+    renderAppliedFilters();
     document.querySelectorAll('.st-preset-btn').forEach(b => b.classList.remove('st-preset-btn--active'));
 });
 on('f-q', 'keydown', (e) => { if (e.key === 'Enter') render(); });
@@ -610,6 +652,7 @@ function wirePresetBtns(precentId, decayId) {
             engine.flyToSats(rendered);
             status(`${rendered.length} objects predicted to decay this month`);
             setText('results-count', rendered.length ? `(${num(rendered.length)})` : '');
+            renderAppliedFilters();
         });
     }
 }
@@ -634,6 +677,7 @@ function renderWithEra(yearFrom) {
             if (total > shown) msg += ` of ${num(total)} matched`;
             status(msg);
             setText('results-count', shown ? `(${num(shown)})` : '');
+            renderAppliedFilters();
         })
         .catch(err => { console.warn('[catalog] search failed:', err); status('query failed'); });
 }
