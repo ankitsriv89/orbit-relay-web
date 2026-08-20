@@ -1,6 +1,6 @@
 import { SatEngine, tuneViewerForDevice, tuneBaseImagery, mountCameraAltitudeHud, flyHome } from '../../orbit-engine/sat-engine.js';
 import { State } from './state.js';
-import { wireHudToggle } from '/shared/hud.js';
+import { wireHudToggle, isMobile } from '/shared/hud.js';
 
 // Dot-tracking view, not a photorealistic map — the CesiumJS-bundled offline
 // NaturalEarthII tileset + a plain ellipsoid need no Cesium ion account/token.
@@ -107,12 +107,13 @@ export function initTimeWarpButtons(container) {
         if (!container) return;
     }
     container.classList.add('key-hud');
+    if (isMobile()) container.classList.add('key-hud--collapsed');
     container.innerHTML = `
-        <button class="key-hud-toggle tw-toggle" id="time-warp-toggle" aria-expanded="true" aria-controls="time-warp-body">
+        <button class="key-hud-toggle tw-toggle" id="time-warp-toggle" aria-expanded="${isMobile() ? 'false' : 'true'}" aria-controls="time-warp-body">
             <span class="key-hud-toggle-arrow">▶</span>
             <span class="tw-label">⏱ TIME <span id="tw-current-rate" class="tw-current-rate">1×</span></span>
         </button>
-        <div id="time-warp-body" class="key-hud-body tw-body">
+        <div id="time-warp-body" class="key-hud-body tw-body"${isMobile() ? ' hidden' : ''}>
             <div class="tw-btns">
                 <button class="tw-btn" data-rate="0" title="Pause">❚❚</button>
                 <button class="tw-btn tw-btn--active" data-rate="1" title="Real time">1×</button>

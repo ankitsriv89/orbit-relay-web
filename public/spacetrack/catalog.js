@@ -701,7 +701,11 @@ State.subscribe('preferences.colorMode', (newMode) => {
     status('loading catalog…');
     let data;
     try {
-        data = await API.search({ type: 'PAYLOAD', limit: '200', tle: '1' });
+        // Default load is LEO-only: without a regime filter, 200 recent
+        // PAYLOADs can include GEO/HEO objects at 35,000+ km, which balloons
+        // flyToSats' bounding sphere and strands the camera zoomed so far out
+        // the globe reads as a tiny dot.
+        data = await API.search({ type: 'PAYLOAD', regime: 'LEO', limit: '200', tle: '1' });
     } catch (err) {
         console.warn('[catalog] default load failed:', err);
         status('catalog offline');

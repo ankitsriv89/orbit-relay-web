@@ -1283,15 +1283,36 @@ body[data-page-id="spacetrack-catalog"] #dossier {
         max-height: min(52vh, 420px, calc(100vh - 48px - 64px - var(--sa-top) - var(--sa-bottom)));
     }
 
-    /* Time warp: full-width dedicated row above bottom nav */
+    /* Time warp: compact chip above bottom nav, not a full-width strip —
+       left-anchored so it doesn't crowd the FEEDBACK icon at bottom-right.
+       Buttons keep the repo's 44px touch-target floor (orbit.css's .tw-btn
+       rule); this only tightens padding/gaps/width, letting the row wrap to
+       two lines instead of spanning edge-to-edge. */
     .time-warp {
         bottom: calc(64px + var(--sa-bottom));
         left: calc(8px + var(--sa-left));
-        right: calc(8px + var(--sa-right));
+        right: auto;
         transform: none;
         justify-content: center;
-        max-width: none;
+        max-width: min(58vw, 210px);
         border-radius: 6px;
+    }
+    .time-warp .key-hud-body.tw-body {
+        gap: 6px;
+        margin-top: 6px;
+    }
+    .time-warp .tw-btns {
+        gap: 4px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .time-warp .tw-btn {
+        padding-left: 6px;
+        padding-right: 6px;
+        min-width: 38px;
+    }
+    .time-warp .cam-alt {
+        font-size: 0.55rem;
     }
 
     /* Footer: hidden on mobile (bottom nav replaces it) */

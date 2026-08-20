@@ -565,6 +565,34 @@ body[data-page-id="spacetrack-catalog"] {
     color: rgba(160, 200, 230, 0.7);
 }
 
+/* Hamburger button — hidden on desktop, shown on mobile.
+ * The base rule below (and its mobile `display:flex` override, and
+ * .hamburger-line/open-state) stay here rather than moving to chrome.css:
+ * spacetrack.css's `.hamburger-btn` is just `display:none` (those pages have
+ * no hamburger, only the bottom nav) and its mobile override is
+ * `display:none !important`. Real drift, not accidental duplication.
+ *
+ * MUST stay before the @media block below, same reasoning as
+ * `.orbital-footer` above: this rule used to live at the bottom of the file,
+ * after its own `@media { display: flex }` override, so it silently won the
+ * cascade and the button never showed on mobile at all. */
+.hamburger-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: border-color 0.15s;
+    margin-left: auto;
+}
+
 /* ── Mobile / Tablet (<768px) ────────────────────────────────────────────────
  * Shared orbit.css responsive rules for both /orbit/ and /spacetrack/ pages.
  * The 768px breakpoint aligns with spacetrack.css's responsive tiers.
@@ -627,10 +655,10 @@ body[data-page-id="spacetrack-catalog"] {
     .time-warp {
         bottom: calc(64px + var(--sa-bottom));
         left: calc(8px + var(--sa-left));
-        right: calc(8px + var(--sa-right));
+        right: auto;
         transform: none;
         justify-content: center;
-        max-width: none;
+        max-width: min(58vw, 210px);
         border-radius: 6px;
     }
 
@@ -974,28 +1002,6 @@ body[data-page-id="spacetrack-catalog"] {
     border-radius: 4px;
 }
 
-/* Hamburger button — hidden on desktop, shown on mobile.
- * The base rule below (and its mobile `display:flex` override, and
- * .hamburger-line/open-state) stay here rather than moving to chrome.css:
- * spacetrack.css's `.hamburger-btn` is just `display:none` (those pages have
- * no hamburger, only the bottom nav) and its mobile override is
- * `display:none !important`. Real drift, not accidental duplication. */
-.hamburger-btn {
-    display: none;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    width: 44px;
-    height: 44px;
-    padding: 10px;
-    background: transparent;
-    border: 1px solid rgba(0, 210, 255, 0.25);
-    border-radius: 4px;
-    cursor: pointer;
-    pointer-events: auto;
-    transition: border-color 0.15s;
-    margin-left: auto;
-}
 .hamburger-line {
     display: block;
     width: 100%;

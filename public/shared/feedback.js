@@ -27,17 +27,17 @@ const STYLE = `
 .fb-tab__btn {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 14px;
-    min-height: 44px;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
     font-family: inherit;
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 1.5px;
+    font-size: 1.1rem;
+    line-height: 1;
     color: #e8f4fa;
     background: rgba(6, 14, 24, 0.88);
     border: 1px solid rgba(0, 210, 255, 0.35);
-    border-radius: 999px;
+    border-radius: 50%;
     backdrop-filter: blur(8px);
     cursor: pointer;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
@@ -161,7 +161,9 @@ function mount() {
     btn.className = 'fb-tab__btn';
     btn.setAttribute('aria-expanded', 'false');
     btn.setAttribute('aria-controls', 'fb-panel');
-    btn.textContent = '✉ FEEDBACK';
+    btn.setAttribute('aria-label', 'Send feedback');
+    btn.title = 'Feedback';
+    btn.textContent = '✉';
 
     const panel = document.createElement('div');
     panel.className = 'fb-panel';
