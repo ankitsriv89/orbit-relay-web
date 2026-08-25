@@ -296,7 +296,27 @@ Now: **one `SELECT` of the 13 columns actually used, folded in JS**
 | | Statements scanning `objects` |
 |---|---|
 | Before | **17** |
-| After | **3** |
+| After the tally fold | **3** |
+| After the bin fold | **1** |
+
+The last two were `altitude_bins` / `inclination_bins`, still SQL `GROUP BY`s
+after the first pass: measured at **64,741 rows read per call to return 240**
+(ratio 1,619), ~388k rows/run. Folded the same way on 2026-08-26 — the pass
+already visits every row they need, and **D1 bills rows visited, not columns**,
+so widening it by `APOAPSIS`/`PERIAPSIS`/`INCLINATION` is free.
+
+Measured effect on a one-hour window containing a daily run:
+
+| | Rows read |
+|---|---|
+| Before any of this | 1,684,019 |
+| After the tally fold | 1,091,414 |
+| After the bin fold | **~703,000** |
+
+`binRows()` must keep three properties the SQL had, all asserted against the
+query it replaced: a value exactly on `max` lands in the LAST bin (not one past
+the end); values outside `[min, max]` are EXCLUDED, not clamped (clamping would
+invent objects); and nulls are dropped rather than read as zero.
 
 Verified: the emitted `catalog/analytics.json` and `catalog/launches.json` are
 **byte-identical** to the pre-fix output on the seeded fixture (diffed field by

@@ -653,21 +653,40 @@ function safeParse(s) {
  * summary panel.
  */
 /**
- * Fixed-width SQL bucket count over an expression already indexed or cheap to
- * scan. Mirrors `public/shared/charts.js`'s `bin()` edge rule so the two stay
- * consistent even though they run in different places (SQL here, over rows
- * already in memory there): a value exactly on `max` lands in the LAST
- * bucket via `MIN(..., count-1)`, not an overflow bucket one past the end.
+ * Fixed-width bucket count over rows already in memory.
+ *
+ * **This was a SQL `GROUP BY` until 2026-08-26.** Measured then, the two calls
+ * cost 64,741 rows read *each* to return 240 rows (ratio 1,619) — ~388k
+ * rows/run, the largest remaining line in the D1 dashboard after the tally
+ * fold. `buildAnalytics()` already walks every row these need, and D1 bills
+ * rows VISITED, not columns, so widening that one pass by three columns is
+ * free and removes both scans.
+ *
+ * Mirrors `public/shared/charts.js`'s `bin()` edge rule, and the SQL this
+ * replaced, on three points that are easy to get wrong:
+ *
+ *  - a value exactly on `max` lands in the LAST bucket, not an overflow bucket
+ *    one past the end (the SQL did this with `MIN(count-1, …)`);
+ *  - values outside `[min, max]` are EXCLUDED, not clamped into an end bucket —
+ *    the SQL's `WHERE expr >= ? AND expr <= ?`. Clamping would invent objects
+ *    the old query never counted;
+ *  - `CAST(… AS INTEGER)` truncates toward zero. That equals `Math.floor` only
+ *    for non-negative values, which both expressions are here (an altitude or
+ *    an inclination), but the bucket index is computed from a value already
+ *    range-checked above, so the two agree.
+ *
+ * All three are asserted in test/pages-api.test.mjs against the SQL they
+ * replaced, including a row sitting exactly on `max` and one above it.
  */
-async function binQuery(db, { expr, where, min, max, width }) {
+function binRows(values, { min, max, width }) {
   const count = Math.max(1, Math.ceil((max - min) / width));
-  const { results } = await db.prepare(`
-    SELECT MIN(${count - 1}, CAST((${expr} - ?) / ? AS INTEGER)) AS bucket, COUNT(*) AS n
-    FROM objects
-    WHERE ${where} AND ${expr} IS NOT NULL AND ${expr} >= ? AND ${expr} <= ?
-    GROUP BY bucket ORDER BY bucket ASC
-  `).bind(min, width, min, max).all();
-  const byBucket = new Map((results || []).map((r) => [r.bucket, r.n]));
+  const byBucket = new Map();
+  for (const v of values) {
+    if (v == null || !Number.isFinite(v)) continue;
+    if (v < min || v > max) continue;
+    const bucket = Math.min(count - 1, Math.trunc((v - min) / width));
+    byBucket.set(bucket, (byBucket.get(bucket) || 0) + 1);
+  }
   const bins = [];
   for (let i = 0; i < count; i++) {
     bins.push({ min: min + i * width, max: Math.min(max, min + (i + 1) * width), n: byBucket.get(i) || 0 });
@@ -811,7 +830,7 @@ export async function buildAnalytics(env) {
   const { results: allRows } = await env.ORBIT_DB.prepare(`
     SELECT NORAD_CAT_ID, OBJECT_ID, OBJECT_NAME, OBJECT_TYPE, COUNTRY_CODE,
            RCS_SIZE, SITE, LAUNCH_DATE, DECAY_DATE, regime, launch_year,
-           operator, debris_family
+           operator, debris_family, APOAPSIS, PERIAPSIS, INCLINATION
     FROM objects`).all();
 
   const {
@@ -820,16 +839,17 @@ export async function buildAnalytics(env) {
     cohortLaunched, cohortAlive, operatorByYear,
   } = foldAnalytics(allRows || []);
 
-  const [altitudeBins, inclinationBins] = await Promise.all([
-    binQuery(env.ORBIT_DB, {
-      expr: '(APOAPSIS + PERIAPSIS) / 2', where: live.replace(/^WHERE /, ''),
-      min: 0, max: 40000, width: 1000,
-    }),
-    binQuery(env.ORBIT_DB, {
-      expr: 'INCLINATION', where: live.replace(/^WHERE /, ''),
-      min: 0, max: 180, width: 10,
-    }),
-  ]);
+  // Both distributions are on-orbit-now (`DECAY_DATE IS NULL`), matching the
+  // `where` the SQL binQuery carried. Nulls are dropped by binRows, exactly as
+  // the old `expr IS NOT NULL` predicate did — a row missing APOAPSIS is not
+  // an altitude of zero.
+  const liveRows = (allRows || []).filter((r) => r.DECAY_DATE == null);
+  const altitudeBins = binRows(
+    liveRows.map((r) => (r.APOAPSIS != null && r.PERIAPSIS != null
+      ? (r.APOAPSIS + r.PERIAPSIS) / 2 : null)),
+    { min: 0, max: 40000, width: 1000 });
+  const inclinationBins = binRows(
+    liveRows.map((r) => r.INCLINATION), { min: 0, max: 180, width: 10 });
 
   // Site names come from launch_sites (plan 38 task 2) — a LEFT JOIN would
   // need a second round-trip either way, and the table is ~60 rows, so one

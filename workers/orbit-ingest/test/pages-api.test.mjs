@@ -522,20 +522,22 @@ function countingD1(db) {
 const scansOf = (seen) => seen.filter((q) => /FROM\s+objects\b/i.test(q));
 
 await test('buildAnalytics walks the objects table a bounded number of times', async () => {
-  const spy = countingD1(db);
+  // A FRESH db: the module-level `db` is mutated by earlier tests, and a
+  // buildAnalytics() that throws part-way records fewer statements than it
+  // issues — which would let this guardrail pass while the bug was present.
+  const spy = countingD1(seeded());
   await buildAnalytics({ ORBIT_DB: spy, ORBIT_R2: fakeR2() });
   const scans = scansOf(spy.seen);
-  // Pre-fix this was 18 (16 tallies + SELECT * + the bin queries). The fix
-  // folds every tally into the single full pass the launch history already
-  // needed. The bound is deliberately loose enough not to be a churn magnet
-  // and tight enough that re-adding per-tally GROUP BYs fails it.
-  assert.ok(scans.length <= 4,
-    `expected <= 4 statements scanning objects, got ${scans.length}:\n` +
+  // 18 pre-fix (16 tallies + SELECT * + 2 bin GROUP BYs), 3 once the tallies
+  // folded, 1 now that the bins fold too: the ONLY statement permitted to scan
+  // `objects` is the single fold pass every section is derived from.
+  assert.ok(scans.length <= 1,
+    `expected <= 1 statement scanning objects, got ${scans.length}:\n` +
     scans.map((q) => '  ' + q.slice(0, 90)).join('\n'));
 });
 
 await test('buildAnalytics issues no duplicate scanning query', async () => {
-  const spy = countingD1(db);
+  const spy = countingD1(seeded());
   await buildAnalytics({ ORBIT_DB: spy, ORBIT_R2: fakeR2() });
   const scans = scansOf(spy.seen);
   const dupes = scans.filter((q, i) => scans.indexOf(q) !== i);
@@ -554,6 +556,96 @@ await test('the two decade tallies that differed only by alias produce equal tot
     assert.equal(launched.get(row.decade), row.n,
       `decade ${row.decade}: launches_by_decade=${row.n} but cohort launched=${launched.get(row.decade)}`);
   }
+});
+
+
+/* ── bin folding ──────────────────────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * altitude_bins and inclination_bins were the last two unindexed GROUP BYs in
+ * buildAnalytics(): measured 2026-08-26 at 64,741 rows read PER CALL to return
+ * 240 rows (ratio 1,619), ~388k rows/run. The fold pass added by the previous
+ * fix already visits every row they need, and D1 bills rows VISITED not
+ * columns — verified: a 4-column bundle query and the 13-column fold both read
+ * exactly what they return. So widening the fold by three columns is free and
+ * removes both scans.
+ *
+ * The edge rule is the thing that can silently break in the port. binQuery()
+ * did the bucketing in SQL:
+ *     MIN(count-1, CAST((expr - min) / width AS INTEGER))
+ * with WHERE expr IS NOT NULL AND expr >= min AND expr <= max. Two traps:
+ *   - a value exactly on max lands in the LAST bucket, not an overflow bucket
+ *     one past the end (this mirrors public/shared/charts.js's bin());
+ *   - CAST(.. AS INTEGER) truncates toward zero, which equals Math.floor only
+ *     for non-negative values — (APOAPSIS + PERIAPSIS)/2 is non-negative for
+ *     real orbits but the guard belongs in a test, not in a comment.
+ */
+await test('folded bins reproduce the SQL binQuery arrays exactly', async () => {
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+
+  // Recompute both from SQL, the way binQuery() did, and diff.
+  const sqlBins = ({ expr, min, max, width }) => {
+    const count = Math.max(1, Math.ceil((max - min) / width));
+    const rows = db.prepare(
+      `SELECT MIN(${count - 1}, CAST((${expr} - ?) / ? AS INTEGER)) AS bucket, COUNT(*) AS n
+       FROM objects
+       WHERE DECAY_DATE IS NULL AND ${expr} IS NOT NULL AND ${expr} >= ? AND ${expr} <= ?
+       GROUP BY bucket ORDER BY bucket ASC`).all(min, width, min, max);
+    const by = new Map(rows.map((r) => [r.bucket, r.n]));
+    return Array.from({ length: count }, (_, i) => ({
+      min: min + i * width,
+      max: Math.min(max, min + (i + 1) * width),
+      n: by.get(i) || 0,
+    }));
+  };
+
+  assert.deepEqual(card.altitude_bins,
+    sqlBins({ expr: '(APOAPSIS + PERIAPSIS) / 2', min: 0, max: 40000, width: 1000 }),
+    'altitude_bins must match the SQL bucketing it replaced');
+  assert.deepEqual(card.inclination_bins,
+    sqlBins({ expr: 'INCLINATION', min: 0, max: 180, width: 10 }),
+    'inclination_bins must match the SQL bucketing it replaced');
+});
+
+await test('a value exactly on max lands in the last bin, not one past the end', async () => {
+  // 180.0 inclination is exactly max. The SQL guarded this with MIN(count-1, ..);
+  // a naive Math.floor((180-0)/10) = 18 would index a 19th bucket that does not
+  // exist and silently drop the row.
+  const d = seeded();
+  d.prepare(`INSERT INTO objects
+      (NORAD_CAT_ID, OBJECT_NAME, OBJECT_ID, OBJECT_TYPE, SITE, LAUNCH_DATE,
+       INCLINATION, APOAPSIS, PERIAPSIS, regime, launch_year, first_seen, updated_at)
+      VALUES (99777, 'EDGE MAX', '2020-999A', 'PAYLOAD', 'AFETR', '2020-01-01',
+              180.0, 20000.0, 20000.0, 'LEO', 2020, ?, ?)`).run(NOW, NOW);
+  const card = await buildAnalytics(envOf(d, fakeR2()));
+
+  assert.equal(card.inclination_bins.length, 18, 'exactly 18 bins of width 10 over 0..180');
+  const last = card.inclination_bins[17];
+  assert.equal(last.max, 180);
+  assert.ok(last.n >= 1, 'the 180.0 row must be counted in the last bin');
+  const total = card.inclination_bins.reduce((t, b) => t + b.n, 0);
+  const live = d.prepare(
+    'SELECT COUNT(*) AS n FROM objects WHERE DECAY_DATE IS NULL AND INCLINATION IS NOT NULL').get().n;
+  assert.equal(total, live, 'no row may be dropped by the edge rule');
+});
+
+await test('rows outside the bin range are excluded, not clamped into an end bin', async () => {
+  // binQuery's WHERE had expr >= min AND expr <= max. An altitude above 40000
+  // km (a deep-space or badly-derived elset) was excluded entirely; folding it
+  // into the last bucket would invent objects the SQL never counted.
+  const d = seeded();
+  d.prepare(`INSERT INTO objects
+      (NORAD_CAT_ID, OBJECT_NAME, OBJECT_ID, OBJECT_TYPE, SITE, LAUNCH_DATE,
+       INCLINATION, APOAPSIS, PERIAPSIS, regime, launch_year, first_seen, updated_at)
+      VALUES (99778, 'TOO HIGH', '2020-998A', 'PAYLOAD', 'AFETR', '2020-01-01',
+              10.0, 90000.0, 90000.0, 'HEO', 2020, ?, ?)`).run(NOW, NOW);
+  const card = await buildAnalytics(envOf(d, fakeR2()));
+
+  const total = card.altitude_bins.reduce((t, b) => t + b.n, 0);
+  const inRange = d.prepare(
+    `SELECT COUNT(*) AS n FROM objects WHERE DECAY_DATE IS NULL
+       AND (APOAPSIS + PERIAPSIS) / 2 >= 0 AND (APOAPSIS + PERIAPSIS) / 2 <= 40000`).get().n;
+  assert.equal(total, inRange, 'the 90000 km row must be excluded, not clamped');
 });
 
 await test('regime_by_year rows are zero-filled across all four regimes', async () => {
