@@ -237,6 +237,16 @@ export function svgLine(container, series, { w = 480, h = 220, xLabel = '', yLab
     const px = (x) => padL + ((x - xScale.min) / (xScale.max - xScale.min || 1)) * plotW;
     const py = (y) => padT + plotH - ((y - yScale.min) / (yScale.max - yScale.min || 1)) * plotH;
 
+    // preserveAspectRatio is left at its `xMidYMid meet` default deliberately.
+    // Setting it to `none` does let the curve fill a wide card instead of
+    // letterboxing — but it scales x and y independently, which stretches the
+    // TEXT with the geometry: measured on a 1330px card capped at 220px, the
+    // tick labels came out visibly letterspaced and the rotated y-axis label
+    // squashed. Filling the width is not worth smeared type.
+    //
+    // The aspect ratio is controlled by the `w`/`h` a caller passes instead —
+    // see renderGrowth() in analytics.js, which picks a wide viewBox so the
+    // meet-fit lands close to the card's real proportions.
     const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, class: 'st-chart st-chart--line', role: 'img' });
 
     for (const gy of yScale.ticks) {

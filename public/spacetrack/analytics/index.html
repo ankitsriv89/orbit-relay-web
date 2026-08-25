@@ -111,23 +111,15 @@
             <div class="st-hint" id="an-inclination-hint">loading…</div>
         </section>
 
-        <section class="st-card" id="decade-card" aria-labelledby="decade-card-title">
-            <h2 class="st-card__title" id="decade-card-title">// LAUNCHES BY DECADE</h2>
-            <div class="st-bars" id="an-decade-bars"></div>
-            <div class="st-hint" id="an-decade-hint">loading…</div>
-        </section>
-
-        <section class="st-card" id="sites-card" aria-labelledby="sites-card-title">
-            <h2 class="st-card__title" id="sites-card-title">// TOP LAUNCH SITES</h2>
-            <div class="st-bars" id="an-site-bars"></div>
-            <div class="st-hint" id="an-site-hint">loading…</div>
-        </section>
-
-        <section class="st-card" id="family-card" aria-labelledby="family-card-title">
-            <h2 class="st-card__title" id="family-card-title">// DEBRIS FAMILIES</h2>
-            <div class="st-bars" id="an-family-bars"></div>
-            <div class="st-hint" id="an-family-hint">loading…</div>
-        </section>
+        <!-- LAUNCHES BY DECADE / TOP LAUNCH SITES / DEBRIS FAMILIES were removed
+             2026-08-26. They rendered static historical reference facts — decade
+             totals, site rankings, debris family sizes — that do not change and
+             are freely available elsewhere, while crowding out the live tracking
+             data this page exists to show. The /api/analytics artifact still
+             carries those fields (launches_by_decade, top_launch_sites,
+             debris_families, country_by_decade) and its D1 fallback still names
+             them, so nothing downstream breaks; only the cards are gone.
+             charts.test.mjs pins both halves. -->
 
         <section class="st-card st-card--wide" id="launches-card" aria-labelledby="launches-card-title">
             <h2 class="st-card__title" id="launches-card-title">// LAUNCH HISTORY</h2>

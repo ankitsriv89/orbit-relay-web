@@ -942,6 +942,26 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     display: block;
 }
 
+/* `width: 100%; height: auto` scales an SVG to its viewBox aspect ratio, so a
+ * chart in a full-width .st-card--wide gets as TALL as it is wide — the
+ * growth curve rendered ~490px on a 1400px desktop, towering over the cards
+ * beside it and pushing the rest of the grid below the fold. The `h` passed
+ * to svgLine sets the viewBox, not the rendered size, so it alone cannot fix
+ * this; the cap has to be in CSS where the real width is known.
+ *
+ * `preserveAspectRatio` stays at its `xMidYMid meet` default (see the note in
+ * charts.js): forcing `none` to fill the width stretches the tick labels and
+ * the rotated axis caption along with the geometry, which measured visibly
+ * smeared. So this is a cap, not a fixed height, and the CALLER's viewBox
+ * aspect ratio is what keeps the meet-fit close to the card's real shape —
+ * renderGrowth() passes a wide `w` for that reason.
+ *
+ * Only line charts are capped: the histograms and bar charts sit in
+ * single-column cards where the aspect ratio is already sensible. */
+.st-chart--line {
+    max-height: 240px;
+}
+
 .st-chart__grid {
     stroke: rgba(0, 210, 255, 0.08);
     stroke-width: 1;
@@ -1013,72 +1033,78 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     }
 }
 
-.st-country-matrix {
+/* ── Launch-history table ─────────────────────────────────────────────────
+ * Replaces the country-by-decade matrix CSS that lived here until the card
+ * was removed on 2026-08-26. The table markup shipped with NO styling at all
+ * — .st-table-container and .st-launches-table appeared in index.html and
+ * nowhere in this file — so it rendered as bare unaligned text. Found by
+ * repointing test_dashboard_mobile.py's wide-container assertion at it.
+ *
+ * The container, not the table, owns the horizontal scroll: CLAUDE.md's rule
+ * is that wide content scrolls inside its own overflow-x:auto box so the
+ * PAGE never scrolls sideways. .st-card sets overflow-x:hidden, which would
+ * otherwise clip the four columns on a phone. */
+.st-table-container {
     overflow-x: auto;
-    font-size: 0.5rem;
-    line-height: 1.5;
+    scrollbar-width: thin;
 }
 
-.st-country-matrix table {
+.st-table-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.st-table-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 210, 255, 0.4);
+    border-radius: 3px;
+}
+
+.st-launches-table {
     width: 100%;
     border-collapse: collapse;
+    /* Dates and counts are columns of digits that should line up rather than
+     * shimmer between rows. */
     font-variant-numeric: tabular-nums;
+    font-size: 0.62rem;
+    line-height: 1.6;
 }
 
-.st-country-matrix th,
-.st-country-matrix td {
-    padding: 2px 3px;
-    text-align: right;
-    border-bottom: 1px solid rgba(0, 210, 255, 0.06);
-}
-
-.st-country-matrix th {
+.st-launches-table th {
+    position: sticky;
+    top: 0;
+    /* The card scrolls vertically, so an opaque background is load-bearing:
+     * a translucent header would let rows show through as they pass under. */
+    background: rgba(0, 16, 30, 0.96);
     color: rgba(150, 200, 230, 0.55);
     font-weight: 400;
-    font-size: 0.46rem;
-    letter-spacing: 0.3px;
-}
-
-.st-country-matrix td:first-child {
+    font-size: 0.56rem;
+    letter-spacing: 0.8px;
     text-align: left;
+    padding: 4px 10px 6px 0;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+    white-space: nowrap;
+}
+
+.st-launches-table td {
+    padding: 3px 10px 3px 0;
+    border-bottom: 1px solid rgba(0, 210, 255, 0.06);
+    vertical-align: top;
+}
+
+/* Date and site identify the row; the counts are the payload. Keeping the
+ * date on one line stops a narrow viewport breaking 2026-08-20 across two. */
+.st-launches-table td:first-child {
     color: rgba(200, 230, 250, 0.85);
-    padding-right: 6px;
+    white-space: nowrap;
 }
 
-/* Heatmap cells: background scaled to `--heat` (0..1) against the global max,
- * so the era that dominates a state reads before the number does. Zeros do not
- * get ink — a bare dash is visually distinct from a real count. */
-.st-matrix__cell {
-    position: relative;
-    color: rgba(225, 245, 255, 0.95);
-    background: linear-gradient(
-        180deg,
-        rgba(0, 210, 255, calc(0.1 + var(--heat) * 0.55)),
-        rgba(0, 210, 255, calc(0.22 + var(--heat) * 0.72))
-    );
-}
-
-.st-matrix__zero {
-    color: rgba(150, 200, 230, 0.35);
-}
-
-.st-matrix__country {
-    font-weight: 700;
-    letter-spacing: 0.6px;
-}
-
-.st-matrix__total {
+.st-launches-table td:nth-child(3) {
+    text-align: right;
     color: rgba(120, 235, 255, 0.95);
-    border-left: 1px solid rgba(0, 210, 255, 0.15);
+    padding-right: 18px;
 }
 
-.st-matrix__grand {
-    font-weight: 700;
-}
-
-.st-country-matrix tfoot .st-matrix__total,
-.st-country-matrix tfoot .st-matrix__grand {
-    border-top: 1px solid rgba(0, 210, 255, 0.2);
+.st-launches-table tbody tr:hover td {
+    background: rgba(0, 210, 255, 0.06);
 }
 
 /* Degraded-mode banner: artifact not built yet — data counts live from D1, so
@@ -1357,7 +1383,7 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     .st-dossier__decay,
     .st-bar__label,
     .st-bar__value,
-    .st-country-matrix {
+    .st-launches-table {
         font-size: max(0.68rem, 11px);
     }
 
@@ -1517,7 +1543,18 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     max-width: 1400px;
     margin: 0 auto;
     padding: calc(80px + var(--sa-top)) calc(24px + var(--sa-right)) calc(32px + var(--sa-bottom)) calc(24px + var(--sa-left));
-    align-items: start;
+    /* `stretch` — stated explicitly because this used to be `start`, which is
+     * what made the cards a ragged stack. Now every card in a row shares that
+     * row's height, so the grid reads as an aligned instrument panel. Short
+     * cards gain trailing space rather than the row short-changing them.
+     *
+     * This is why .st-card--chart below must NOT set a height of its own: a
+     * stretched card is already the row's height and a fixed height would
+     * fight it. Charts size themselves via the `h` passed to svgLine /
+     * svgHistogram. `.st-brief-grid` deliberately keeps `start` — Brief is
+     * prose and feeds of genuinely different lengths, where stretching would
+     * leave one column mostly empty. */
+    align-items: stretch;
 }
 
 .st-card {
@@ -1538,7 +1575,22 @@ body[data-page-id="spacetrack-catalog"] #dossier {
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
+    /* Under the grid's `align-items: stretch` a card is as tall as its row,
+     * and its content should sit at the top of that space rather than being
+     * distributed through it — otherwise a short card's title floats away
+     * from its own border. Column flex pins content to the start and lets the
+     * trailing gap fall at the bottom, where it reads as padding. */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
 }
+
+/* Column flex alone is enough: content stacks from the top and the slack a
+ * stretched card leaves falls at the bottom as padding. Deliberately NOT
+ * pushing the trailing `.st-hint` down with `margin-top: auto` — the hint is
+ * a caption for the chart above it ("loading…", "not in this artifact yet"),
+ * so parking it against the bottom border would read as a footer belonging to
+ * the card rather than a note about that chart. */
 
 .st-card::-webkit-scrollbar {
     width: 6px;
@@ -1638,6 +1690,15 @@ body[data-page-id="spacetrack-catalog"] #dossier {
         max-height: none;
         font-size: 0.66rem;
         padding: 14px 16px;
+    }
+
+    /* The wide viewBox that makes the growth chart fit a full-width desktop
+     * card meet-fits to only ~63px in a 366px phone card — a 5:1 ratio in a
+     * narrow column is too squat to read a curve from. A min-height gives it
+     * back the vertical room; the letterboxing this introduces is the right
+     * trade on mobile, where horizontal space is the scarce axis. */
+    .st-chart--line {
+        min-height: 160px;
     }
 }
 

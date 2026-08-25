@@ -14,35 +14,34 @@ showFooterFreshness();
 
 /* ── Analytics ────────────────────────────────────────────────────────────────
  * Catalog dashboard: KPI strip, growth, cohort survival, orbit distributions,
- * type/RCS, launches by decade/site/family, and the country-by-decade matrix.
- * Rendered with public/shared/charts.js's SVG/CSS primitives — no charting
- * library (repo rule).
+ * type/RCS, and launch history. Rendered with public/shared/charts.js's
+ * SVG/CSS primitives — no charting library (repo rule).
+ *
+ * The launches-by-decade / top-sites / debris-family bar cards and the
+ * country-by-decade matrix were removed 2026-08-26: static historical
+ * reference facts, freely available elsewhere, crowding out the live data.
+ * `/api/analytics` still carries those fields.
  *
  * Historical vs on-orbit-now (plan 38's easiest way to say something false):
- * the launch/site/family/country sections count everything ever catalogued,
- * decayed included — "how many launched in the 1980s" doesn't shrink when one
- * of them reenters. The KPI strip, cohort survival, type/RCS and the orbit
+ * growth's "cumulative catalog entries" series counts everything ever
+ * catalogued, decayed included — a 1980s total doesn't shrink when one of
+ * them reenters. The KPI strip, cohort survival, type/RCS and the orbit
  * distributions are on-orbit-now questions and the artifact already filters
  * them server-side (buildAnalytics, plan 38 task 3). This page never draws a
  * historical on-orbit curve — growth's two series are labelled "cumulative
  * catalog entries" and "still on orbit today", never merged into one line.
  */
 
-/* A site code that maps gets its name shown first so the rank reads as places
- * rather than noise; the code stays as the authority on hover. The artifact
- * now carries the name directly (plan 38 task 2's launch_sites join) — an
- * unmapped code stays bare rather than guessing, because a wrong name is
- * worse than a code (same rule the old hardcoded SITE_NAMES map followed). */
-function siteLabel(row) {
-    return row.name ? `${row.name} [${row.site}]` : String(row.site);
-}
-
 async function loadAnalytics() {
     try {
         renderAnalytics(await API.analytics());
     } catch (err) {
         console.warn('[analytics] failed:', err);
-        setText('an-decade-hint', 'analytics unavailable');
+        // Was 'an-decade-hint' — a hint that belonged to a card removed on
+        // 2026-08-26, so a failed load wrote to nothing and the page sat on
+        // "loading…" forever. The KPI strip is the first card and is never
+        // removed, so its hint is where a total failure has to surface.
+        setText('an-kpi-hint', 'analytics unavailable');
     }
 }
 
@@ -82,28 +81,9 @@ function renderAnalytics(data) {
     renderTypeAndRCS(data);
     renderHistograms(data);
 
-    renderBars('an-decade-bars', 'an-decade-hint',
-        data.launches_by_decade, (r) => String(r.decade) + 's', (r) => r.n);
-    renderBars('an-site-bars', 'an-site-hint',
-        data.top_launch_sites, siteLabel, (r) => r.n);
-    renderBars('an-family-bars', 'an-family-hint',
-        data.debris_families, (r) => r.family, (r) => r.n);
-
-    const matrix = data.country_by_decade;
-    const wrap = $('an-country-matrix');
-    const hint = $('an-country-hint');
-    if (!wrap) return;
-    if (!matrix || !matrix.decades || !matrix.decades.length ||
-        !matrix.countries || !matrix.countries.length) {
-        wrap.textContent = '';
-        if (hint) hint.textContent = 'no data';
-        return;
-    }
-    if (hint) hint.textContent = '';
-
-    renderMatrix(wrap, matrix);
-
-    // New: render launch history table
+    // The decade / launch-site / debris-family bar cards and the country x
+    // decade matrix were removed 2026-08-26 (see index.html). The payload
+    // still carries those fields; this page just no longer renders them.
     renderLaunches(data.launches);
 }
 
@@ -181,7 +161,27 @@ function renderGrowth(data) {
           points: launchedCum.map((r) => ({ x: r.year, y: r.cumulative })) },
         { label: 'still on orbit today (approx)', color: 'rgba(255, 180, 0, 0.85)',
           points: onOrbitSeries },
-    ], { xLabel: 'year', yLabel: 'objects' });
+    // `h` sets the viewBox, not the rendered height — the SVG is scaled by
+    // CSS to its container's width, so the viewBox only fixes the ASPECT
+    // RATIO and the units the axis text is drawn in. Two consequences, both
+    // learned by measuring rather than guessing:
+    //
+    //  - The card is full-width, so at the 480x220 default the chart rendered
+    //    ~490px tall on desktop and towered over its neighbours. The rendered
+    //    height is now capped by `.st-chart--line` in spacetrack.css.
+    //  - Widening the viewBox to 960 to suit the wide card then made the
+    //    labels illegible: the same 10px type scaled down by a 960->1330
+    //    box squeezed into 220px of height. Font size is in viewBox units, so
+    //    a wider box means smaller text for a fixed rendered height.
+    //
+    // 1200x240 (5:1) is chosen to MATCH the card rather than fight it: the
+    // card is ~1330px wide on a 1400px desktop and `.st-chart--line` caps the
+    // height at 240px, so a 5:1 box meet-fits almost exactly and leaves
+    // negligible letterboxing. Keeping the viewBox large also keeps the type
+    // proportionate — font sizes are in viewBox units, so a small box scaled
+    // up to a wide card is what made the labels look oversized, and an
+    // over-wide one shrank them to illegibility.
+    ], { xLabel: 'year', yLabel: 'objects', w: 1200, h: 240 });
 }
 
 /* ── Cohort survival ──────────────────────────────────────────────────────── */
@@ -261,102 +261,6 @@ function renderHistograms(data) {
     }
 }
 
-/* Country × decade as a heatmap: each cell's background opacity is scaled to
- * how much that country's strongest decade diverges from the global max, so a
- * glance finds the era that dominates a state. A `0` stays legible as a bare
- * dash — dark ink would read as a small number. */
-function renderMatrix(wrap, matrix) {
-    wrap.textContent = '';
-    const max = Math.max(1, ...matrix.countries.flatMap((c) => c.by_decade || []));
-
-    const table = document.createElement('table');
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    const empty = document.createElement('th');
-    empty.textContent = 'STATE \\ ERA';
-    headRow.appendChild(empty);
-    for (const d of matrix.decades) {
-        const th = document.createElement('th');
-        th.textContent = String(d).slice(2);
-        headRow.appendChild(th);
-    }
-    const headTot = document.createElement('th');
-    headTot.textContent = 'TOT';
-    headTot.className = 'st-matrix__total';
-    headRow.appendChild(headTot);
-    thead.appendChild(headRow);
-
-    const tbody = document.createElement('tbody');
-    const totals = new Array(matrix.decades.length).fill(0);
-    for (const c of matrix.countries) {
-        const tr = document.createElement('tr');
-        const tdLabel = document.createElement('td');
-        tdLabel.className = 'st-matrix__country';
-        tdLabel.textContent = c.country;
-        tr.appendChild(tdLabel);
-        let rowTotal = 0;
-        c.by_decade.forEach((n, i) => {
-            const v = n || 0;
-            totals[i] += v;
-            rowTotal += v;
-            const td = document.createElement('td');
-            td.textContent = v > 0 ? num(v) : '—';
-            if (v > 0) {
-                const heat = (v / max).toFixed(3);
-                td.className = 'st-matrix__cell';
-                td.style.setProperty('--heat', heat);
-                td.title = `${matrix.decades[i]} · ${c.country}: ${num(v)} launches`;
-            } else {
-                td.className = 'st-matrix__zero';
-            }
-            tr.appendChild(td);
-        });
-        const tdRow = document.createElement('td');
-        tdRow.className = 'st-matrix__total';
-        tdRow.textContent = num(rowTotal);
-        tr.appendChild(tdRow);
-        tbody.appendChild(tr);
-    }
-
-    const tfoot = document.createElement('tfoot');
-    const footRow = document.createElement('tr');
-    const footLabel = document.createElement('td');
-    footLabel.textContent = 'ALL';
-    footRow.appendChild(footLabel);
-    let grand = 0;
-    for (const t of totals) {
-        grand += t;
-        const td = document.createElement('td');
-        td.className = 'st-matrix__total';
-        td.textContent = num(t);
-        footRow.appendChild(td);
-    }
-    const footGrand = document.createElement('td');
-    footGrand.className = 'st-matrix__total st-matrix__grand';
-    footGrand.textContent = num(grand);
-    footRow.appendChild(footGrand);
-    tfoot.appendChild(footRow);
-
-    table.appendChild(thead);
-    table.appendChild(tbody);
-    table.appendChild(tfoot);
-    wrap.appendChild(table);
-}
-
-function renderBars(containerId, hintId, items, labelFn, valueFn) {
-    const wrap = $(containerId);
-    const hint = $(hintId);
-    if (!wrap) return;
-
-    if (sectionMissing(hintId, !items || !items.length)) {
-        wrap.textContent = '';
-        return;
-    }
-    if (hint) hint.textContent = '';
-
-    bars(wrap, items, { label: labelFn, value: valueFn });
-}
-
 /* ── Launch history ──────────────────────────────────────────────────────────── */
 function renderLaunches(launches) {
     const container = $('launches-card');
@@ -366,14 +270,14 @@ function renderLaunches(launches) {
 
     if (!launches || !launches.length) {
         if (hint) hint.textContent = 'no launches in artifact yet';
-        if (tableBody) tableBody.innerHTML = '';
+        if (tableBody) tableBody.replaceChildren();
         return;
     }
     if (hint) hint.textContent = '';
 
     if (!tableBody) return;
 
-    tableBody.innerHTML = '';
+    tableBody.replaceChildren();
     for (const launch of launches) {
         const row = document.createElement('tr');
         const dateTd = document.createElement('td');
@@ -381,31 +285,60 @@ function renderLaunches(launches) {
         const siteTd = document.createElement('td');
         siteTd.textContent = launch.site || '—';
         const nTd = document.createElement('td');
-        nTd.textContent = launch.n || '0';
-        const typeTd = document.createElement('td');
-        // Show primary type
-        const typeMap = { PAYLOAD: 'payload', 'ROCKET BODY': 'rocket body', DEBRIS: 'debris' };
-        typeTd.textContent = typeMap[launch.type] || (launch.type || '—');
-        row.append(dateTd, siteTd, nTd, typeTd);
+        nTd.textContent = num(launch.n || 0);
+        row.append(dateTd, siteTd, nTd, breakdownCell(launch));
         tableBody.appendChild(row);
     }
 }
 
+/* The TYPE BREAKDOWN cell.
+ *
+ * derive.js writes `typeBreakdown` — an OBJECT of per-type counts, e.g.
+ * { PAYLOAD: 1, 'ROCKET BODY': 0, DEBRIS: 0 }. This used to read
+ * `launch.type`, a scalar that has never existed on that shape, so every row
+ * rendered an em-dash while the API returned perfectly good data.
+ *
+ * The counts do NOT necessarily sum to `n`: computeLaunchEntry only tallies
+ * the three known OBJECT_TYPE values, and Space-Track also carries UNKNOWN
+ * and (for very recent launches) rows not yet typed at all. A launch of 7
+ * objects can therefore legitimately show 0/0/0. Rather than print a
+ * breakdown that silently contradicts the OBJECTS column, the remainder is
+ * shown explicitly as "untyped" — the honest reading of a fresh catalog
+ * entry, and the same discipline the rest of the page follows about not
+ * letting a partial count scan as a complete one. */
+function breakdownCell(launch) {
+    const td = document.createElement('td');
+    const b = launch.typeBreakdown || {};
+    const parts = [];
+    for (const [key, label] of [['PAYLOAD', 'payload'], ['ROCKET BODY', 'rocket body'], ['DEBRIS', 'debris']]) {
+        const v = Number(b[key]) || 0;
+        if (v > 0) parts.push(`${num(v)} ${label}`);
+    }
+    const typed = Object.keys(b).reduce((sum, k) => sum + (Number(b[k]) || 0), 0);
+    const untyped = Math.max(0, (Number(launch.n) || 0) - typed);
+    if (untyped > 0) parts.push(`${num(untyped)} untyped`);
+
+    td.textContent = parts.length ? parts.join(' · ') : '—';
+    return td;
+}
+
 loadAnalytics();
 
-/* Refetch every 30 min to catch the daily ingest */
+/* Refetch every 30 min to catch the daily ingest. This covers the launch
+ * table too — it rides the same payload.
+ *
+ * There was a second 24h interval here that called
+ * `renderLaunches(data?.launches)`, where `data` is not defined in this
+ * scope. It threw a ReferenceError on every fire into an empty `catch (_)`,
+ * so it never rendered anything and never reported that it hadn't. Removed
+ * rather than repaired: the 30-minute refetch above already re-renders the
+ * table from fresh data, so a 24-hour re-render of a stale closure was
+ * redundant even in the version where it worked. */
 setInterval(loadAnalytics, 30 * 60 * 1000);
-
-/* Refetch launches every 24 hrs to catch the daily build */
-setInterval(() => {
-    try {
-        renderLaunches(data?.launches);
-    } catch (_) {}
-}, 86400000);
 
 /* ── Debug handle ──────────────────────────────────────────────────────────── */
 exposeDebug('analytics', {
     loadAnalytics,
     renderAnalytics,
-    renderMatrix,
+    renderLaunches,
 });

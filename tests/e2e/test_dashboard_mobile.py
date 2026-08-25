@@ -9,8 +9,8 @@ without live data.
 What applies, per CLAUDE.md's mobile section and this plan's task 9:
   - no HORIZONTAL scroll on the page itself at any of the five viewports
     (documentElement.scrollWidth <= window.innerWidth)
-  - wide inner containers (the country-by-decade matrix, histograms) MAY
-    scroll horizontally within themselves — that's `.st-country-matrix` /
+  - wide inner containers (the launch-history table, histograms) MAY scroll
+    horizontally within themselves — that's `.st-table-container` /
     `.st-card--chart`'s own `overflow-x: auto`, not a bug
   - touch targets on interactive controls (nav, archive selector) >= 44px
 
@@ -56,25 +56,37 @@ def test_page_no_horizontal_scroll(page, page_path, vp):
           f"scrollWidth={metrics['scrollWidth']}px vs innerWidth={metrics['innerWidth']}px")
 
 def test_inner_containers_may_scroll(page, page_path, vp):
-    """The country-by-decade matrix is the one section allowed its own
-    overflow-x:auto (spacetrack.css:927) — every other `.st-card` clips
-    horizontally (overflow-x:hidden, spacetrack.css:1409) by design, so a wide
-    chart never leaks page-level scroll. Confirm the matrix keeps its own
-    scroll capability rather than accidentally inheriting the clip."""
+    """The launch-history table is the one section allowed its own
+    overflow-x:auto — every other `.st-card` clips horizontally
+    (overflow-x:hidden) by design, so a wide chart never leaks page-level
+    scroll. Confirm the table keeps its own scroll capability rather than
+    accidentally inheriting the clip.
+
+    This used to assert on `.st-country-matrix`, which was the wide container
+    until the country-by-decade card was removed on 2026-08-26. Note that the
+    old assertion would NOT have failed on that removal — it returned early
+    when the element was absent, so it would have quietly become a no-op that
+    still printed nothing while checking nothing. Repointed rather than
+    deleted, because the page-level invariant it guards (a wide table scrolls
+    inside itself, not the document) is still live — `.st-launches-table` is
+    four columns and overflows a 390px viewport."""
     prefix = f'[{page_path}] {viewport_name(vp)}'
     if page_path != '/spacetrack/analytics/':
         return
 
-    matrix = page.evaluate('''() => {
-        const el = document.querySelector('.st-country-matrix');
+    wide = page.evaluate('''() => {
+        const el = document.querySelector('.st-table-container');
         if (!el) return null;
         return { overflowX: getComputedStyle(el).overflowX };
     }''')
-    if matrix is None:
+    check(f'{prefix} .st-table-container exists to own the wide-table scroll',
+          wide is not None,
+          'missing — the launch-history table has no scroll container')
+    if wide is None:
         return
-    check(f'{prefix} .st-country-matrix keeps overflow-x auto/scroll',
-          matrix['overflowX'] in ('auto', 'scroll'),
-          matrix['overflowX'])
+    check(f'{prefix} .st-table-container keeps overflow-x auto/scroll',
+          wide['overflowX'] in ('auto', 'scroll'),
+          wide['overflowX'])
 
 def test_touch_targets(page, page_path, vp):
     prefix = f'[{page_path}] {viewport_name(vp)}'

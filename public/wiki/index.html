@@ -127,8 +127,9 @@
 
             <div class="docs-app">
                 <h3>Analytics <span class="docs-app__path">/spacetrack/analytics/</span></h3>
-                <p>Aggregate trends across the full catalog: launch history over time,
-                   debris-family breakdowns, and a country-by-decade launch matrix.</p>
+                <p>Aggregate trends across the full catalog: catalog status and growth,
+                   cohort survival by decade, type/RCS and orbit distributions, and a
+                   table of the most recent launches with their object counts.</p>
             </div>
 
             <div class="docs-app">
@@ -247,19 +248,34 @@
                     filtered to <code>OBJECT_TYPE = PAYLOAD</code>) are a proxy for launch
                     activity, not a one-to-one launch count.</dd>
 
+                <dt>Untyped (launch history)</dt>
+                <dd>In Analytics' launch-history table, the objects from a launch that
+                    Space-Track has not classified as <code>PAYLOAD</code>,
+                    <code>ROCKET BODY</code> or <code>DEBRIS</code>. This is normal for
+                    a recent launch — a catalog entry can exist before its
+                    <code>OBJECT_TYPE</code> is assigned — so a launch of seven objects
+                    may legitimately read "7 untyped" for a few days. The count is shown
+                    rather than hidden so the type breakdown always reconciles with the
+                    OBJECTS column; a breakdown that silently summed to less than the
+                    total would look like missing data instead of pending
+                    classification.</dd>
+
                 <dt>Altitude bin / inclination bin</dt>
                 <dd>A fixed-width range of altitude (or inclination) used to bucket
                     objects into a histogram — for example, all objects between 500 and
                     550 km. Analytics' altitude and inclination histograms count only
                     objects still on orbit (excluding decayed objects), unlike the
-                    historical launch-count sections on the same page.</dd>
+                    catalog-growth chart on the same page, whose "cumulative catalog
+                    entries" series is a historical count that includes decayed
+                    objects.</dd>
 
                 <dt>Launch site code</dt>
                 <dd>A short code identifying the physical launch site (for example,
                     <code>AFETR</code> for Cape Canaveral), sourced from Space-Track's
                     static <code>launch_site</code> reference table — not derived or
                     guessed. Where a code has no mapped name, this site shows the bare
-                    code rather than an invented one.</dd>
+                    code rather than an invented one. Analytics' launch-history table
+                    resolves these to full site names through that table.</dd>
             </dl>
         </section>
     </main>

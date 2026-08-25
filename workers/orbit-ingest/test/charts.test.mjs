@@ -178,6 +178,137 @@ await test('brief.js imports boxSegments from charts.js instead of re-implementi
     'brief.js must not keep its own boxSegments implementation');
 });
 
+/* ── Analytics launch table ─────────────────────────────────────────────────
+ * Source-text assertions, not behavioural ones: renderLaunches() is a DOM
+ * writer, and the bug these guard was a field-name mismatch between the
+ * builder and the renderer that no amount of exercising the maths would
+ * catch. derive.js writes each launch as { launch_date, site, n,
+ * typeBreakdown } — an OBJECT of per-type counts. The renderer read
+ * `launch.type`, a scalar that has never existed on that shape, so the
+ * TYPE BREAKDOWN column rendered an em-dash on all 20 rows while the API
+ * was returning perfectly good data (verified live 2026-08-26:
+ * stale:false, 20 launches, typeBreakdown populated).
+ *
+ * Guarding the source text is the honest option here. The alternative —
+ * standing up a DOM — would test a mock, and the failure mode is precisely
+ * "renderer reads a key the builder does not write", which is a
+ * cross-file contract, not a computation. */
+
+console.log('\n-- analytics launch table --');
+
+const ANALYTICS_JS = read('public/spacetrack/analytics/analytics.js');
+const DERIVE_JS = read('workers/orbit-ingest/src/derive.js');
+
+await test('renderLaunches never reads launch.type — the builder writes typeBreakdown', () => {
+  // The exact bug. `launch.type` is undefined for every row derive.js emits,
+  // so typeMap[undefined] || (undefined || '—') collapsed to '—' always.
+  //
+  // Comments are stripped first: the fix's own explanatory comment names
+  // `launch.type` in prose, and matching that would make this assertion fire
+  // on the documentation of the bug rather than the bug.
+  //
+  // The negative lookahead is on the CHARACTER, not \b — `\b` matches between
+  // `type` and `B`, so /launch\.type\b(?!Breakdown)/ happily matches inside
+  // `launch.typeBreakdown` and reports the correct code as broken. That false
+  // positive is exactly what this test caught on its first green run.
+  const src = ANALYTICS_JS
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '');
+  assert.ok(!/launch\.type(?![A-Za-z])/.test(src),
+    'analytics.js still reads launch.type; derive.js writes typeBreakdown, ' +
+    'so that column renders an em-dash on every row');
+});
+
+await test('the launch artifact shape carries typeBreakdown, not a scalar type', () => {
+  // The other half of the contract: if derive.js ever starts writing a
+  // scalar `type`, the assertion above becomes wrong rather than protective,
+  // so pin the producer too.
+  assert.ok(/typeBreakdown/.test(DERIVE_JS),
+    'derive.js must keep writing typeBreakdown for the launch table to read');
+});
+
+await test('renderLaunches builds rows with createElement, not innerHTML', () => {
+  // Repo rule: no innerHTML anywhere API-derived data can reach. Clearing
+  // with it is harmless in isolation, but it is the pattern the rule exists
+  // to keep out, and site names in this table come straight from D1.
+  const fn = ANALYTICS_JS.slice(ANALYTICS_JS.indexOf('function renderLaunches'));
+  const body = fn.slice(0, fn.indexOf('\nfunction ') + 1 || fn.length);
+  assert.ok(!/innerHTML/.test(body),
+    'renderLaunches must not use innerHTML — use replaceChildren() to clear');
+});
+
+/* ── Analytics card set ─────────────────────────────────────────────────────
+ * The four historical cards (launches by decade, top launch sites, debris
+ * families, country x decade) were removed 2026-08-26: they are static
+ * reference facts freely available elsewhere, not live tracking data, and
+ * they crowded out the cards that are.
+ *
+ * The artifact FIELDS stay — /api/analytics still serves them and its D1
+ * fallback still names them, so deleting them from derive.js would be a
+ * separate, wider change. These assertions pin the frontend only. */
+
+console.log('\n-- analytics card set --');
+
+const ANALYTICS_HTML = read('public/spacetrack/analytics/index.html');
+
+await test('the four historical cards are gone from the analytics markup', () => {
+  for (const id of ['decade-card', 'sites-card', 'family-card', 'an-country-matrix']) {
+    assert.ok(!ANALYTICS_HTML.includes(id),
+      'removed card still present in index.html: ' + id);
+  }
+});
+
+await test('no renderer targets a card that no longer exists', () => {
+  // A dangling renderBars('an-decade-bars', ...) is silent — renderBars
+  // returns early when the container is missing — so a half-done removal
+  // leaves dead code that looks fine and never runs.
+  for (const id of ['an-decade-bars', 'an-site-bars', 'an-family-bars', 'an-country-matrix']) {
+    assert.ok(!ANALYTICS_JS.includes(id),
+      'analytics.js still renders into removed container: ' + id);
+  }
+});
+
+await test('renderAnalytics reaches renderLaunches — no early return can skip it', () => {
+  // THE bug that made LAUNCH HISTORY sit at "loading…" in production while
+  // every card above it rendered. renderAnalytics ended with:
+  //
+  //     const wrap = $('an-country-matrix');
+  //     if (!wrap) return;              // <- the matrix card was already gone
+  //     ...
+  //     renderLaunches(data.launches);  // <- never reached
+  //
+  // A guard for a card that had already been deleted from the markup silently
+  // killed the last render call in the function. It looked like a failed fetch
+  // and was not — the API was returning 20 launches with stale:false the whole
+  // time.
+  //
+  // So: renderLaunches must be the LAST statement, with no `return` between it
+  // and the start of the function body other than the `if (!data) return` on
+  // line one. Asserting on position rather than on any particular guard,
+  // because the next version of this bug will be a different guard.
+  const start = ANALYTICS_JS.indexOf('function renderAnalytics');
+  assert.ok(start >= 0, 'renderAnalytics not found');
+  const body = ANALYTICS_JS.slice(start, ANALYTICS_JS.indexOf('\n}', start));
+  const callAt = body.indexOf('renderLaunches(');
+  assert.ok(callAt >= 0, 'renderAnalytics must call renderLaunches');
+
+  const before = body.slice(0, callAt).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const returns = before.match(/\breturn\b/g) || [];
+  assert.equal(returns.length, 1,
+    'exactly one `return` may precede renderLaunches (the `if (!data) return` ' +
+    'guard); found ' + returns.length + ' — an early return here silently ' +
+    'skips the launch table and looks like a failed fetch');
+});
+
+await test('the growth chart is explicitly sized, not left at the 220px default', () => {
+  // svgLine defaults to h=220, which made CATALOG GROWTH tower over the
+  // cards beside it. The call must pass its own height.
+  const call = ANALYTICS_JS.slice(ANALYTICS_JS.indexOf('function renderGrowth'));
+  const body = call.slice(0, call.indexOf('\nfunction ') + 1 || call.length);
+  assert.ok(/\bh:\s*\d+/.test(body),
+    'renderGrowth must pass an explicit h: to svgLine');
+});
+
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);
