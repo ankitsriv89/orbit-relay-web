@@ -240,12 +240,45 @@ export const OBJECT_UPSERT_SQL = (() => {
  */
 export const BATCH_SIZE = 40;
 
+const NORAD_IDX = OBJECT_COLUMNS.indexOf('NORAD_CAT_ID');
+const GP_ID_IDX = OBJECT_COLUMNS.indexOf('GP_ID');
+
+/**
+ * Stored GP_ID per NORAD_CAT_ID, for the given ids only.
+ *
+ * GP_ID is Space-Track's own row id for a specific elset generation — two rows
+ * with the same GP_ID are byte-identical, since 18 SPCS mints a new one every
+ * time it regenerates an elset. Comparing this one column is equivalent to
+ * comparing all 39 and far cheaper.
+ */
+async function storedGpIds(db, ids) {
+  if (!ids.length) return new Map();
+  const holes = ids.map(() => '?').join(',');
+  const { results } = await db
+    .prepare(`SELECT NORAD_CAT_ID, GP_ID FROM objects WHERE NORAD_CAT_ID IN (${holes})`)
+    .bind(...ids)
+    .all();
+  return new Map((results || []).map((r) => [Number(r.NORAD_CAT_ID), r.GP_ID]));
+}
+
+/**
+ * Upserts only the rows whose GP_ID differs from what's already stored (or
+ * are new to the table). A 6-hourly delta mostly re-sends elsets 18 SPCS has
+ * not actually regenerated since the last run, and writing those unchanged
+ * rows anyway was the single largest driver of D1 write-row usage — see
+ * CLAUDE.md's D1 usage note. `written` counts only genuine writes, so a run
+ * with nothing new correctly reports 0.
+ */
 export async function upsertObjects(db, valueRows) {
   let written = 0;
   for (let i = 0; i < valueRows.length; i += BATCH_SIZE) {
     const slice = valueRows.slice(i, i + BATCH_SIZE);
-    await db.batch(slice.map((v) => db.prepare(OBJECT_UPSERT_SQL).bind(...v)));
-    written += slice.length;
+    const ids = slice.map((v) => v[NORAD_IDX]);
+    const stored = await storedGpIds(db, ids);
+    const changed = slice.filter((v) => stored.get(v[NORAD_IDX]) !== v[GP_ID_IDX]);
+    if (!changed.length) continue;
+    await db.batch(changed.map((v) => db.prepare(OBJECT_UPSERT_SQL).bind(...v)));
+    written += changed.length;
   }
   return written;
 }

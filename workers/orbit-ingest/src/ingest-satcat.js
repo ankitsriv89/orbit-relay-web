@@ -66,6 +66,16 @@ function toValues(row, now) {
 /** Fields whose change is worth a feed entry. The rest churn without meaning. */
 const WATCHED = ['OBJECT_NAME', 'DECAY', 'CURRENT', 'COUNTRY', 'RCS_SIZE'];
 
+/**
+ * Columns compared to decide whether a row actually changed and is worth
+ * writing. Everything in SATCAT_COLUMNS except the two that are metadata
+ * about the write itself, not the record: `FILE` is Space-Track's upload
+ * batch id (bumps even on a byte-identical re-send) and `updated_at` is our
+ * own ingest timestamp — comparing either would make every row look changed
+ * every run, defeating the point.
+ */
+const COMPARE_COLS = SATCAT_COLUMNS.filter((c) => c !== 'FILE' && c !== 'updated_at');
+
 export async function ingestSatcat(env) {
   const now = new Date().toISOString();
 
@@ -85,17 +95,27 @@ export async function ingestSatcat(env) {
   let batch = [];
   const events = [];
   const decayed = [];
+  let written = 0;
 
   const flush = async () => {
     if (!batch.length) return;
-    // Diff before the upsert overwrites what we are comparing against.
+    // Diff before the upsert overwrites what we are comparing against. Below
+    // DIFF_LIMIT this also decides what actually needs writing — a delta pull
+    // routinely re-sends rows SATCAT has not touched since our last run, and
+    // writing those unconditionally was pure waste (the same issue fixed for
+    // the GP/objects upsert — see CLAUDE.md's D1 usage note).
+    let toWrite = batch;
     if (rows <= DIFF_LIMIT) {
       const previous = await previousRows(env, batch.map((r) => Number(r.NORAD_CAT_ID)));
+      toWrite = [];
       for (const r of batch) {
         const prev = previous.get(Number(r.NORAD_CAT_ID));
-        if (!prev) continue;   // brand new to SATCAT; GP ingest reports debuts
-        const changes = WATCHED
-          .filter((f) => norm(prev[f]) !== norm(r[f]))
+        if (!prev) { toWrite.push(r); continue; }   // brand new to SATCAT
+        const changed = COMPARE_COLS.filter((f) => fieldChanged(f, prev[f], r[f]));
+        if (!changed.length) continue;              // identical to what's stored — skip
+        toWrite.push(r);
+        const changes = changed
+          .filter((f) => WATCHED.includes(f))
           .map((f) => ({ field: f, from: prev[f] ?? null, to: r[f] ?? null }));
         if (changes.length) {
           events.push({
@@ -108,8 +128,11 @@ export async function ingestSatcat(env) {
         }
       }
     }
-    await env.ORBIT_DB.batch(
-      batch.map((r) => env.ORBIT_DB.prepare(UPSERT_SQL).bind(...toValues(r, now))));
+    if (toWrite.length) {
+      await env.ORBIT_DB.batch(
+        toWrite.map((r) => env.ORBIT_DB.prepare(UPSERT_SQL).bind(...toValues(r, now))));
+      written += toWrite.length;
+    }
     batch = [];
   };
 
@@ -134,7 +157,23 @@ export async function ingestSatcat(env) {
   await recordEvents(env.ORBIT_DB, events);
   if (maxFile > Number(cursor)) await env.ORBIT_KV.put(CURSOR_KEY, String(maxFile));
 
-  return { rows, cursor: maxFile, changes: events.length, marked };
+  return { rows, written, cursor: maxFile, changes: events.length, marked };
+}
+
+/**
+ * Compares a stored value (typed — REAL/INTEGER read back from D1) against
+ * the raw upstream value (always a string) for the given column. Numeric
+ * columns must be compared as numbers: D1 stores 65.10 as 65.1, so a raw
+ * String() comparison against the upstream "65.10" would call every row with
+ * a trailing-zero decimal "changed" on every run, forever.
+ */
+function fieldChanged(col, stored, incoming) {
+  if (SATCAT_NUMERIC.has(col)) {
+    const a = stored === null || stored === undefined ? null : Number(stored);
+    const b = incoming === null || incoming === undefined || incoming === '' ? null : Number(incoming);
+    return a !== b;
+  }
+  return norm(stored) !== norm(incoming);
 }
 
 function norm(v) {
@@ -146,7 +185,7 @@ async function previousRows(env, ids) {
   // Batch size is 40, comfortably inside D1's 100-bound-parameter cap.
   const holes = ids.map(() => '?').join(',');
   const { results } = await env.ORBIT_DB
-    .prepare(`SELECT ${WATCHED.join(', ')}, NORAD_CAT_ID FROM satcat
+    .prepare(`SELECT ${COMPARE_COLS.join(', ')}, NORAD_CAT_ID FROM satcat
               WHERE NORAD_CAT_ID IN (${holes})`)
     .bind(...ids)
     .all();

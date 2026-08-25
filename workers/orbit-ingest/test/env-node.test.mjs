@@ -27,8 +27,9 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   sqlLiteral, inlineParams, signV4, D1Http, R2S3, memoryKV, createEnv,
 } from '../scripts/env-node.mjs';
-import { CITATION, OBJECT_UPSERT_SQL, deriveObjectRow, buildGroupArtifacts, GROUPS } from '../src/derive.js';
+import { CITATION, OBJECT_UPSERT_SQL, deriveObjectRow, buildGroupArtifacts, GROUPS, upsertObjects } from '../src/derive.js';
 import { runGP } from '../src/index.js';
+import { ingestSatcat } from '../src/ingest-satcat.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -230,6 +231,35 @@ await test('re-running an ingest upserts rather than duplicating', async () => {
   assert.equal(n1, n2);
   assert.equal(db.prepare('SELECT first_seen FROM objects LIMIT 1').get().first_seen, NOW,
     'first_seen must survive the second write');
+});
+
+await test('upsertObjects skips rows whose GP_ID has not changed', async () => {
+  // The delta window overlaps by design, so most rows in a 6-hourly run are
+  // elsets 18 SPCS has not actually regenerated since last time — re-writing
+  // those was the single largest driver of D1 write-row usage (see CLAUDE.md).
+  const db = freshDb();
+  const d1 = httpDb(db);
+  const gp = JSON.parse(raw('sample_gp.json'));
+
+  const batch1 = gp.map((r) => deriveObjectRow(r, NOW));
+  const written1 = await upsertObjects(d1, batch1);
+  assert.equal(written1, gp.length, 'first run: every row is new, all written');
+
+  // Re-send the identical rows (same GP_ID) — nothing changed upstream.
+  const batch2 = gp.map((r) => deriveObjectRow(r, '2026-07-27T16:00:00.000Z'));
+  const written2 = await upsertObjects(d1, batch2);
+  assert.equal(written2, 0, 'second run: identical GP_ID, nothing should be written');
+  assert.equal(
+    db.prepare('SELECT updated_at FROM objects LIMIT 1').get().updated_at, NOW,
+    'a skipped row must not have updated_at bumped',
+  );
+
+  // Bump GP_ID on one row, as a real re-generated elset would carry — that one
+  // row, and only that one, should be written this run.
+  const changed = { ...gp[0], GP_ID: Number(gp[0].GP_ID || 0) + 1 };
+  const batch3 = [deriveObjectRow(changed, '2026-07-27T18:00:00.000Z'), ...gp.slice(1).map((r) => deriveObjectRow(r, '2026-07-27T18:00:00.000Z'))];
+  const written3 = await upsertObjects(d1, batch3);
+  assert.equal(written3, 1, 'only the row with a changed GP_ID should be written');
 });
 
 await test('a 500 is retried; a 400 is not', async () => {
@@ -483,6 +513,66 @@ await test('a GP run lands rows, writes bundles and logs the call', async () => 
 
   const keys = env.ORBIT_R2.sent.map((s) => s.url);
   assert.ok(keys.some((k) => k.includes('/feed/latest.json')), 'the feed must be written');
+});
+
+console.log('\n-- ingestSatcat: skips rows that have not actually changed --');
+
+function mockSatcatFetch(body) {
+  return async (url) => {
+    assert.match(String(url), /spacetrack\.test/, 'the ingest must not reach the real API');
+    return new Response(body, { headers: { 'Content-Type': 'application/json' } });
+  };
+}
+
+await test('a re-sent SATCAT delta with no real changes writes nothing', async () => {
+  const db = freshDb();
+  const satcatBody = raw('sample_satcat.json');
+  const rows = JSON.parse(satcatBody);
+
+  const env = {
+    ORBIT_DB: httpDb(db),
+    ORBIT_KV: memoryKV({ 'spacetrack:cookie': 'chocolatechip=test' }),
+    SPACETRACK_BASE: 'https://spacetrack.test',
+  };
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = mockSatcatFetch(satcatBody);
+  let first;
+  try { first = await ingestSatcat(env); } finally { globalThis.fetch = realFetch; }
+  assert.equal(first.written, rows.length, 'first run: every row is new, all written');
+
+  // Re-send the identical rows under a new FILE cursor position — as a normal
+  // delta re-send would, since Space-Track's window overlaps by design.
+  globalThis.fetch = mockSatcatFetch(satcatBody);
+  let second;
+  try { second = await ingestSatcat(env); } finally { globalThis.fetch = realFetch; }
+  assert.equal(second.written, 0, 'second run: nothing actually changed, nothing written');
+  assert.equal(second.changes, 0, 'no satcat_change events for an unchanged re-send');
+});
+
+await test('a genuinely changed SATCAT row is written; the rest are skipped', async () => {
+  const db = freshDb();
+  const rows = JSON.parse(raw('sample_satcat.json'));
+
+  const env = {
+    ORBIT_DB: httpDb(db),
+    ORBIT_KV: memoryKV({ 'spacetrack:cookie': 'chocolatechip=test' }),
+    SPACETRACK_BASE: 'https://spacetrack.test',
+  };
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = mockSatcatFetch(JSON.stringify(rows));
+  try { await ingestSatcat(env); } finally { globalThis.fetch = realFetch; }
+
+  const bumped = rows.map((r, i) => (i === 0 ? { ...r, OBJECT_NAME: 'RENAMED OBJECT' } : r));
+  globalThis.fetch = mockSatcatFetch(JSON.stringify(bumped));
+  let out;
+  try { out = await ingestSatcat(env); } finally { globalThis.fetch = realFetch; }
+  assert.equal(out.written, 1, 'only the row whose fields actually changed should be written');
+  assert.equal(
+    db.prepare('SELECT OBJECT_NAME FROM satcat WHERE NORAD_CAT_ID = ?').get(Number(rows[0].NORAD_CAT_ID)).OBJECT_NAME,
+    'RENAMED OBJECT',
+  );
 });
 
 await test('a group with members becomes a 3LE bundle carrying the citation', async () => {
