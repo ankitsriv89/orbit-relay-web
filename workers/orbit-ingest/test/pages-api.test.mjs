@@ -20,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
-import { OBJECT_UPSERT_SQL, deriveObjectRow, buildAnalytics } from '../src/derive.js';
+import { OBJECT_UPSERT_SQL, deriveObjectRow, buildAnalytics, buildSummary } from '../src/derive.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -646,6 +646,71 @@ await test('rows outside the bin range are excluded, not clamped into an end bin
     `SELECT COUNT(*) AS n FROM objects WHERE DECAY_DATE IS NULL
        AND (APOAPSIS + PERIAPSIS) / 2 >= 0 AND (APOAPSIS + PERIAPSIS) / 2 <= 40000`).get().n;
   assert.equal(total, inRange, 'the 90000 km row must be excluded, not clamped');
+});
+
+
+/* ── buildSummary read cost ───────────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * Same shape as buildAnalytics(), in a different file, found by the same
+ * export on 2026-08-26 after the analytics fold landed:
+ *   SELECT COUNT(*) FROM objects WHERE DECAY_DATE IS NULL   453,474 rows, ratio 32,391
+ *   SELECT OBJECT_TYPE AS k, COUNT(*) ... GROUP BY k        129,570 rows, ratio 16,196
+ * Five unindexed aggregates over the whole catalog, each its own scan, to
+ * produce a few dozen rows. One pass answers all of them.
+ *
+ * The same historical-vs-on-orbit-now care does NOT apply here: buildSummary
+ * is entirely on-orbit-now (every aggregate carries DECAY_DATE IS NULL). What
+ * DOES have to survive is the by_country LIMIT 25 and the "operator IS NOT
+ * NULL" filter, both of which the artifact's consumers depend on.
+ */
+await test('buildSummary walks the objects table once, not once per aggregate', async () => {
+  const spy = countingD1(seeded());
+  await buildSummary({ ORBIT_DB: spy, ORBIT_R2: fakeR2() });
+  const scans = scansOf(spy.seen);
+  // Was 6: COUNT(*), four GROUP BYs, and MAX(updated_at).
+  assert.ok(scans.length <= 1,
+    `expected <= 1 statement scanning objects, got ${scans.length}:\n` +
+    scans.map((q) => '  ' + q.slice(0, 90)).join('\n'));
+});
+
+await test('buildSummary output matches the per-aggregate SQL it replaced', async () => {
+  const d = seeded();
+  const card = await buildSummary({ ORBIT_DB: localD1(d), ORBIT_R2: fakeR2() });
+  const live = 'WHERE DECAY_DATE IS NULL';
+  const rowsOf = (sql) => Object.fromEntries(
+    d.prepare(sql).all().map((r) => [r.k || 'UNKNOWN', r.n]));
+
+  assert.equal(card.tracked,
+    d.prepare(`SELECT COUNT(*) AS n FROM objects ${live}`).get().n);
+  assert.deepEqual(card.by_type,
+    rowsOf(`SELECT OBJECT_TYPE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`));
+  assert.deepEqual(card.by_regime,
+    rowsOf(`SELECT regime AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`));
+  assert.deepEqual(card.by_country,
+    rowsOf(`SELECT COUNTRY_CODE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC LIMIT 25`));
+  assert.deepEqual(card.by_operator,
+    rowsOf(`SELECT operator AS k, COUNT(*) AS n FROM objects ${live} AND operator IS NOT NULL GROUP BY k ORDER BY n DESC`));
+  assert.equal(card.last_elset_ingest,
+    d.prepare('SELECT MAX(updated_at) AS t FROM objects').get().t);
+});
+
+await test('buildSummary keeps by_country capped at 25 and drops null operators', async () => {
+  const d = seeded();
+  // 30 distinct countries, so the LIMIT 25 actually bites — a fold that
+  // forgot it would silently widen the artifact the HUD reads.
+  const ins = d.prepare(`INSERT INTO objects
+      (NORAD_CAT_ID, OBJECT_NAME, OBJECT_ID, OBJECT_TYPE, COUNTRY_CODE, SITE,
+       LAUNCH_DATE, regime, launch_year, first_seen, updated_at)
+      VALUES (?, ?, ?, 'PAYLOAD', ?, 'AFETR', '2020-01-01', 'LEO', 2020, ?, ?)`);
+  for (let i = 0; i < 30; i++) {
+    ins.run(970000 + i, 'C' + i, `2020-9${i}A`, 'X' + i, NOW, NOW);
+  }
+  const card = await buildSummary({ ORBIT_DB: localD1(d), ORBIT_R2: fakeR2() });
+  assert.ok(Object.keys(card.by_country).length <= 25,
+    'by_country must stay capped at 25, got ' + Object.keys(card.by_country).length);
+  assert.ok(!('UNKNOWN' in card.by_operator),
+    'operator IS NOT NULL must still filter nulls out of by_operator');
 });
 
 await test('regime_by_year rows are zero-filled across all four regimes', async () => {

@@ -406,6 +406,85 @@ test('the rolling-hour count the guard runs is a real indexed query', () => {
   assert.equal(n, 5);
 });
 
+
+/* ── events(kind, ts) ─────────────────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * Measured 2026-08-26 from d1QueriesAdaptiveGroups: buildBrief()'s two
+ * events-to-objects joins read 315,916 rows to return 24 (ratio 13,163).
+ *
+ * The cause is that `WHERE kind = ? AND ts >= ?` has TWO single-column
+ * indexes available — idx_events_kind and idx_events_ts — and SQLite can only
+ * use one per table. It picks idx_events_ts, so it walks every event in the
+ * window and tests `kind` row by row. The brief's window is 7 days of ALL
+ * events, of which the decay rows are a small minority, so almost everything
+ * visited is discarded.
+ *
+ * A composite (kind, ts DESC) turns that into a single seek: kind selects the
+ * partition, ts ranges within it, and the DESC matches the ORDER BY so no
+ * temp b-tree is needed either. Measured with a counting UDF on a seeded
+ * 20k-event table: 289 rows visited -> 6. This is the ONE case in this schema
+ * where a composite helps; the (OBJECT_TYPE, NORAD_CAT_ID) one proposed for
+ * `objects` was correctly rejected, because there NORAD_CAT_ID is the rowid
+ * and every index already carries it.
+ */
+function eventsDb() {
+  const db = freshDb();
+  const ins = db.prepare("INSERT INTO events (ts, kind, NORAD_CAT_ID, title, detail) VALUES (?, ?, ?, ?, ?)");
+  // Decays are ~2% of events, which is what makes the kind filter worth an
+  // index — a table that were mostly decays would not show this.
+  for (let i = 0; i < 4000; i++) {
+    ins.run(`2026-0${1 + (i % 9)}-01T00:00:00Z`, i % 50 === 0 ? 'decay' : 'new_object',
+            900000 + i, 't' + i, '{}');
+  }
+  db.exec('ANALYZE');
+  return db;
+}
+
+const BRIEF_DECAY_SQL = `
+  SELECT e.NORAD_CAT_ID AS norad, e.title AS title, o.OBJECT_NAME AS name,
+         o.COUNTRY_CODE AS country
+  FROM events e LEFT JOIN objects o ON o.NORAD_CAT_ID = e.NORAD_CAT_ID
+  WHERE e.kind = 'decay' AND e.ts >= ?
+  ORDER BY e.ts DESC LIMIT 6`;
+
+test('the brief decay join seeks on (kind, ts), it does not walk every event', () => {
+  const db = eventsDb();
+  const plan = db.prepare('EXPLAIN QUERY PLAN ' + BRIEF_DECAY_SQL).all('2026-01-01T00:00:00Z');
+  const detail = plan.map((r) => String(r.detail)).join(' | ');
+  assert.ok(/SEARCH e USING INDEX idx_events_kind_ts \(kind=\? AND ts>\?\)/.test(detail),
+    'expected a (kind, ts) seek, got: ' + detail);
+  // The DESC on the index must also satisfy ORDER BY e.ts DESC, or SQLite
+  // sorts the partition and the saving is partly given back.
+  assert.ok(!/TEMP B-TREE/.test(detail), 'ORDER BY must be served by the index: ' + detail);
+});
+
+test('the (kind, ts) index cuts rows visited by the brief decay join', () => {
+  // Rows the engine actually VISITS, counted with a UDF ANDed onto the
+  // predicate — D1 bills these, and a plan shape alone would not prove it.
+  const count = (db) => {
+    let n = 0;
+    db.function('cnt', () => { n++; return 1; });
+    db.prepare(`
+      SELECT e.NORAD_CAT_ID AS norad, e.title AS title, o.OBJECT_NAME AS name,
+             o.COUNTRY_CODE AS country
+      FROM events e LEFT JOIN objects o ON o.NORAD_CAT_ID = e.NORAD_CAT_ID
+      WHERE e.kind = 'decay' AND e.ts >= ? AND cnt()
+      ORDER BY e.ts DESC LIMIT 6`).all('2026-01-01T00:00:00Z');
+    return n;
+  };
+  const withIdx = count(eventsDb());
+
+  const without = eventsDb();
+  without.exec('DROP INDEX idx_events_kind_ts');
+  without.exec('ANALYZE');
+  const bare = count(without);
+
+  assert.ok(withIdx * 4 < bare,
+    `the composite must cut visits several-fold: ${bare} without vs ${withIdx} with`);
+  assert.ok(withIdx <= 12, `expected a seek to the 6 rows wanted, visited ${withIdx}`);
+});
+
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

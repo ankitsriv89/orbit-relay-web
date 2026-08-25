@@ -559,10 +559,13 @@ export async function buildFullCatalog(env) {
 
 /* ── Summary + feed artifacts ───────────────────────────────────────────── */
 
-async function tally(db, sql) {
-  const { results } = await db.prepare(sql).all();
-  return results || [];
-}
+// `tally(db, sql)` lived here — a thin wrapper that ran one GROUP BY and
+// returned its rows. Removed 2026-08-26 when its last caller went away:
+// buildSummary() and buildAnalytics() each folded their aggregates into a
+// single pass over `objects`, because none of those GROUP BYs had an index
+// that could serve it and D1 bills every row the engine visits. Re-adding a
+// helper of that shape is the regression these files' guardrails watch for —
+// see "walks the objects table once" in test/pages-api.test.mjs.
 
 /**
  * `catalog/summary.json` — the counts the HUD shows without touching D1.
@@ -570,15 +573,57 @@ async function tally(db, sql) {
  * grouped scans rather than a catalog download.
  */
 export async function buildSummary(env, { groups = null } = {}) {
-  const live = 'WHERE DECAY_DATE IS NULL';
-  const [total, byType, byRegime, byCountry, byOperator, lastIngest] = await Promise.all([
-    env.ORBIT_DB.prepare(`SELECT COUNT(*) AS n FROM objects ${live}`).first(),
-    tally(env.ORBIT_DB, `SELECT OBJECT_TYPE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
-    tally(env.ORBIT_DB, `SELECT regime AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
-    tally(env.ORBIT_DB, `SELECT COUNTRY_CODE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC LIMIT 25`),
-    tally(env.ORBIT_DB, `SELECT operator AS k, COUNT(*) AS n FROM objects ${live} AND operator IS NOT NULL GROUP BY k ORDER BY n DESC`),
-    env.ORBIT_DB.prepare(`SELECT MAX(updated_at) AS t FROM objects`).first(),
-  ]);
+  // ONE pass, for the same reason buildAnalytics() does it — see foldAnalytics.
+  // This was six statements: COUNT(*), four GROUP BYs and MAX(updated_at), none
+  // of them servable by an index, so each scanned the whole catalog. Measured
+  // 2026-08-26: the COUNT(*) alone read 453,474 rows to return 14 (ratio
+  // 32,391) and the OBJECT_TYPE tally 129,570 to return 8.
+  //
+  // Unlike buildAnalytics this artifact is entirely on-orbit-now — every
+  // aggregate carried `DECAY_DATE IS NULL`, so the fold filters once up front.
+  // MAX(updated_at) is the exception and spans the WHOLE table, decayed rows
+  // included: it answers "when did we last ingest an elset", not "when did we
+  // last ingest a live one".
+  const { results: allRows } = await env.ORBIT_DB.prepare(`
+    SELECT OBJECT_TYPE, COUNTRY_CODE, regime, operator, DECAY_DATE, updated_at
+    FROM objects`).all();
+
+  let tracked = 0;
+  let lastUpdated = null;
+  const typeCount = new Map();
+  const regimeCount = new Map();
+  const countryCount = new Map();
+  const operatorCount = new Map();
+  const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+
+  for (const r of (allRows || [])) {
+    // Lexicographic max over ISO-8601 is chronological max, and matches what
+    // SQLite's MAX() did on this TEXT column.
+    if (r.updated_at != null && (lastUpdated === null || r.updated_at > lastUpdated)) {
+      lastUpdated = r.updated_at;
+    }
+    if (r.DECAY_DATE != null) continue;
+    tracked++;
+    bump(typeCount, r.OBJECT_TYPE);
+    bump(regimeCount, r.regime);
+    bump(countryCount, r.COUNTRY_CODE);
+    // `operator IS NOT NULL` was in the SQL and the consumers rely on it —
+    // a null operator must not become an "UNKNOWN" bucket here.
+    if (r.operator != null) bump(operatorCount, r.operator);
+  }
+
+  // ORDER BY n DESC, and by_country keeps its LIMIT 25 — the HUD's filter
+  // dropdown is built from exactly these keys.
+  const ranked = (m, limit) => {
+    const out = [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ k, n }));
+    return limit ? out.slice(0, limit) : out;
+  };
+  const total = { n: tracked };
+  const byType = ranked(typeCount);
+  const byRegime = ranked(regimeCount);
+  const byCountry = ranked(countryCount, 25);
+  const byOperator = ranked(operatorCount);
+  const lastIngest = { t: lastUpdated };
 
   const summary = {
     generated_at: new Date().toISOString(),

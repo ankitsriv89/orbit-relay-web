@@ -242,6 +242,28 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_ts   ON events(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
 
+-- Every hot query over `events` filters kind AND a ts window together —
+-- buildBrief()'s new_object/decay samples and its country tally, and
+-- /api/feed. Two single-column indexes cannot serve that: SQLite uses ONE
+-- index per table, picks idx_events_ts, and then tests `kind` row by row
+-- across the whole window. Since decays are a small minority of events,
+-- almost everything visited is discarded — measured 2026-08-26 at 315,916
+-- rows read to return 24 (ratio 13,163), the largest single line in the D1
+-- dashboard after the buildAnalytics fold.
+--
+-- The composite makes it one seek: `kind` picks the partition, `ts` ranges
+-- inside it, and DESC matches `ORDER BY e.ts DESC` so no temp b-tree is
+-- needed either. Measured with a counting UDF: 289 rows visited -> 6, a 48x
+-- cut (test/sqlite.test.mjs).
+--
+-- NOTE this is the one place in this schema where a composite helps. The
+-- (OBJECT_TYPE, NORAD_CAT_ID) composite proposed for `objects` was tested and
+-- REJECTED: there NORAD_CAT_ID is the rowid, which every index already
+-- carries as its trailing key, so idx_objects_type already resolves as
+-- (OBJECT_TYPE=? AND rowid>?). `events` is different because its rowid is a
+-- synthetic AUTOINCREMENT id that no query filters on.
+CREATE INDEX IF NOT EXISTS idx_events_kind_ts ON events(kind, ts DESC);
+
 -- ── api_calls ──────────────────────────────────────────────────────────────
 -- The safety rail. Every outbound Space-Track request is logged here BEFORE it
 -- is sent, and the ingest hard-aborts if it would exceed 25 calls in any
