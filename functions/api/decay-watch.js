@@ -19,10 +19,16 @@ import { json, preflight, requireDb, withCitation, parseEpochUTC, clamp, cached 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-// One row per NORAD: the latest message for each object, joined back to its
-// own table by (NORAD_CAT_ID, MAX(MSG_EPOCH)) rather than a window function —
-// D1's SQLite build is not guaranteed to have them, and every other query in
-// this package avoids them too.
+// One row per NORAD: the latest message for each object. Originally a
+// `JOIN (SELECT NORAD_CAT_ID, MAX(MSG_EPOCH) ... GROUP BY NORAD_CAT_ID)` —
+// correct, but SQLite's planner cannot turn a GROUP BY MAX over the whole
+// table into an index walk, so it re-scanned every row in `decay` (Sputnik 1
+// onward, per the comment below) on every single call: measured at ~140k
+// rows read per call in the Cloudflare D1 dashboard. Rewritten as a
+// correlated NOT EXISTS — "no later message exists for this NORAD_CAT_ID" —
+// which SQLite *can* answer by walking the `(NORAD_CAT_ID, MSG_EPOCH)`
+// primary key index directly, since MSG_EPOCH sorts lexically the same as
+// chronologically (Space-Track's fixed-width timestamp format).
 // The `decay` table holds Space-Track's HISTORICAL decay messages as well as
 // its forward predictions — Sputnik 1 is in there with DECAY_EPOCH
 // `1957-12-01 0:00:00`. Without a lower bound this list, whose whole claim is
@@ -35,14 +41,14 @@ const SQL = `
          d.DECAY_EPOCH, d.MSG_EPOCH, d.SOURCE, d.PRECEDENCE,
          o.OBJECT_TYPE, o.regime, o.operator, o.DECAY_DATE
   FROM decay d
-  JOIN (
-    SELECT NORAD_CAT_ID, MAX(MSG_EPOCH) AS latest
-    FROM decay GROUP BY NORAD_CAT_ID
-  ) latest ON latest.NORAD_CAT_ID = d.NORAD_CAT_ID AND latest.latest = d.MSG_EPOCH
   LEFT JOIN objects o ON o.NORAD_CAT_ID = d.NORAD_CAT_ID
   WHERE d.DECAY_EPOCH IS NOT NULL
     AND substr(d.DECAY_EPOCH, 1, 10) >= ?
     AND (o.DECAY_DATE IS NULL OR o.NORAD_CAT_ID IS NULL)
+    AND NOT EXISTS (
+      SELECT 1 FROM decay d2
+      WHERE d2.NORAD_CAT_ID = d.NORAD_CAT_ID AND d2.MSG_EPOCH > d.MSG_EPOCH
+    )
   ORDER BY d.DECAY_EPOCH ASC
   LIMIT ?`;
 

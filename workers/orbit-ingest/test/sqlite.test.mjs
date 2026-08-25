@@ -191,9 +191,14 @@ const specimenDb = (() => {
 // test built from `where` alone would compile fine but never catch an
 // INDEXED BY clause naming an index that doesn't exist or can't satisfy the
 // predicate, which SQLite only rejects at prepare time with the hint present.
-const bundleSql = (g) =>
+//
+// `cursor` mirrors pagedRows()'s keyset clause. It is part of the real shape:
+// adding `AND NORAD_CAT_ID > ?` is exactly the kind of non-name predicate that
+// can demote a forced idx_objects_name SEARCH to a full SCAN, so the plan test
+// below has to see it or it would be proving something the Worker never runs.
+const bundleSql = (g, { cursor = false } = {}) =>
   `SELECT NORAD_CAT_ID FROM objects${g.indexHint ? ` INDEXED BY ${g.indexHint}` : ''}
-   WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${g.where})
+   WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${g.where})${cursor ? ' AND NORAD_CAT_ID > 0' : ''}
    ORDER BY NORAD_CAT_ID`;
 
 test('every group predicate compiles', () => {
@@ -225,7 +230,8 @@ test('every indexHint actually gets used, not silently ignored by a mixed predic
   const db = freshDb();
   for (const [slug, g] of Object.entries(GROUPS)) {
     if (!g.indexHint) continue;
-    const plan = db.prepare(`EXPLAIN QUERY PLAN ${bundleSql(g)}`).all();
+    // Checked WITH the keyset cursor, because that is what pagedRows() runs.
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${bundleSql(g, { cursor: true })}`).all();
     const usesHintedIndex = plan.some((row) =>
       String(row.detail).includes(`SEARCH objects USING INDEX ${g.indexHint}`));
     assert.ok(usesHintedIndex, `${slug}: indexHint '${g.indexHint}' did not produce a SEARCH — ${JSON.stringify(plan)}`);
@@ -263,6 +269,86 @@ test('debris families take fragments and leave their parent payload', () => {
   ], NOW);
   const ids = db.prepare(bundleSql(GROUPS['fengyun-1c-debris'])).all().map((r) => r.NORAD_CAT_ID);
   assert.deepEqual(ids, [30000]);
+});
+
+/* ── Paging cost ────────────────────────────────────────────────────────── */
+
+console.log('\n-- catalog paging does not re-scan what it already returned --');
+
+/**
+ * Rows the engine actually visits for a full paged walk of `objects`.
+ *
+ * Measured, not reasoned about: a `visit()` scalar UDF is ANDed onto the tail
+ * of the WHERE clause, so SQLite calls it exactly once per row that reaches
+ * that point of the predicate. LIMIT/OFFSET is applied *after* the WHERE, so
+ * rows that OFFSET discards still fire the counter — which is precisely the
+ * cost D1 bills as "rows read" and the thing this test exists to pin down.
+ */
+function walkCost(db, pager) {
+  let visited = 0;
+  db.function('visit', () => { visited++; return 1; });
+  const sql = `SELECT NORAD_CAT_ID FROM objects
+               WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND visit() = 1`;
+  const returned = pager(db, sql);
+  return { visited, returned };
+}
+
+// The two pagers, each walking the whole table in pages of PAGE_N.
+const PAGE_N = 100;
+
+const offsetPager = (db, sql) => {
+  let n = 0;
+  for (let offset = 0; ; offset += PAGE_N) {
+    const rows = db.prepare(`${sql} ORDER BY NORAD_CAT_ID LIMIT ${PAGE_N} OFFSET ${offset}`).all();
+    n += rows.length;
+    if (rows.length < PAGE_N) return n;
+  }
+};
+
+const keysetPager = (db, sql) => {
+  let n = 0;
+  let after = -1;
+  for (;;) {
+    const rows = db.prepare(
+      `${sql} AND NORAD_CAT_ID > ${after} ORDER BY NORAD_CAT_ID LIMIT ${PAGE_N}`).all();
+    n += rows.length;
+    if (rows.length < PAGE_N) return n;
+    after = rows[rows.length - 1].NORAD_CAT_ID;
+  }
+};
+
+function seedManyLive(db, count) {
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    rows.push({ NORAD_CAT_ID: 10000 + i, OBJECT_NAME: `OBJ ${i}`, OBJECT_TYPE: 'PAYLOAD',
+                TLE_LINE1: `1 ${i}`, TLE_LINE2: `2 ${i}` });
+  }
+  seed(db, rows, NOW);
+}
+
+test('both pagers return the identical row set', () => {
+  const a = freshDb(); seedManyLive(a, 1000);
+  const b = freshDb(); seedManyLive(b, 1000);
+  assert.equal(walkCost(a, offsetPager).returned, 1000);
+  assert.equal(walkCost(b, keysetPager).returned, 1000);
+});
+
+test('OFFSET paging re-reads discarded rows; keyset paging does not', () => {
+  // 1,000 rows in pages of 100 is 10 pages. OFFSET re-walks the prefix every
+  // page — 100+200+...+1000 = 5,500 visits for 1,000 rows. Keyset seeks past
+  // what it already returned, so it visits each row about once. The real
+  // catalog is ~27k rows in pages of 1,000, where the same quadratic lands at
+  // ~392k visits for 27k rows — the 1.05M-rows-read line in the D1 dashboard.
+  const off = walkCost((() => { const d = freshDb(); seedManyLive(d, 1000); return d; })(), offsetPager);
+  const key = walkCost((() => { const d = freshDb(); seedManyLive(d, 1000); return d; })(), keysetPager);
+
+  assert.equal(off.returned, key.returned, 'the two pagers must agree on the result');
+  assert.ok(off.visited >= 5000,
+    `expected OFFSET paging to re-scan (got ${off.visited} visits for ${off.returned} rows)`);
+  assert.ok(key.visited <= off.returned * 1.2,
+    `keyset paging should visit each row ~once, got ${key.visited} for ${key.returned} rows`);
+  assert.ok(key.visited * 4 < off.visited,
+    `keyset must be dramatically cheaper: ${key.visited} vs ${off.visited}`);
 });
 
 /* ── Derived columns round-trip ─────────────────────────────────────────── */

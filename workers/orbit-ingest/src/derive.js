@@ -449,16 +449,39 @@ export const groupKey = (slug) => `tle/spacetrack/${slug}.txt`;
  * Every catalog-wide read is paged. Starlink alone is ~8,000 rows and D1 caps
  * the size of a single result set, so an unpaged SELECT would work in
  * development and truncate in production — the worst failure mode available.
+ *
+ * Paged by KEYSET (`NORAD_CAT_ID > last`), never by OFFSET. SQLite cannot seek
+ * to an offset — it reads and discards every row before it — so `LIMIT 1000
+ * OFFSET n` re-walks the whole prefix on every page, making a full catalog walk
+ * quadratic. Measured on a real engine at catalog scale (27k live objects,
+ * 1k pages): OFFSET visits 405,000 rows to return 27,000, keyset visits 27,000.
+ * That 15x is charged as D1 "rows read", and it was the largest single line in
+ * the dashboard — see test/sqlite.test.mjs's paging-cost test, which measures
+ * both walks with a counting UDF rather than assuming.
+ *
+ * The cursor is bound, not interpolated, and every caller must SELECT
+ * NORAD_CAT_ID and ORDER BY it — asserted in test/sqlite.test.mjs.
  */
 const PAGE = 1000;
 
-async function* pagedRows(db, sql, params = []) {
-  for (let offset = 0; ; offset += PAGE) {
-    const stmt = db.prepare(`${sql} LIMIT ${PAGE} OFFSET ${offset}`);
-    const { results } = await (params.length ? stmt.bind(...params) : stmt).all();
+/**
+ * @param {object} db
+ * @param {string} where  predicate WITHOUT the leading WHERE — the cursor is
+ *                        ANDed onto it, so it must not carry ORDER BY/LIMIT.
+ * @param {string} select column list, must include NORAD_CAT_ID
+ * @param {string} from   table plus any INDEXED BY clause
+ */
+async function* pagedRows(db, { select, from, where, params = [] }) {
+  let after = -1;
+  for (;;) {
+    const sql = `SELECT ${select} FROM ${from}
+                 WHERE ${where} AND NORAD_CAT_ID > ?
+                 ORDER BY NORAD_CAT_ID LIMIT ${PAGE}`;
+    const { results } = await db.prepare(sql).bind(...params, after).all();
     if (!results || results.length === 0) return;
     for (const r of results) yield r;
     if (results.length < PAGE) return;
+    after = results[results.length - 1].NORAD_CAT_ID;
   }
 }
 
@@ -492,12 +515,12 @@ export async function buildGroupArtifacts(env, { slugs = Object.keys(GROUPS) } =
     const g = GROUPS[slug];
     if (!g) continue;
     const indexed = g.indexHint ? ` INDEXED BY ${g.indexHint}` : '';
-    const sql = `SELECT NORAD_CAT_ID, OBJECT_NAME, TLE_LINE1, TLE_LINE2
-                 FROM objects${indexed}
-                 WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${g.where})
-                 ORDER BY NORAD_CAT_ID`;
     const rows = [];
-    for await (const r of pagedRows(env.ORBIT_DB, sql)) rows.push(r);
+    for await (const r of pagedRows(env.ORBIT_DB, {
+      select: 'NORAD_CAT_ID, OBJECT_NAME, TLE_LINE1, TLE_LINE2',
+      from: `objects${indexed}`,
+      where: `DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${g.where})`,
+    })) rows.push(r);
 
     const body = toThreeLine(rows);
     counts[slug] = rows.length;
@@ -517,13 +540,13 @@ export async function buildGroupArtifacts(env, { slugs = Object.keys(GROUPS) } =
 
 /** The whole on-orbit catalog as one bundle. Daily only — it is ~5 MB. */
 export async function buildFullCatalog(env) {
-  const sql = `SELECT NORAD_CAT_ID, OBJECT_NAME, TLE_LINE1, TLE_LINE2
-               FROM objects
-               WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL
-               ORDER BY NORAD_CAT_ID`;
   const parts = [];
   let n = 0;
-  for await (const r of pagedRows(env.ORBIT_DB, sql)) { parts.push(r); n++; }
+  for await (const r of pagedRows(env.ORBIT_DB, {
+    select: 'NORAD_CAT_ID, OBJECT_NAME, TLE_LINE1, TLE_LINE2',
+    from: 'objects',
+    where: 'DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL',
+  })) { parts.push(r); n++; }
   const body = toThreeLine(parts);
   if (body) {
     await env.ORBIT_R2.put('tle/spacetrack/all.txt', body, {
