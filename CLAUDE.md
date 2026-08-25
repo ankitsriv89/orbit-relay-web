@@ -249,6 +249,30 @@ job makes exactly **one** upstream Space-Track call, against a 25/hour guard
 (`MAX_CALLS_PER_HOUR`) and a documented 300/hour ceiling. Compare the resulting per-group
 counts against the previous run's: for a pure performance change they must be identical.
 
+**The artifact steps themselves make ZERO upstream calls** — `artifacts`, `full-catalog`,
+`summary`, `feed`, `analytics` and `brief` read D1 and write R2, nothing else. `daily`
+still runs three upstream ingests before them (SATCAT, DECAY, BOXSCORE, all documented as
+once-per-day after 1700 UTC), so it is not free — but it is the job that exercises every
+artifact builder, which `gp` does not. Use `daily` to verify an artifact or read-cost
+change, `gp` when you only need the group bundles.
+
+**The Space-Track TEST server is `https://for-testing-only.space-track.org`** — same API,
+same credentials, and it spends none of the production rate budget. Point a run at it with
+
+```bash
+gh workflow run orbit-ingest -f job=gp -f use_test_server=true
+```
+
+Scheduled runs always use production (the input is empty unless a manual dispatch sets
+it). Reach for it when a run's call count is unknown up front — a new query being
+iterated on, a retry/backoff change, a parser fed live responses. Routine verification
+does not need it, because the `api_calls` guard already logs every request *before* it is
+sent and hard-aborts at 25/hour.
+
+**Its catalog is a separate deployment, not a mirror.** Row counts and specific NORADs
+differ from production, so never read a production-vs-test bundle-count diff as a
+regression — that comparison is only valid between two runs against the *same* host.
+
 ---
 
 ## The landing page must stay in sync with the product

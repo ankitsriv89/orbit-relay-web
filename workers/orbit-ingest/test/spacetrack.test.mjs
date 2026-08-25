@@ -213,6 +213,43 @@ await test('SPACETRACK_BASE switches every request to the test server', async ()
             seen.map(s => s.url).join('\n'));
 });
 
+await test('the DEFAULT base is production, not the test server', async () => {
+  // The other half of the test above. The real test server is
+  // https://for-testing-only.space-track.org — same API, same credentials, and
+  // it spends none of the production rate budget, which is exactly why an
+  // override left switched on would be invisible: everything keeps working
+  // while the catalog quietly comes from a different deployment whose data is
+  // NOT a mirror of production.
+  //
+  // The workflow guards this by construction (SPACETRACK_BASE is set only
+  // when a manual dispatch ticks use_test_server, and is empty on a schedule);
+  // this asserts the code-side default that guard relies on.
+  const env = makeEnv();
+  const seen = installFetch((url) =>
+    url.includes('/ajaxauth/login') ? loginResp() : jsonResp([]));
+
+  await query(env, 'gp', Q.gpDelta());
+
+  assert.ok(seen.length > 0, 'the query must actually issue requests');
+  assert.ok(seen.every((s) => s.url.startsWith('https://www.space-track.org')),
+    'an unset SPACETRACK_BASE must mean production:\n' + seen.map((x) => x.url).join('\n'));
+  assert.ok(!seen.some((s) => s.url.includes('for-testing-only')),
+    'the test server must never be the default');
+});
+
+await test('a trailing slash on SPACETRACK_BASE does not double up in the path', async () => {
+  // Operators paste URLs with trailing slashes; base() strips them. Without
+  // that, every request would go to '...space-track.org//basicspacedata/...'.
+  const env = makeEnv({ SPACETRACK_BASE: 'https://for-testing-only.space-track.org/' });
+  const seen = installFetch((url) =>
+    url.includes('/ajaxauth/login') ? loginResp() : jsonResp([]));
+
+  await query(env, 'gp', Q.gpDelta());
+
+  assert.ok(seen.every((s) => !s.url.replace('https://', '').includes('//')),
+    'no doubled slash in the path:\n' + seen.map((x) => x.url).join('\n'));
+});
+
 await test('every GP query asks for JSON, never the Alpha-5-lossy TLE format', () => {
   for (const build of [Q.gpDelta, Q.gpFull]) {
     const p = build();

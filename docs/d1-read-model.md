@@ -368,3 +368,46 @@ accumulator in `foldAnalytics()` is labelled with which it is.
    candidate — but bring EXPLAIN evidence, since three plausible indexes have
    already been tested and rejected. With `buildAnalytics()` fixed this is worth
    roughly 97k/run against a ~5M/day budget, so it is no longer urgent.
+
+---
+
+## Verifying a change without spending API budget
+
+The artifact builders (`artifacts`, `full-catalog`, `summary`, `feed`, `analytics`,
+`brief`) make **no** upstream Space-Track calls — they read D1 and write R2. So a
+read-cost change is verified with:
+
+```bash
+gh workflow run orbit-ingest -f job=daily
+```
+
+`daily` does still run three upstream ingests first (SATCAT, DECAY, BOXSCORE), so it is
+not free — but it is the only job that exercises every builder. `gp` covers just the
+group bundles.
+
+When a run's upstream call count is unknown up front (a new query being iterated on, a
+retry/backoff change, a parser fed live responses), use the **Space-Track test server**
+instead — same API, same credentials, none of the production rate budget:
+
+```bash
+gh workflow run orbit-ingest -f job=gp -f use_test_server=true
+```
+
+That resolves to `https://for-testing-only.space-track.org` via `SPACETRACK_BASE`.
+Scheduled runs always use production — the input is empty unless a manual dispatch sets
+it, and `spacetrack.test.mjs` asserts the code-side default is production too.
+
+**Its catalog is a separate deployment, not a mirror.** Row counts and specific NORADs
+differ from production, so a production-vs-test bundle-count diff is never a regression —
+that comparison is only valid between two runs against the *same* host.
+
+Routine verification does not need the test server: `api_calls` logs every request
+*before* it is sent and hard-aborts at 25/hour (`MAX_CALLS_PER_HOUR`), against a
+documented 300/hour ceiling.
+
+Then measure, using a window **shorter than the time since the run** so it does not
+include earlier ones:
+
+```bash
+node workers/orbit-ingest/scripts/d1-query-stats.mjs --hours 1
+```

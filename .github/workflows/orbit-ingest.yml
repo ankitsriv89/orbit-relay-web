@@ -48,6 +48,11 @@ on:
         default: gp
         type: choice
         options: [gp, daily, weekly, seed]
+      use_test_server:
+        description: 'Hit the Space-Track TEST server instead of production'
+        required: false
+        default: false
+        type: boolean
 
 # One ingest at a time, ever. Two concurrent runs would race each other's
 # upserts and — worse — both spend against a rate budget whose ceiling is an
@@ -110,6 +115,13 @@ jobs:
           JOB:                   ${{ steps.pick.outputs.job }}
           SPACETRACK_IDENTITY:   ${{ secrets.SPACETRACK_IDENTITY }}
           SPACETRACK_PASSWORD:   ${{ secrets.SPACETRACK_PASSWORD }}
+          # Empty on a schedule, so scheduled runs always hit production.
+          # Only a manual dispatch can tick use_test_server. The test server
+          # takes the SAME credentials and spends none of the production rate
+          # budget — use it when a call count is unknown up front.
+          # Its catalog is a separate deployment, NOT a mirror: bundle counts
+          # differ from production, so a diff across the two is not a regression.
+          SPACETRACK_BASE:       ${{ inputs.use_test_server && 'https://for-testing-only.space-track.org' || '' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}
@@ -148,6 +160,7 @@ jobs:
         env:
           SPACETRACK_IDENTITY:   ${{ secrets.SPACETRACK_IDENTITY }}
           SPACETRACK_PASSWORD:   ${{ secrets.SPACETRACK_PASSWORD }}
+          SPACETRACK_BASE:       ${{ inputs.use_test_server && 'https://for-testing-only.space-track.org' || '' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}
@@ -160,6 +173,7 @@ jobs:
         env:
           SPACETRACK_IDENTITY:   ${{ secrets.SPACETRACK_IDENTITY }}
           SPACETRACK_PASSWORD:   ${{ secrets.SPACETRACK_PASSWORD }}
+          SPACETRACK_BASE:       ${{ inputs.use_test_server && 'https://for-testing-only.space-track.org' || '' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}

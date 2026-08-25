@@ -67,8 +67,25 @@ async function logCallEnd(env, id, status, rows, ms) {
 
 /* ── Session ────────────────────────────────────────────────────────────── */
 
+/**
+ * Space-Track's origin. Production unless `SPACETRACK_BASE` says otherwise.
+ *
+ * **The test server is `https://for-testing-only.space-track.org`** — same API
+ * and same credentials, but it does not consume the production rate budget.
+ * Use it for anything that would otherwise burn real calls: a new query being
+ * iterated on, a retry/backoff change, a parser fed a live response.
+ *
+ * Production allows 30 calls/minute and 300/hour; `MAX_CALLS_PER_HOUR` holds
+ * this ingest to 25/hour well inside that, and `api_calls` logs every request
+ * BEFORE it is sent so the guard cannot be outrun by a crash. The guard is
+ * *why* routine work is safe on production — the test server is for the
+ * un-routine, where call count is unknown in advance.
+ *
+ * Note the two are separate deployments with separate data: the test server's
+ * catalog is not a mirror, so row counts and specific NORADs will differ.
+ * Never compare a bundle count across the two and read it as a regression.
+ */
 function base(env) {
-  // Set SPACETRACK_BASE to the test server to move development off production.
   return (env.SPACETRACK_BASE || 'https://www.space-track.org').replace(/\/+$/, '');
 }
 
