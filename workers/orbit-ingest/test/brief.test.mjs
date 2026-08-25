@@ -434,6 +434,83 @@ await test('cleaning strips model wrappers without excusing them', async () => {
   assert.equal(checkNarrative(messy, facts).ok, true);
 });
 
+
+/* ── buildBrief read cost ─────────────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * The third instance of the same pattern, after buildAnalytics and
+ * buildSummary. Measured 2026-08-26, once the events(kind, ts) index removed
+ * the join that had been hiding it:
+ *   SELECT OBJECT_TYPE AS k, COUNT(*) ... WHERE DECAY_DATE IS NULL GROUP BY k
+ *   259,140 rows read, 4 calls, ratio 16,196
+ * plus its sibling COUNT(*) over the same predicate. Two full catalog scans
+ * for four numbers: tracked_on_orbit, payloads, rocket_bodies, debris.
+ *
+ * One pass answers both. The brief's OTHER queries are over `events`, which
+ * is small and now properly indexed — this guardrail is about `objects`.
+ */
+function countingDb(db) {
+  const seen = [];
+  return {
+    seen,
+    prepare(sql) {
+      seen.push(String(sql).replace(/\s+/g, ' ').trim());
+      return db.prepare(sql);
+    },
+  };
+}
+
+await test('buildBrief walks the objects table once, not once per aggregate', async () => {
+  const spy = countingDb(db);
+  await buildBrief({ ORBIT_DB: spy, ORBIT_R2: fakeR2() }, { now: NOW });
+  // Statements that SCAN objects — the events joins reference it by rowid via
+  // LEFT JOIN, which is a seek per matched event, not a catalog walk.
+  const scans = spy.seen.filter((q) => /FROM objects\b/i.test(q));
+  assert.ok(scans.length <= 1,
+    `expected <= 1 statement scanning objects, got ${scans.length}:\n` +
+    scans.map((q) => '  ' + q.slice(0, 90)).join('\n'));
+});
+
+await test('the folded brief counts match the SQL aggregates they replaced', async () => {
+  const env = envOf(db);
+  const card = await buildBrief(env, { now: NOW });
+  const live = 'WHERE DECAY_DATE IS NULL';
+  // `db` here is the localD1 wrapper, so these go through its async API.
+  const total = await db.prepare(`SELECT COUNT(*) AS n FROM objects ${live}`).first();
+  assert.equal(card.facts.tracked_on_orbit, total.n);
+  const typeRows = await db.prepare(
+    `SELECT OBJECT_TYPE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k`).all();
+  const byType = Object.fromEntries(
+    typeRows.results.map((r) => [r.k || 'UNKNOWN', r.n]));
+  assert.equal(card.facts.payloads, byType.PAYLOAD || 0);
+  assert.equal(card.facts.rocket_bodies, byType['ROCKET BODY'] || 0);
+  assert.equal(card.facts.debris, byType.DEBRIS || 0);
+  // The three type buckets must not exceed the total they are drawn from —
+  // a fold that counted decayed rows into the types but not the total would
+  // pass the three asserts above on a fixture with no decays and still be wrong.
+  assert.ok(card.facts.payloads + card.facts.rocket_bodies + card.facts.debris
+            <= card.facts.tracked_on_orbit,
+    'type buckets must be a subset of tracked_on_orbit');
+});
+
+await test('the brief reentry query uses NOT EXISTS, not GROUP BY MAX over decay', async () => {
+  // `decay` holds Space-Track's HISTORICAL messages back to Sputnik 1, not
+  // just forward predictions. A `JOIN (SELECT NORAD_CAT_ID, MAX(MSG_EPOCH)
+  // ... GROUP BY NORAD_CAT_ID)` is correct but unplannable: SQLite cannot turn
+  // it into an index walk and full-scans the table on every call. That exact
+  // query cost 53.67M rows read at ratio 10,630 in /api/decay-watch and was
+  // rewritten there (3445edf8) as a correlated NOT EXISTS, which walks the
+  // (NORAD_CAT_ID, MSG_EPOCH) primary key. brief.js kept the old shape.
+  const spy = countingDb(db);
+  await buildBrief({ ORBIT_DB: spy, ORBIT_R2: fakeR2() }, { now: NOW });
+  const decayQ = spy.seen.filter((q) => /FROM decay/i.test(q));
+  assert.ok(decayQ.length > 0, 'the reentry query must still run');
+  for (const q of decayQ) {
+    assert.ok(!/MAX\(MSG_EPOCH\)/i.test(q),
+      'GROUP BY MAX(MSG_EPOCH) full-scans decay - use a correlated NOT EXISTS:\n  ' + q.slice(0, 160));
+  }
+});
+
 /* ── The artifact ───────────────────────────────────────────────────────── */
 
 const readCard = (env) => JSON.parse(env.ORBIT_R2.puts.get(BRIEF_KEY).body);

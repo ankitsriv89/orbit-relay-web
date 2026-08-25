@@ -115,11 +115,16 @@ export async function collectFacts(env, { now = Date.now() } = {}) {
   const today = iso(nowMs).slice(0, 10);
   const horizon = iso(nowMs + REENTRY_HORIZON_DAYS * 86400_000).slice(0, 10);
 
-  const [tracked, byType, newCount, decayCount, newSample, decaySample,
+  const [catalogRows, newCount, decayCount, newSample, decaySample,
          newCountries, reentry] = await Promise.all([
-    db.prepare('SELECT COUNT(*) AS n FROM objects WHERE DECAY_DATE IS NULL').first(),
-    rows(db, `SELECT OBJECT_TYPE AS k, COUNT(*) AS n FROM objects
-              WHERE DECAY_DATE IS NULL GROUP BY k ORDER BY n DESC`),
+    // ONE pass for the four catalog numbers below (tracked_on_orbit, payloads,
+    // rocket_bodies, debris). This was a COUNT(*) plus an OBJECT_TYPE GROUP BY,
+    // each an unindexed scan of the whole catalog — measured 2026-08-26 at
+    // 259,140 rows read to return 16 (ratio 16,196), the top line in the D1
+    // dashboard once the events(kind, ts) index removed the join above it.
+    // Same fix as buildSummary()/buildAnalytics(); see foldAnalytics in
+    // derive.js for why a GROUP BY here cannot be served by an index.
+    rows(db, 'SELECT OBJECT_TYPE, DECAY_DATE FROM objects'),
     db.prepare(`SELECT COUNT(*) AS n FROM events WHERE kind = 'new_object' AND ts >= ?`)
       .bind(since).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM events WHERE kind = 'decay' AND ts >= ?`)
@@ -149,26 +154,52 @@ export async function collectFacts(env, { now = Date.now() } = {}) {
     // come out right. It happens to, at day granularity; that is a coincidence
     // to remove rather than to depend on. `substr(...,1,10)` is the same
     // normalisation ingest-decay.js already applies.
+    //
+    // "Latest message per object" is a correlated NOT EXISTS — "no later
+    // message exists for this NORAD" — and NOT a
+    //   JOIN (SELECT NORAD_CAT_ID, MAX(MSG_EPOCH) ... GROUP BY NORAD_CAT_ID)
+    // which is what used to be here. That form is correct but unplannable:
+    // SQLite cannot turn it into an index walk, so it full-scanned `decay` on
+    // every call — and `decay` holds Space-Track's HISTORICAL messages back to
+    // Sputnik 1, not just live predictions. The identical query cost 53.67M
+    // rows read at ratio 10,630 in /api/decay-watch before 3445edf8 rewrote it
+    // this way; brief.js kept the old shape until 2026-08-26. NOT EXISTS walks
+    // the (NORAD_CAT_ID, MSG_EPOCH) primary key instead. MSG_EPOCH sorts
+    // lexically the same as chronologically (fixed-width upstream format), so
+    // a raw-text '>' comparison is valid.
     rows(db, `SELECT d.NORAD_CAT_ID AS norad, d.OBJECT_NAME AS name, d.COUNTRY AS country,
                      d.DECAY_EPOCH AS decay_epoch, d.SOURCE AS source
               FROM decay d
-              JOIN (SELECT NORAD_CAT_ID, MAX(MSG_EPOCH) AS latest
-                    FROM decay GROUP BY NORAD_CAT_ID) l
-                ON l.NORAD_CAT_ID = d.NORAD_CAT_ID AND l.latest = d.MSG_EPOCH
               LEFT JOIN objects o ON o.NORAD_CAT_ID = d.NORAD_CAT_ID
               WHERE d.DECAY_EPOCH IS NOT NULL
                 AND substr(d.DECAY_EPOCH, 1, 10) >= ?
                 AND substr(d.DECAY_EPOCH, 1, 10) <= ?
                 AND (o.DECAY_DATE IS NULL OR o.NORAD_CAT_ID IS NULL)
+                -- Latest message per object: see the note above this query.
+                AND NOT EXISTS (
+                  SELECT 1 FROM decay d2
+                  WHERE d2.NORAD_CAT_ID = d.NORAD_CAT_ID
+                    AND d2.MSG_EPOCH > d.MSG_EPOCH
+                )
               ORDER BY d.DECAY_EPOCH ASC LIMIT 5`, [today, horizon]),
   ]);
 
-  const typeCounts = Object.fromEntries(byType.map((r) => [r.k || 'UNKNOWN', r.n]));
+  // Fold the single catalog pass into the four numbers the card needs. Only
+  // live rows count: every figure here is on-orbit-now, and a decayed object
+  // must not inflate the type buckets above the total they are drawn from.
+  let trackedLive = 0;
+  const typeCounts = {};
+  for (const r of catalogRows) {
+    if (r.DECAY_DATE != null) continue;
+    trackedLive++;
+    const k = r.OBJECT_TYPE || 'UNKNOWN';
+    typeCounts[k] = (typeCounts[k] || 0) + 1;
+  }
 
   return {
     generated_at: iso(nowMs),
     window_hours: WINDOW_HOURS,
-    tracked_on_orbit: tracked ? tracked.n : 0,
+    tracked_on_orbit: trackedLive,
     payloads: typeCounts.PAYLOAD || 0,
     rocket_bodies: typeCounts['ROCKET BODY'] || 0,
     debris: typeCounts.DEBRIS || 0,
