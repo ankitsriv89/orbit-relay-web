@@ -377,6 +377,16 @@ export class R2S3 {
   }
 
   /**
+   * The Workers R2 binding's `delete(key)`. Added for `r2Writable()`'s
+   * preflight probe, which must not leave its key behind in the bucket.
+   * `allow404` because S3 DELETE is idempotent — removing a key that is
+   * already gone is a success, not an error to surface.
+   */
+  async delete(key) {
+    await this.send('DELETE', key, {}, '', { allow404: true });
+  }
+
+  /**
    * The Workers R2 binding's `list({prefix, cursor})` → `{objects, truncated,
    * cursor}` shape, over S3's ListObjectsV2 — `brief.js`'s `rebuildIndex`
    * scans the archive prefix through this same call in both the Pages
@@ -451,8 +461,27 @@ export function memoryKV(initial = {}) {
 
 const defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Read a required credential, trimmed.
+ *
+ * **The trim is load-bearing, not tidiness.** On 2026-08-25 a regenerated
+ * `R2_ACCESS_KEY_ID` was stored with a trailing newline from the paste. It
+ * lands verbatim inside the SigV4 `Authorization` header, and a newline is
+ * illegal in a header value, so undici threw
+ * `TypeError: Headers.append: "AWS4-HMAC-SHA256 Credential=…" is an invalid
+ * header value` and the request was never sent. That produces **no status
+ * code at all**, so it looks nothing like the 401 the same pipeline had been
+ * throwing an hour earlier — the two were easy to confuse.
+ *
+ * Trimming after the emptiness check would also be wrong: `"   "` is truthy,
+ * so an untrimmed guard passes and the failure surfaces much later inside
+ * signV4 rather than naming the secret that is missing.
+ *
+ * `.env` parsing already trims (see loadDotEnv in the stats script); this
+ * closes the same hole on the repo-secrets path.
+ */
 function need(source, name) {
-  const v = source[name];
+  const v = typeof source[name] === 'string' ? source[name].trim() : source[name];
   if (!v) throw new Error(`${name} is not set — add it to the workflow's repo secrets.`);
   return v;
 }

@@ -30,6 +30,7 @@ import { ingestSatcat } from '../src/ingest-satcat.js';
 import { ingestDecay } from '../src/ingest-decay.js';
 import { ingestBoxscore } from '../src/ingest-boxscore.js';
 import { buildGroupArtifacts, GROUPS, CITATION } from '../src/derive.js';
+import { runDaily } from '../src/index.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const raw = (n) => fs.readFileSync(path.join(HERE, '../fixtures', n), 'utf8');
@@ -370,6 +371,68 @@ await test('the bundle query excludes decayed objects', async () => {
 // Whether the 20 group predicates are valid SQL is checked against a real
 // SQLite engine in test/sqlite.test.mjs — counting parentheses here would only
 // prove that `LIKE 'ISS (%'` contains a bracket.
+
+
+/* ── R2 preflight ─────────────────────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * On 2026-08-25 the R2 API token was deleted. Every artifact PUT 401'd, but
+ * the read-side work had already happened: buildAnalytics() walked the whole
+ * catalog, THEN failed on its put(). One dead credential cost ~1.4M D1 rows
+ * read and produced nothing. Two runs did it (the 17:56 daily, then a manual
+ * gp), and production artifacts froze a day stale.
+ *
+ * So the artifact steps check R2 is writable ONCE, cheaply, before any of them
+ * scans D1. What must NOT change: the D1 ingest steps still run. R2 being down
+ * is not a reason to stop recording elsets — the point of step() is that a
+ * partial run beats a skipped one, and the next run's artifacts are built from
+ * whatever D1 has.
+ */
+function r2Denying() {
+  return {
+    puts: new Map(),
+    async put() { throw new Error('R2 PUT x → 401: <Error><Code>Unauthorized</Code></Error>'); },
+    async get() { return null; },
+    async list() { return { objects: [], truncated: false }; },
+  };
+}
+
+await test('a dead R2 credential skips the artifact steps instead of scanning D1 first', async () => {
+  const env = makeEnv({ respond: () => ({ results: [] }) });
+  env.ORBIT_R2 = r2Denying();
+  const report = await runDaily(env);
+
+  const scans = matching(env.ORBIT_DB, /FROM objects/).length;
+  assert.equal(scans, 0,
+    `a dead R2 credential must cost zero catalog scans, got ${scans}`);
+
+  const names = report.steps.filter((s) => s.skipped).map((s) => s.name);
+  assert.ok(names.includes('artifacts'), 'artifacts must be skipped: ' + JSON.stringify(report.steps));
+  assert.ok(names.includes('analytics'), 'analytics must be skipped — it is the expensive one');
+});
+
+await test('the R2 preflight does not stop the D1 ingest steps from running', async () => {
+  const env = makeEnv({ respond: () => ({ results: [] }) });
+  env.ORBIT_R2 = r2Denying();
+  const report = await runDaily(env);
+  // step() deliberately does not chain on success: losing R2 must not lose an
+  // elset. Every ingest-* step still has to have been attempted.
+  for (const name of ['ingest-satcat', 'ingest-decay', 'ingest-boxscore']) {
+    const s = report.steps.find((x) => x.name === name);
+    assert.ok(s, name + ' must still appear in the report');
+    assert.ok(!s.skipped, name + ' must not be skipped by an R2 outage');
+  }
+});
+
+await test('a healthy R2 runs the artifact steps as before', async () => {
+  const env = makeEnv({ respond: () => ({ results: [] }) });
+  const report = await runDaily(env);
+  const skipped = report.steps.filter((s) => s.skipped).map((s) => s.name);
+  assert.deepEqual(skipped, [], 'nothing may be skipped when R2 is writable');
+  // And the preflight must not leave its probe object behind in the bucket.
+  const leftover = [...env.ORBIT_R2.puts.keys()].filter((k) => /preflight|healthcheck|__probe/i.test(k));
+  assert.deepEqual(leftover, [], 'preflight must not litter the bucket: ' + leftover.join(','));
+});
 
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);

@@ -71,13 +71,74 @@ async function step(report, name, fn) {
   }
 }
 
+/**
+ * Is R2 writable? Asked ONCE, before any step that would scan D1 to build an
+ * artifact it cannot then store.
+ *
+ * **Why this exists.** On 2026-08-25 the R2 API token was deleted. Every
+ * artifact PUT 401'd — but only *after* the read side had already run:
+ * `buildAnalytics()` walked the whole ~32k catalog, then failed on its `put()`.
+ * One dead credential cost ~1.4M D1 rows read across two runs and produced
+ * nothing, while production artifacts froze a day stale. The reads are billed
+ * whether or not the write lands, so the check has to come first.
+ *
+ * A real round trip, not a binding check: the failure mode was a *revoked*
+ * credential, which an `if (env.ORBIT_R2)` cannot see. One tiny PUT + DELETE of
+ * a probe key is the cheapest thing that actually proves write access.
+ *
+ * Fails OPEN. If the probe itself errors for some reason other than auth we
+ * still attempt the artifacts — a false negative here would skip the whole
+ * point of the daily job, which is worse than a wasted scan.
+ */
+const R2_PROBE_KEY = '_preflight/write-check';
+
+export async function r2Writable(env) {
+  if (!env?.ORBIT_R2) return { ok: false, reason: 'no ORBIT_R2 binding' };
+  try {
+    await env.ORBIT_R2.put(R2_PROBE_KEY, 'ok', {
+      httpMetadata: { contentType: 'text/plain; charset=utf-8' },
+    });
+  } catch (err) {
+    return { ok: false, reason: String((err && err.message) || err) };
+  }
+  // Cleanup is best-effort — a bucket that accepts writes but refuses deletes
+  // is still writable for our purpose, and the probe is 2 bytes. But it is NOT
+  // optional-chained: every binding we run against (the Workers R2 binding,
+  // the R2S3 shim in env-node.mjs, and test/fakes.mjs) implements delete(), so
+  // `delete?.()` would silently stop cleaning up if one ever lost the method,
+  // and the probe key would accumulate in the bucket unnoticed.
+  try { await env.ORBIT_R2.delete(R2_PROBE_KEY); } catch (err) {
+    console.warn(`[orbit-ingest] R2 preflight probe left behind: ${(err && err.message) || err}`);
+  }
+  return { ok: true };
+}
+
+/**
+ * Like `step()`, but skipped when the preflight says R2 is unwritable.
+ *
+ * Recorded as `{ skipped: true }` rather than silently dropped, so the admin
+ * dashboard and `ingest_runs.steps` show *why* a run produced no artifacts —
+ * an empty step list would look like the job never ran.
+ */
+async function artifactStep(report, gate, name, fn) {
+  if (!gate.ok) {
+    report.ok = false;
+    report.steps.push({ name, ok: false, skipped: true, ms: 0,
+      error: `skipped — R2 not writable: ${gate.reason}` });
+    return;
+  }
+  await step(report, name, fn);
+}
+
 export async function runGP(env) {
   const report = { job: 'gp', ok: true, steps: [] };
   await step(report, 'ingest-gp', () => ingestGP(env));
   // Bundles are regenerated even if the ingest failed: the previous elsets are
   // still in D1 and a fresh artifact from slightly stale data beats none.
-  await step(report, 'artifacts', async () => ({ groups: await buildGroupArtifacts(env) }));
-  await step(report, 'feed', async () => { await buildFeed(env); return {}; });
+  // But only if R2 can actually take them — see r2Writable().
+  const gate = await r2Writable(env);
+  await artifactStep(report, gate, 'artifacts', async () => ({ groups: await buildGroupArtifacts(env) }));
+  await artifactStep(report, gate, 'feed', async () => { await buildFeed(env); return {}; });
   return report;
 }
 
@@ -91,20 +152,27 @@ export async function runDaily(env) {
   // indices change every 3 hours, not every 6, so once a day is plenty.
   await step(report, 'ingest-spaceweather', () => ingestSpaceWeather(env));
 
+  // Everything below builds an R2 artifact, and every one of them scans D1
+  // first. Ask once whether those writes can land at all — a revoked token
+  // otherwise costs a full catalog walk per step for nothing.
+  const gate = await r2Writable(env);
+  if (!gate.ok) console.error(`[orbit-ingest] R2 not writable, skipping artifact steps: ${gate.reason}`);
+
   let groups = null;
-  await step(report, 'artifacts', async () => (groups = await buildGroupArtifacts(env), { groups }));
+  await artifactStep(report, gate, 'artifacts', async () => (groups = await buildGroupArtifacts(env), { groups }));
   // ~5 MB, so once a day rather than every six hours.
-  await step(report, 'full-catalog', async () => ({ objects: await buildFullCatalog(env) }));
-  await step(report, 'summary', async () => { await buildSummary(env, { groups }); return {}; });
-  await step(report, 'feed', async () => { await buildFeed(env); return {}; });
+  await artifactStep(report, gate, 'full-catalog', async () => ({ objects: await buildFullCatalog(env) }));
+  await artifactStep(report, gate, 'summary', async () => { await buildSummary(env, { groups }); return {}; });
+  await artifactStep(report, gate, 'feed', async () => { await buildFeed(env); return {}; });
   // Launch history barely moves day to day (new elsets, not new launch years),
-  // so once a day alongside summary rather than every six hours.
-  await step(report, 'analytics', async () => { await buildAnalytics(env); return {}; });
+  // so once a day alongside summary rather than every six hours. This is the
+  // expensive one — one pass over the whole catalog (see foldAnalytics).
+  await artifactStep(report, gate, 'analytics', async () => { await buildAnalytics(env); return {}; });
   // Last, and once a day rather than every six hours: the brief narrates the
   // events the steps above have just recorded, and it is the only step that can
   // reach a model. Its own failures are already swallowed into
   // `narrative_status`, so reaching step()'s catch here means D1 or R2 broke.
-  await step(report, 'brief', async () => {
+  await artifactStep(report, gate, 'brief', async () => {
     const card = await buildBrief(env);
     return { narrative: card.narrative_status };
   });
@@ -117,7 +185,7 @@ export async function runWeekly(env) {
   // Static ~60-row map, wrapped in step() like every other job: a failure here
   // must not take down the 60-day decay predictions this job exists for.
   await step(report, 'ingest-launch-sites', () => ingestLaunchSites(env));
-  await step(report, 'feed', async () => { await buildFeed(env); return {}; });
+  await artifactStep(report, await r2Writable(env), 'feed', async () => { await buildFeed(env); return {}; });
   return report;
 }
 

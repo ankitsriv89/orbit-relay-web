@@ -692,55 +692,133 @@ async function binQuery(db, { expr, where, min, max, width }) {
  * easiest way for this artifact to become quietly wrong — see the plan's
  * Risks table.
  */
+/**
+ * Fold every `objects` aggregate this artifact needs out of ONE row stream.
+ *
+ * **Why this is not a set of GROUP BYs.** Measured 2026-08-26 from
+ * `d1QueriesAdaptiveGroups`: `buildAnalytics()` was ~84% of this database's
+ * rows read. None of the sixteen tallies had an index that could serve it
+ * (`launch_year`, `RCS_SIZE`, `SITE`, `operator` are unindexed, and the
+ * `DECAY_DATE IS NULL` ones cannot combine with a GROUP BY key), so each one
+ * scanned the whole ~32k catalog. The worst read 64,781 rows to return 40
+ * (ratio 16,195); two of them — `(launch_year/10)*10 AS k` and `… AS decade` —
+ * were the same query twice under different aliases.
+ *
+ * D1 bills rows the engine VISITS, so sixteen scans cost sixteen catalog
+ * walks. `SELECT * FROM objects` for the launch history was ALREADY doing one
+ * full pass a few lines below, which makes every one of those scans pure
+ * duplication: the rows were in hand.
+ *
+ * So the pass is done once, in JS, over the columns actually used. This is not
+ * a micro-optimisation of the SQL — it removes sixteen table scans.
+ *
+ * **The one thing to keep straight** (the same split the artifact doc above
+ * describes): historical series count the WHOLE catalog, decayed included,
+ * because "how many launched in the 1980s" must not shrink when something
+ * reenters. On-orbit-now series count only `DECAY_DATE IS NULL`. Each
+ * accumulator below is labelled with which it is; mixing them is the easiest
+ * way for this artifact to go quietly wrong.
+ */
+function foldAnalytics(rows) {
+  const inc = (map, k) => map.set(k, (map.get(k) || 0) + 1);
+  const inc2 = (map, a, b) => {
+    if (!map.has(a)) map.set(a, new Map());
+    inc(map.get(a), b);
+  };
+
+  let tracked = 0;                      // on-orbit-now
+  const byDecade = new Map();           // historical
+  const byYear = new Map();             // historical
+  const bySite = new Map();             // historical
+  const byFamily = new Map();           // historical
+  const byCountryDecade = new Map();    // historical, country -> decade -> n
+  const byType = new Map();             // on-orbit-now
+  const byRegime = new Map();           // on-orbit-now
+  const regimeByYear = new Map();       // on-orbit-now, year -> regime -> n
+  const rcsSizes = new Map();           // on-orbit-now
+  const decaysByMonth = new Map();      // decayed only
+  const cohortAlive = new Map();        // on-orbit-now, by launch decade
+  const operatorByYear = new Map();     // historical, year -> operator -> n
+
+  for (const r of rows) {
+    const liveRow = r.DECAY_DATE == null;
+    const year = r.launch_year;
+    const decade = year != null ? Math.floor(year / 10) * 10 : null;
+
+    if (liveRow) {
+      tracked++;
+      inc(byType, r.OBJECT_TYPE);
+      inc(byRegime, r.regime);
+      inc(rcsSizes, r.RCS_SIZE);
+      if (decade != null) inc(cohortAlive, decade);
+      if (year != null && r.regime != null) inc2(regimeByYear, year, r.regime);
+    } else if (r.DECAY_DATE) {
+      inc(decaysByMonth, String(r.DECAY_DATE).slice(0, 7));
+    }
+
+    if (year != null) {
+      inc(byDecade, decade);
+      inc(byYear, year);
+      if (r.COUNTRY_CODE != null) inc2(byCountryDecade, r.COUNTRY_CODE, decade);
+      if (r.operator != null) inc2(operatorByYear, year, r.operator);
+    }
+    if (r.SITE != null && r.SITE !== '') inc(bySite, r.SITE);
+    if (r.debris_family != null) inc(byFamily, r.debris_family);
+  }
+
+  // Re-emit in the exact row shapes the consumer code below already expects,
+  // with the same ORDER BY each replaced query carried — the downstream code
+  // slices `LIMIT 15`-style lists off the front, so the sort is load-bearing.
+  const asc = (m) => [...m.entries()].sort((a, b) => a[0] - b[0]);
+  const byCount = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
+  const rowsOf = (pairs) => pairs.map(([k, n]) => ({ k, n }));
+
+  const pairs2 = (m, aKey, bKey) => {
+    const out = [];
+    for (const [a, inner] of m) for (const [b, n] of inner) out.push({ [aKey]: a, [bKey]: b, n });
+    return out;
+  };
+
+  return {
+    total: { n: tracked },
+    byDecade: rowsOf(asc(byDecade)),
+    byYear: rowsOf(asc(byYear)),
+    bySite: rowsOf(byCount(bySite)).slice(0, 15),
+    byFamily: rowsOf(byCount(byFamily)).slice(0, 15),
+    byCountryDecade: pairs2(byCountryDecade, 'country', 'decade'),
+    byType: rowsOf(byCount(byType)),
+    byRegime: rowsOf(byCount(byRegime)),
+    regimeByYear: pairs2(regimeByYear, 'year', 'k'),
+    rcsSizes: rowsOf(byCount(rcsSizes)),
+    decaysByMonth: rowsOf([...decaysByMonth.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))),
+    // cohort_on_orbit's "launched" is byDecade by definition — it was a second
+    // identical scan purely because it aliased the column `decade` instead of
+    // `k`. One accumulator now answers both, so they cannot disagree.
+    cohortLaunched: asc(byDecade).map(([decade, n]) => ({ decade, n })),
+    cohortAlive: asc(cohortAlive).map(([decade, n]) => ({ decade, n })),
+    operatorByYear: pairs2(operatorByYear, 'year', 'k'),
+  };
+}
+
 export async function buildAnalytics(env) {
   const live = 'WHERE DECAY_DATE IS NULL';
-  const [
+
+  // ONE pass over the catalog. Every aggregate below used to be its own
+  // GROUP BY scan; see foldAnalytics() for why that was ~84% of D1 reads.
+  // Columns are named explicitly rather than `SELECT *`: the fold and the
+  // launch-history rollup between them touch exactly these, and naming them
+  // keeps a future column addition from silently widening the row stream.
+  const { results: allRows } = await env.ORBIT_DB.prepare(`
+    SELECT NORAD_CAT_ID, OBJECT_ID, OBJECT_NAME, OBJECT_TYPE, COUNTRY_CODE,
+           RCS_SIZE, SITE, LAUNCH_DATE, DECAY_DATE, regime, launch_year,
+           operator, debris_family
+    FROM objects`).all();
+
+  const {
     total, byDecade, byYear, bySite, byFamily, byCountryDecade,
     byType, byRegime, regimeByYear, rcsSizes, decaysByMonth,
     cohortLaunched, cohortAlive, operatorByYear,
-  ] = await Promise.all([
-    env.ORBIT_DB.prepare(`SELECT COUNT(*) AS n FROM objects ${live}`).first(),
-    tally(env.ORBIT_DB, `
-      SELECT (launch_year / 10) * 10 AS k, COUNT(*) AS n
-      FROM objects WHERE launch_year IS NOT NULL
-      GROUP BY k ORDER BY k ASC`),
-    tally(env.ORBIT_DB, `
-      SELECT launch_year AS k, COUNT(*) AS n
-      FROM objects WHERE launch_year IS NOT NULL
-      GROUP BY k ORDER BY k ASC`),
-    tally(env.ORBIT_DB, `
-      SELECT SITE AS k, COUNT(*) AS n FROM objects
-      WHERE SITE IS NOT NULL AND SITE != ''
-      GROUP BY k ORDER BY n DESC LIMIT 15`),
-    tally(env.ORBIT_DB, `
-      SELECT debris_family AS k, COUNT(*) AS n FROM objects
-      WHERE debris_family IS NOT NULL
-      GROUP BY k ORDER BY n DESC LIMIT 15`),
-    tally(env.ORBIT_DB, `
-      SELECT COUNTRY_CODE AS country, (launch_year / 10) * 10 AS decade, COUNT(*) AS n
-      FROM objects WHERE launch_year IS NOT NULL AND COUNTRY_CODE IS NOT NULL
-      GROUP BY country, decade`),
-    tally(env.ORBIT_DB, `SELECT OBJECT_TYPE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
-    tally(env.ORBIT_DB, `SELECT regime AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
-    tally(env.ORBIT_DB, `
-      SELECT launch_year AS year, regime AS k, COUNT(*) AS n FROM objects
-      ${live} AND launch_year IS NOT NULL AND regime IS NOT NULL
-      GROUP BY year, k`),
-    tally(env.ORBIT_DB, `SELECT RCS_SIZE AS k, COUNT(*) AS n FROM objects ${live} GROUP BY k ORDER BY n DESC`),
-    tally(env.ORBIT_DB, `
-      SELECT substr(DECAY_DATE, 1, 7) AS k, COUNT(*) AS n FROM objects
-      WHERE DECAY_DATE IS NOT NULL GROUP BY k ORDER BY k ASC`),
-    tally(env.ORBIT_DB, `
-      SELECT (launch_year / 10) * 10 AS decade, COUNT(*) AS n
-      FROM objects WHERE launch_year IS NOT NULL GROUP BY decade`),
-    tally(env.ORBIT_DB, `
-      SELECT (launch_year / 10) * 10 AS decade, COUNT(*) AS n
-      FROM objects WHERE launch_year IS NOT NULL AND DECAY_DATE IS NULL GROUP BY decade`),
-    tally(env.ORBIT_DB, `
-      SELECT launch_year AS year, operator AS k, COUNT(*) AS n FROM objects
-      WHERE launch_year IS NOT NULL AND operator IS NOT NULL
-      GROUP BY year, k`),
-  ]);
+  } = foldAnalytics(allRows || []);
 
   const [altitudeBins, inclinationBins] = await Promise.all([
     binQuery(env.ORBIT_DB, {
@@ -762,8 +840,9 @@ export async function buildAnalytics(env) {
     .prepare('SELECT SITE_CODE, LAUNCH_SITE FROM launch_sites').all();
   const nameOf = new Map((siteNames || []).map((r) => [r.SITE_CODE, r.LAUNCH_SITE]));
 
-  // Launch history — group by YYYY-NNN prefix of OBJECT_ID
-  const { results: allRows } = await env.ORBIT_DB.prepare('SELECT * FROM objects').all();
+  // Launch history — group by YYYY-NNN prefix of OBJECT_ID. Reuses the single
+  // row stream read at the top of this function; this used to be its own
+  // `SELECT * FROM objects`, a second full pass over the same table.
   const byLaunch = groupByLaunch(allRows || []);
   const launches = [];
   for (const [prefix, group] of byLaunch) {

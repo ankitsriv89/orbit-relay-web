@@ -223,6 +223,17 @@ never the scan behind it. Three things follow, each of which cost a wrong diagno
 
 - **The `Rows read / rows returned` ratio is the signal**, not `Count` or `Rows read`
   alone. ≈1 is an index seek; thousands is a scan wearing a `LIMIT`. Sort by it first.
+  **Never sort by `Count`** — that is how the 2026-08-25 session spent itself on the
+  group bundles (~10% of reads, high count because they are paged) while missing
+  `buildAnalytics()` (~84%, low count, ratio 16,195). Export with
+  `node workers/orbit-ingest/scripts/d1-query-stats.mjs --hours 1` and read
+  [docs/d1-read-model.md](docs/d1-read-model.md) before optimising anything.
+  Use a window **shorter than the time since your deploy** — a 24h window still
+  contains pre-fix runs and makes a landed fix look dead. And **never extrapolate
+  an hour that contains a cron run into a daily rate**: the 17:xx hour holds the
+  whole daily job, so scaling it up read as "8x over budget" when daily totals
+  (`d1AnalyticsAdaptiveGroups`) said 1.2x. Query counts are bucketed by hour too,
+  which is why one daily run looked like "10 executions".
 - **High `Count` on the `TLE_LINE1` queries is the ingest, not user traffic.**
   `buildGroupArtifacts()` runs 21 bundles × 4 GP runs/day. Check `ingest_runs` timings
   against the query counts before assuming visitors.
@@ -366,6 +377,18 @@ Do not "fix" these without reading the reasoning first:
   `{select, from, where}` rather than a finished SQL string — the cursor has to be ANDed
   *into* the `WHERE`, not appended after it. Every caller must select and order by
   `NORAD_CAT_ID`.
+- **A ratio-1 read is the work, not waste — and the group-bundle queries are not
+  the read cost.** `active` reads 18,585 rows to write 18,585 objects; nothing can
+  read fewer rows than it returns. Measured 2026-08-26, the 21 bundles are ~10% of
+  rows read while `buildAnalytics()`'s ~16 unindexed `GROUP BY` tallies are ~84%
+  (two of them read 1.29M rows to produce 120). **Fixed 2026-08-26**: 16 unindexed
+  `GROUP BY` tallies + a `SELECT * FROM objects` became ONE column-scoped SELECT
+  folded in memory (`foldAnalytics()`) — **17 scans over `objects` → 3**, output
+  byte-identical, guarded by three tests in `pages-api.test.mjs`. Preserve the
+  historical (whole catalog) vs on-orbit-now (`DECAY_DATE IS NULL`) split when
+  touching it. Before optimising a bundle query, check
+  [docs/d1-read-model.md](docs/d1-read-model.md) — they are at their floor and
+  the cost was elsewhere.
 - **A forced `INDEXED BY` is fragile: any non-name predicate can demote it from SEARCH to
   a full SCAN.** That is why `stations`/`military` carry no `indexHint` while the 8
   name-prefix groups do. The keyset cursor (`AND NORAD_CAT_ID > ?`) is exactly such a

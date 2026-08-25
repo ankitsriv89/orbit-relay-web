@@ -594,6 +594,67 @@ await test('a group with members becomes a 3LE bundle carrying the citation', as
   assert.equal(init.body.toString('utf8'), 'ISS (ZARYA)\n1 25544U 98067A\n2 25544  51.6\n');
 });
 
+
+/* ── credential whitespace ────────────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * 2026-08-25: after the R2 token was regenerated, every artifact PUT died with
+ *   TypeError: Headers.append: "AWS4-HMAC-SHA256 Credential=<id>\n/2026.../..."
+ *   is an invalid header value
+ * The regenerated R2_ACCESS_KEY_ID had a trailing newline from the paste. A
+ * newline is illegal in a header value, so undici rejected the request before
+ * it was sent — which produces NO status code at all, and so looks nothing
+ * like the 401 the same pipeline had been throwing an hour earlier.
+ *
+ * Trailing whitespace in a pasted credential is a permanent hazard, not a
+ * one-off, so need() strips it rather than the operator being asked to paste
+ * more carefully. Note .env parsing already does exactly this (loadDotEnv
+ * .trim()s), so this only closes the repo-secrets path.
+ */
+await test('need() strips whitespace pasted around a credential', () => {
+  const src = {
+    CLOUDFLARE_ACCOUNT_ID: 'acct',
+    CLOUDFLARE_API_TOKEN: 'tok',
+    ORBIT_D1_DATABASE_ID: 'dbid',
+    R2_ACCESS_KEY_ID: 'AKIAEXAMPLE\n',
+    R2_SECRET_ACCESS_KEY: '  secret-value\r\n',
+    SPACETRACK_IDENTITY: 'a@b.c',
+    SPACETRACK_PASSWORD: 'pw',
+  };
+  const env = createEnv(src);
+  assert.equal(env.ORBIT_R2.accessKeyId, 'AKIAEXAMPLE');
+  assert.equal(env.ORBIT_R2.secretAccessKey, 'secret-value');
+});
+
+await test('a credential that is only whitespace is treated as unset', () => {
+  const src = {
+    CLOUDFLARE_ACCOUNT_ID: 'acct',
+    CLOUDFLARE_API_TOKEN: 'tok',
+    ORBIT_D1_DATABASE_ID: 'dbid',
+    R2_ACCESS_KEY_ID: '   ',
+    R2_SECRET_ACCESS_KEY: 'secret',
+    SPACETRACK_IDENTITY: 'a@b.c',
+    SPACETRACK_PASSWORD: 'pw',
+  };
+  // "   " is truthy, so an untrimmed need() would sail past its own guard and
+  // fail much later inside signV4 instead of naming the missing secret.
+  assert.throws(() => createEnv(src), /R2_ACCESS_KEY_ID is not set/);
+});
+
+await test('a signed header carries no newline even if the key had one', () => {
+  const signed = signV4({
+    method: 'PUT',
+    url: 'https://acct.r2.cloudflarestorage.com/orbit-data/x.json',
+    headers: {}, payload: 'x',
+    accessKeyId: 'AKIAEXAMPLE\n'.trim(),
+    secretAccessKey: 'secret',
+  });
+  // The real failure was undici refusing the value, so assert the property
+  // undici checks: no CR/LF anywhere in the header it would have rejected.
+  assert.ok(!/[\r\n]/.test(signed.Authorization),
+    'Authorization must not contain CR or LF: ' + JSON.stringify(signed.Authorization));
+});
+
 /* ── Report ─────────────────────────────────────────────────────────────── */
 
 const failed = results.filter((r) => !r).length;

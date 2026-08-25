@@ -490,6 +490,72 @@ await test('operator_by_year badges every row as derived and splits into top/oth
   }
 });
 
+/* ── buildAnalytics() read cost ───────────────────────────────────────────
+ * Written before the fix and watched go red on the real bug (repo rule).
+ *
+ * Measured 2026-08-26 from d1QueriesAdaptiveGroups: buildAnalytics() was ~84%
+ * of this database's rows read. Each `tally()` was a GROUP BY over the whole
+ * `objects` table with no index that could serve it, so every one scanned the
+ * full catalog — and `SELECT * FROM objects` (for launch history) was ALREADY
+ * doing exactly that full pass, with every column, a few lines later. Worst
+ * single query read 64,781 rows to return 40 (ratio 16,195).
+ *
+ * Two of them were also byte-identical apart from the column alias:
+ * `(launch_year/10)*10 AS k` and `… AS decade`, both `WHERE launch_year IS NOT
+ * NULL`, both grouped by decade. Two full scans for one answer.
+ *
+ * So this asserts the shape of the fix, not a timing: the catalog is walked
+ * ONCE and the tallies are folded in memory. A regression that re-adds a
+ * per-tally GROUP BY shows up here as a jump in scanning statements.
+ */
+function countingD1(db) {
+  const inner = localD1(db);
+  const seen = [];
+  return {
+    seen,
+    prepare(sql) {
+      seen.push(String(sql).replace(/\s+/g, ' ').trim());
+      return inner.prepare(sql);
+    },
+  };
+}
+const scansOf = (seen) => seen.filter((q) => /FROM\s+objects\b/i.test(q));
+
+await test('buildAnalytics walks the objects table a bounded number of times', async () => {
+  const spy = countingD1(db);
+  await buildAnalytics({ ORBIT_DB: spy, ORBIT_R2: fakeR2() });
+  const scans = scansOf(spy.seen);
+  // Pre-fix this was 18 (16 tallies + SELECT * + the bin queries). The fix
+  // folds every tally into the single full pass the launch history already
+  // needed. The bound is deliberately loose enough not to be a churn magnet
+  // and tight enough that re-adding per-tally GROUP BYs fails it.
+  assert.ok(scans.length <= 4,
+    `expected <= 4 statements scanning objects, got ${scans.length}:\n` +
+    scans.map((q) => '  ' + q.slice(0, 90)).join('\n'));
+});
+
+await test('buildAnalytics issues no duplicate scanning query', async () => {
+  const spy = countingD1(db);
+  await buildAnalytics({ ORBIT_DB: spy, ORBIT_R2: fakeR2() });
+  const scans = scansOf(spy.seen);
+  const dupes = scans.filter((q, i) => scans.indexOf(q) !== i);
+  assert.equal(dupes.length, 0, `identical scan issued twice: ${dupes.join(' | ')}`);
+});
+
+await test('the two decade tallies that differed only by alias produce equal totals', async () => {
+  // launches_by_decade and cohort_on_orbit.launched both answer "how many
+  // objects were catalogued from launches in decade D" over the whole
+  // catalog. They were two separate full scans differing only in `AS k` vs
+  // `AS decade`; after the fix they come from one pass, so they must agree
+  // decade for decade or the fold dropped rows.
+  const card = await buildAnalytics(envOf(db, fakeR2()));
+  const launched = new Map(card.cohort_on_orbit.map((r) => [r.decade, r.launched]));
+  for (const row of card.launches_by_decade) {
+    assert.equal(launched.get(row.decade), row.n,
+      `decade ${row.decade}: launches_by_decade=${row.n} but cohort launched=${launched.get(row.decade)}`);
+  }
+});
+
 await test('regime_by_year rows are zero-filled across all four regimes', async () => {
   const card = await buildAnalytics(envOf(db, fakeR2()));
   for (const row of card.regime_by_year) {

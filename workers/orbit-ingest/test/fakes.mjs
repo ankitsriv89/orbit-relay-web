@@ -63,6 +63,10 @@ export function fakeR2() {
       const v = puts.get(key);
       return v ? { body: v.body, text: async () => String(v.body) } : null;
     },
+    // Mirrors the Workers binding and the R2S3 shim. Present so r2Writable()'s
+    // preflight can clean up its probe key here the same way it does in
+    // production — a fake without delete() would let a leaked probe pass.
+    async delete(key) { puts.delete(key); },
     // No pagination: tests here never approach R2's 1000-key page size.
     async list({ prefix = '' } = {}) {
       const objects = [...puts.keys()]
