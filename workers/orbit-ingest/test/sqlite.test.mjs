@@ -187,15 +187,19 @@ const specimenDb = (() => {
   return db;
 })();
 
-const bundleSql = (where) =>
-  `SELECT NORAD_CAT_ID FROM objects
-   WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${where})
+// Mirrors buildGroupArtifacts()'s real query shape, indexHint included — a
+// test built from `where` alone would compile fine but never catch an
+// INDEXED BY clause naming an index that doesn't exist or can't satisfy the
+// predicate, which SQLite only rejects at prepare time with the hint present.
+const bundleSql = (g) =>
+  `SELECT NORAD_CAT_ID FROM objects${g.indexHint ? ` INDEXED BY ${g.indexHint}` : ''}
+   WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${g.where})
    ORDER BY NORAD_CAT_ID`;
 
 test('every group predicate compiles', () => {
   const db = freshDb();
   for (const [slug, g] of Object.entries(GROUPS)) {
-    try { db.prepare(bundleSql(g.where)); }
+    try { db.prepare(bundleSql(g)); }
     catch (e) { throw new Error(`${slug}: ${e.message}`); }
   }
 });
@@ -203,10 +207,29 @@ test('every group predicate compiles', () => {
 test('every group matches its specimen — no predicate is silently empty', () => {
   const missing = [];
   for (const [slug, g] of Object.entries(GROUPS)) {
-    const ids = specimenDb.prepare(bundleSql(g.where)).all().map((r) => r.NORAD_CAT_ID);
+    const ids = specimenDb.prepare(bundleSql(g)).all().map((r) => r.NORAD_CAT_ID);
     if (!ids.includes(SPECIMENS[slug].NORAD_CAT_ID)) missing.push(slug);
   }
   assert.deepEqual(missing, []);
+});
+
+test('every indexHint actually gets used, not silently ignored by a mixed predicate', () => {
+  // The whole point of the hint is to stop the planner from picking
+  // idx_objects_decay's ~86%-selective seek over a much cheaper name-prefix
+  // one. A group whose `where` mixes in a non-name clause (NORAD_CAT_ID IN,
+  // an OBJECT_TYPE/PERIOD filter) degrades the forced index to a full SCAN
+  // instead of a SEARCH — worse than no hint — which is why `stations` and
+  // `military` deliberately carry no indexHint. This asserts every group that
+  // DOES carry one actually gets a SEARCH, catching a future edit that adds a
+  // mixed clause to one of these `where`s without removing its hint.
+  const db = freshDb();
+  for (const [slug, g] of Object.entries(GROUPS)) {
+    if (!g.indexHint) continue;
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${bundleSql(g)}`).all();
+    const usesHintedIndex = plan.some((row) =>
+      String(row.detail).includes(`SEARCH objects USING INDEX ${g.indexHint}`));
+    assert.ok(usesHintedIndex, `${slug}: indexHint '${g.indexHint}' did not produce a SEARCH — ${JSON.stringify(plan)}`);
+  }
 });
 
 test('a decayed object drops out of every bundle', () => {
@@ -215,7 +238,7 @@ test('a decayed object drops out of every bundle', () => {
   seed(db, [{ ...SPECIMENS.starlink, TLE_LINE1: '1 x', TLE_LINE2: '2 x' }], NOW);
   db.prepare('UPDATE objects SET DECAY_DATE = ? WHERE NORAD_CAT_ID = ?')
     .run('2026-07-20', SPECIMENS.starlink.NORAD_CAT_ID);
-  assert.equal(db.prepare(bundleSql(GROUPS.starlink.where)).all().length, 0);
+  assert.equal(db.prepare(bundleSql(GROUPS.starlink)).all().length, 0);
 });
 
 test('Iridium NEXT excludes the original 1997 block', () => {
@@ -226,7 +249,7 @@ test('Iridium NEXT excludes the original 1997 block', () => {
     { NORAD_CAT_ID: 41917, OBJECT_NAME: 'IRIDIUM 106', OBJECT_TYPE: 'PAYLOAD',
       LAUNCH_DATE: '2017-01-14', TLE_LINE1: '1 b', TLE_LINE2: '2 b' },
   ], NOW);
-  const ids = db.prepare(bundleSql(GROUPS['iridium-next'].where)).all().map((r) => r.NORAD_CAT_ID);
+  const ids = db.prepare(bundleSql(GROUPS['iridium-next'])).all().map((r) => r.NORAD_CAT_ID);
   assert.deepEqual(ids, [41917]);
 });
 
@@ -238,7 +261,7 @@ test('debris families take fragments and leave their parent payload', () => {
     { NORAD_CAT_ID: 30000, OBJECT_NAME: 'FENGYUN 1C DEB', OBJECT_TYPE: 'DEBRIS',
       OBJECT_ID: '1999-025DKV', TLE_LINE1: '1 b', TLE_LINE2: '2 b' },
   ], NOW);
-  const ids = db.prepare(bundleSql(GROUPS['fengyun-1c-debris'].where)).all().map((r) => r.NORAD_CAT_ID);
+  const ids = db.prepare(bundleSql(GROUPS['fengyun-1c-debris'])).all().map((r) => r.NORAD_CAT_ID);
   assert.deepEqual(ids, [30000]);
 });
 

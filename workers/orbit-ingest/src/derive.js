@@ -308,6 +308,23 @@ export async function upsertObjects(db, valueRows) {
  * ('PAYLOAD', 'ROCKET BODY', 'DEBRIS', 'MEDIUM'), which is what these
  * predicates match. The schema comments spell them in title case; the data does
  * not.
+ *
+ * `indexHint: 'idx_objects_name'` — SQLite's planner picks idx_objects_decay
+ * (DECAY_DATE IS NULL, ~86% of the table, barely selective) over the far
+ * cheaper name-prefix covering-index seek whenever the WHERE combines
+ * OBJECT_NAME LIKE 'X%' with the DECAY_DATE/TLE_LINE1 predicates every group
+ * query carries — confirmed with EXPLAIN QUERY PLAN, not assumed. Forcing
+ * idx_objects_name turns each of these from a ~32k-row scan-and-filter into a
+ * cheap seek (or, for an OR of several prefixes, SQLite's own MULTI-INDEX OR
+ * of several cheap seeks). Only set this where every branch of `where` is a
+ * plain OBJECT_NAME LIKE '...%' — a mixed predicate (NORAD_CAT_ID IN, an
+ * OBJECT_NAME IN list, a type/period filter) degrades the forced index to a
+ * full SCAN instead of a SEARCH, which is worse than leaving the planner to
+ * pick on its own. `stations` (NORAD_CAT_ID IN mixed with name prefixes) and
+ * `military` (OBJECT_NAME IN, not a prefix) were checked and excluded for
+ * exactly this reason; groups already keyed on OBJECT_TYPE/PERIOD (`geo`,
+ * `weather`, `resource`, `iridium-next`, `gps-ops`, `glo-ops`) already pick a
+ * selective index on their own and need no hint.
  */
 export const GROUPS = {
   stations: {
@@ -324,10 +341,10 @@ export const GROUPS = {
              OR OBJECT_NAME LIKE 'DRAGON CRS%'
              OR OBJECT_NAME LIKE 'CYGNUS%')`,
   },
-  starlink:  { label: 'Starlink',  where: `OBJECT_NAME LIKE 'STARLINK%'` },
-  oneweb:    { label: 'OneWeb',    where: `OBJECT_NAME LIKE 'ONEWEB%'` },
-  qianfan:   { label: 'Qianfan',   where: `(OBJECT_NAME LIKE 'QIANFAN%' OR OBJECT_NAME LIKE 'CHUTIAN%')` },
-  hulianwang:{ label: 'Guowang',   where: `(OBJECT_NAME LIKE 'GUOWANG%' OR OBJECT_NAME LIKE 'SATNET%' OR OBJECT_NAME LIKE 'HULIANWANG%')` },
+  starlink:  { label: 'Starlink',  where: `OBJECT_NAME LIKE 'STARLINK%'`, indexHint: 'idx_objects_name' },
+  oneweb:    { label: 'OneWeb',    where: `OBJECT_NAME LIKE 'ONEWEB%'`, indexHint: 'idx_objects_name' },
+  qianfan:   { label: 'Qianfan',   where: `(OBJECT_NAME LIKE 'QIANFAN%' OR OBJECT_NAME LIKE 'CHUTIAN%')`, indexHint: 'idx_objects_name' },
+  hulianwang:{ label: 'Guowang',   where: `(OBJECT_NAME LIKE 'GUOWANG%' OR OBJECT_NAME LIKE 'SATNET%' OR OBJECT_NAME LIKE 'HULIANWANG%')`, indexHint: 'idx_objects_name' },
 
   'gps-ops': { label: 'GPS',       where: `OBJECT_NAME LIKE 'NAVSTAR%' AND OBJECT_TYPE = 'PAYLOAD'` },
   // GLONASS payloads are catalogued as COSMOS nnnn — indistinguishable by name
@@ -340,9 +357,9 @@ export const GROUPS = {
     where: `OBJECT_TYPE = 'PAYLOAD' AND COUNTRY_CODE = 'CIS'
             AND PERIOD BETWEEN 670 AND 682 AND INCLINATION BETWEEN 63 AND 66`,
   },
-  galileo:   { label: 'Galileo',   where: `OBJECT_NAME LIKE 'GSAT0%'` },
-  beidou:    { label: 'BeiDou',    where: `OBJECT_NAME LIKE 'BEIDOU%'` },
-  irnss:     { label: 'NavIC',     where: `(OBJECT_NAME LIKE 'IRNSS%' OR OBJECT_NAME LIKE 'NVS-%')` },
+  galileo:   { label: 'Galileo',   where: `OBJECT_NAME LIKE 'GSAT0%'`, indexHint: 'idx_objects_name' },
+  beidou:    { label: 'BeiDou',    where: `OBJECT_NAME LIKE 'BEIDOU%'`, indexHint: 'idx_objects_name' },
+  irnss:     { label: 'NavIC',     where: `(OBJECT_NAME LIKE 'IRNSS%' OR OBJECT_NAME LIKE 'NVS-%')`, indexHint: 'idx_objects_name' },
   sbas: {
     label: 'SBAS (approx.)',
     approximate: true,
@@ -351,6 +368,7 @@ export const GROUPS = {
              OR OBJECT_NAME LIKE 'INMARSAT 4-F%' OR OBJECT_NAME LIKE 'SES-15%'
              OR OBJECT_NAME LIKE 'GALAXY 30%' OR OBJECT_NAME LIKE 'EUTELSAT 5%'
              OR OBJECT_NAME LIKE 'ASTRA 5B%')`,
+    indexHint: 'idx_objects_name',
   },
 
   // The NEXT constellation only — the launch-date floor excludes the original
@@ -473,8 +491,9 @@ export async function buildGroupArtifacts(env, { slugs = Object.keys(GROUPS) } =
   for (const slug of slugs) {
     const g = GROUPS[slug];
     if (!g) continue;
+    const indexed = g.indexHint ? ` INDEXED BY ${g.indexHint}` : '';
     const sql = `SELECT NORAD_CAT_ID, OBJECT_NAME, TLE_LINE1, TLE_LINE2
-                 FROM objects
+                 FROM objects${indexed}
                  WHERE DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL AND (${g.where})
                  ORDER BY NORAD_CAT_ID`;
     const rows = [];
