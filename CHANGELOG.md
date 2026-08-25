@@ -3,6 +3,56 @@
 All notable changes to the Orbital Relay web project. Format: entry per commit batch,
 newest first. Full per-session detail in [docs/build-logs/](docs/build-logs/).
 
+## 2026-08-25 — D1 read amplification: keyset paging and two scan fixes
+
+The Cloudflare D1 dashboard was reporting 21–53 M **rows read** on individual queries
+against a ~28 k-object catalog. The framing that unlocked it: **D1 bills rows the engine
+*visits*, not rows returned** — a `LIMIT` bounds the output, never the scan behind it.
+The `Rows read / rows returned` ratio is the signal (≈1 is a seek; thousands is a scan
+wearing a `LIMIT`).
+
+### Fixed
+- **Catalog paging was quadratic.** `pagedRows()` walked every catalog-wide read with
+  `LIMIT 1000 OFFSET n`. SQLite cannot seek to an offset — it reads and discards every
+  row before it — so each page re-walks the whole prefix. Measured on a real engine at
+  catalog scale: **405,000 rows visited to return 27,000, a 15× multiplier**, applied to
+  all 21 group bundles *and* the full catalog, rebuilt 4×/day.
+
+  Now paged by keyset (`NORAD_CAT_ID > last`), a direct rowid seek per page since
+  `NORAD_CAT_ID` is `INTEGER PRIMARY KEY`. `pagedRows()`'s signature changed from
+  `(db, sql)` to `(db, {select, from, where, params})` — the cursor has to be ANDed
+  *into* the `WHERE`, so it cannot be appended to a finished SQL string the way the old
+  `LIMIT/OFFSET` suffix was.
+
+- **`/api/decay-watch` full-scanned the `decay` table on every call** — 53.67 M rows
+  read at 10.63 k rows read per row returned, the worst ratio in the dashboard. It
+  resolved "latest message per object" with `GROUP BY … MAX(MSG_EPOCH)`, which SQLite's
+  planner cannot turn into an index walk, so it scanned a table that holds Space-Track's
+  *historical* messages back to Sputnik 1. Rewritten as a correlated `NOT EXISTS`, which
+  walks the existing `PRIMARY KEY (NORAD_CAT_ID, MSG_EPOCH)`. Semantics unchanged.
+
+- **Earlier the same day:** unchanged-row upserts are now skipped when `GP_ID` matches
+  (`b28e3d14`), and the 8 name-prefix group bundles force `idx_objects_name` over the
+  barely-selective `idx_objects_decay` the planner was picking (`e19c9516`).
+
+### Changed
+- The EXPLAIN QUERY PLAN test now runs **with** the keyset cursor clause present.
+  `AND NORAD_CAT_ID > ?` is exactly the kind of mixed predicate that demotes a forced
+  index from `SEARCH` to a full `SCAN` — the reason `stations`/`military` carry no hint —
+  so without this the keyset fix could have silently undone `e19c9516` with every test
+  still green. All 8 hinted groups still report `SEARCH … USING INDEX idx_objects_name`.
+- New paging-cost test measures both walks with a counting scalar UDF ANDed onto the
+  predicate, reporting rows the engine actually visited rather than asserting a plan
+  shape. It reproduces the quadratic before claiming the fix.
+
+### Notes
+- `ingest_runs.d1_requests` (the admin dashboard's `D1` column) counts **HTTP round
+  trips**, not rows and not statements. The unchanged-row-skip fix makes it go *up* while
+  reducing real cost. Do not judge a rows-read fix by that column.
+- This batch spans two deploy targets: `functions/api/` ships on push via Cloudflare
+  Pages, `workers/orbit-ingest/` only runs on its GitHub Actions schedule. The
+  decay-watch fix was live immediately; the paging fix waited for a `gp` run.
+
 ## 2026-08-19 — Cesium ion removed: self-contained imagery and terrain
 
 ### Changed

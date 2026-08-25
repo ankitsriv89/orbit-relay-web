@@ -216,6 +216,28 @@ In order, cheapest first:
 When you add a guardrail, **write it before the fix and watch it go red on the real bug.**
 A check that has never failed on a bug it claims to catch has not been tested.
 
+### Reading the D1 dashboard (learned 2026-08-25)
+
+**D1 bills rows the engine *visits*, not rows returned.** A `LIMIT` bounds the output,
+never the scan behind it. Three things follow, each of which cost a wrong diagnosis:
+
+- **The `Rows read / rows returned` ratio is the signal**, not `Count` or `Rows read`
+  alone. ≈1 is an index seek; thousands is a scan wearing a `LIMIT`. Sort by it first.
+- **High `Count` on the `TLE_LINE1` queries is the ingest, not user traffic.**
+  `buildGroupArtifacts()` runs 21 bundles × 4 GP runs/day. Check `ingest_runs` timings
+  against the query counts before assuming visitors.
+- **`ingest_runs.d1_requests` (the admin `D1` column) counts HTTP round trips**, not rows
+  and not statements — many statements ride one trip. A fix that trades round trips for
+  rows makes that column go *up* while cost goes down. Judge rows-read work only in the
+  Cloudflare D1 dashboard.
+
+**Ingest changes are not live on push.** `functions/api/` deploys via Pages immediately;
+`workers/orbit-ingest/` only runs on its Actions schedule. To confirm an ingest fix the
+same session: `gh workflow run orbit-ingest -f job=gp`. Safe on the API budget — the `gp`
+job makes exactly **one** upstream Space-Track call, against a 25/hour guard
+(`MAX_CALLS_PER_HOUR`) and a documented 300/hour ceiling. Compare the resulting per-group
+counts against the previous run's: for a pure performance change they must be identical.
+
 ---
 
 ## The landing page must stay in sync with the product
@@ -335,6 +357,63 @@ Do not "fix" these without reading the reasoning first:
   values are from a measured sweep, and **darker is not strictly better** — past ~0.30
   brightness the ocean goes grey and the land/sea boundary flattens.
 - **Celestrak baseline filenames are lowercase** even when the group name is not.
+- **Catalog-wide D1 reads page by KEYSET (`NORAD_CAT_ID > last`), never by `OFFSET`.**
+  SQLite cannot seek to an offset — it reads and discards every row before it — so
+  `LIMIT n OFFSET k` makes a full walk quadratic. Measured at catalog scale on a real
+  engine: OFFSET visits **405,000 rows to return 27,000** (15×), keyset visits 27,000.
+  D1 bills that as rows read. `pagedRows()`
+  ([derive.js](workers/orbit-ingest/src/derive.js)) therefore takes
+  `{select, from, where}` rather than a finished SQL string — the cursor has to be ANDed
+  *into* the `WHERE`, not appended after it. Every caller must select and order by
+  `NORAD_CAT_ID`.
+- **A forced `INDEXED BY` is fragile: any non-name predicate can demote it from SEARCH to
+  a full SCAN.** That is why `stations`/`military` carry no `indexHint` while the 8
+  name-prefix groups do. The keyset cursor (`AND NORAD_CAT_ID > ?`) is exactly such a
+  predicate, so `sqlite.test.mjs`'s EXPLAIN QUERY PLAN test runs **with** the cursor
+  clause present — a plan test built from `where` alone proves a query the Worker never
+  runs. Re-check that test after touching either the hints or the pager.
+- **`decay` holds Space-Track's historical messages back to Sputnik 1, not just live
+  predictions.** Any "latest per object" over it must be a correlated `NOT EXISTS`
+  against the `(NORAD_CAT_ID, MSG_EPOCH)` primary key, never `GROUP BY … MAX()` — the
+  planner cannot turn the latter into an index walk and full-scans the table on every
+  call (this cost 53.67M rows read at 10.63k rows read per row returned).
+- **The group-bundle queries are at their floor — do not "optimise" them again.** All 21
+  were measured (counting UDF, seeded 31k catalog) on 2026-08-25, not modelled. Three
+  buckets: 8 name-prefix groups at ratio **2**; 11 type/country-partition groups at
+  **1–133**; and `stations`/`military`/`last-30-days`, which visit the whole catalog
+  because their predicates (`OBJECT_NAME IN (…)`, `NORAD_CAT_ID IN (…) OR name LIKE …`,
+  `LAUNCH_DATE >= date('now', …)`) cannot combine with the mandatory
+  `DECAY_DATE IS NULL AND TLE_LINE1 IS NOT NULL` through any one index. Every candidate
+  fix was tried and is **worse**: a name hint on `military`/`stations` produces
+  `SCAN` + `USE TEMP B-TREE FOR ORDER BY`, a `LAUNCH_DATE` index is ignored, and a
+  `(OBJECT_TYPE, NORAD_CAT_ID)` composite is ignored because **`NORAD_CAT_ID` is the
+  rowid** — `idx_objects_type` already resolves as `(OBJECT_TYPE=? AND rowid>?)`, which
+  is also why `active` is ratio **1** and not, as a page-count model suggests, 19.
+- **Orbit rings are sampled SGP4, not circles — they look circular because most tracked
+  orbits are.** `path()` ([propagate.worker.js:165](public/orbit-engine/propagate.worker.js#L165))
+  and `_samplePath()` ([sat-engine.js:620](public/orbit-engine/sat-engine.js#L620)) call
+  `satellite.propagate()` per vertex and keep each sample's own propagated altitude
+  (`kind === 'track' ? 0 : geo.height * 1000` — a circular approximation would use one
+  constant radius). Eccentricity enters through `satrec.ecco` and renders faithfully.
+  Measured against the vendored satellite-js on 2026-08-19: ISS (e = 0.0007) varies
+  415→440 km, **0.38%** of orbital radius — invisible, hence "circular"; MOLNIYA 3-50
+  (e = 0.716) varies 2,072→38,346 km, **431%** — an obvious ellipse. **Check an eccentric
+  object before suspecting the propagator.** Note the baseline `/data/tle/` files are
+  trimmed and carry no Molniya, so this needs a live `/api/tle` or D1 elset.
+  **`/constellations/` plane rings are the deliberate exception** — true great circles
+  from mean SMA, a schematic of the *plane* rather than a prediction of any satellite,
+  documented at [compute.js:14-27](public/constellations/compute.js#L14-L27). The regime
+  shells and debris density bands are the same kind of honest schematic.
+- **CZML was assessed and rejected for rendering** (2026-08-19). `CzmlDataSource` creates
+  **Entities**, which is exactly the pattern that blew the heap to 1.2 GB (issue #71), and
+  reported community numbers cap it near 4k satellites / ~5 FPS once paths are shown —
+  against a ~28k catalog. It also wants positions baked ahead of time, which fights live
+  TLE propagation and would add interpolation error where today every drawn vertex is a
+  true SGP4 evaluation. Crucially there is **nothing to gain**: CZML's main draw is
+  clock-driven animation, and `viewer.clock` is already the single time source
+  ([sat-engine.js:514](public/orbit-engine/sat-engine.js#L514)) with time-warp as
+  `clock.multiplier`. CZML *export* of one selected object is still a reasonable future
+  feature — one object sidesteps every objection above.
 
 ---
 
