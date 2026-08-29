@@ -26,3 +26,4 @@ __pycache__/
 
 # Screenshots/videos from tests/e2e/test_live_visual.py — regenerated per run
 tests/e2e/artifacts/
+kill_stale_processes.ps1

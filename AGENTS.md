@@ -191,6 +191,6 @@ truncate-and-reload per kind).
 
 - [CLAUDE.md](CLAUDE.md) — commands, invariants, mobile contract, what not to do.
 - [README.md](README.md) — deploy and route map.
-- [docs/game-plans/34_unblock_landing_refactor_plan.md](docs/game-plans/34_unblock_landing_refactor_plan.md) — active plan.
-- [docs/game-plans/Orbital_Relay_Feature_Specification.md](docs/game-plans/Orbital_Relay_Feature_Specification.md) — 20-feature target spec.
+- [docs/game-plans/Orbital_Relay_Feature_Specification.md](docs/game-plans/Orbital_Relay_Feature_Specification.md) — the delivered 20-feature spec.
+- [docs/issues-and-resolutions.md](docs/issues-and-resolutions.md), [docs/build-logs/](docs/build-logs/) — permanent record.
 - `tests/e2e/` (`serve.py` + `test_*.py`) — this repo's Playwright E2E suite.
