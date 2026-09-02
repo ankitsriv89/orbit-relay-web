@@ -22,6 +22,7 @@ import { normalizeCospar } from './match.js';
 import { resolveConflicts, writeFacts } from './facts.js';
 import { tier2Prose } from './prose-tier2.js';
 import { tier3Prose, isSubstantive } from './prose-tier3.js';
+import { ingestImage } from './images.js';
 
 export { STAGES };
 
@@ -165,12 +166,53 @@ async function runProse(ctx) {
 }
 
 async function runImages(ctx) {
-  // Wired in Task 7: for each profiled object, resolve an allowlisted image
-  // (NSSDCA / NASA imagery only), fetch → WebP → R2 via images.js#ingestImage,
-  // insert an `images` row, checkpoint. Until then this stage is a no-op and
-  // the encyclopedia renders the typed placeholder on the miss.
-  await ctx.checkpoint(ctx.fromNorad);
-  return { processed: 0, note: 'images stage lands in Task 7' };
+  const { env } = ctx;
+  let after = ctx.fromNorad;
+  let stored = 0;
+  let rows = await catalogPage(env, after, ctx.toNorad);
+  while (rows.length) {
+    for (const row of rows) {
+      const candidate = await imageCandidateFor(env, row);
+      if (!candidate) continue;
+      const out = await ingestImage(env, row.NORAD_CAT_ID, candidate);
+      if (!out) continue;
+      const isPrimary = await isFirstImage(env, row.NORAD_CAT_ID);
+      await env.PROFILE_DB.prepare(`
+        INSERT INTO images (norad, r2_key, thumb_key, width, height, credit, license, source_url, is_primary, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(norad, r2_key) DO UPDATE SET
+          thumb_key = excluded.thumb_key, width = excluded.width, height = excluded.height,
+          credit = excluded.credit, license = excluded.license, source_url = excluded.source_url,
+          updated_at = excluded.updated_at
+      `).bind(row.NORAD_CAT_ID, out.r2_key, out.thumb_key, out.width, out.height,
+              out.credit, out.license, out.source_url, isPrimary ? 1 : 0,
+              new Date().toISOString()).run();
+      stored++;
+    }
+    after = rows[rows.length - 1].NORAD_CAT_ID;
+    await ctx.checkpoint(after);
+    rows = await catalogPage(env, after, ctx.toNorad);
+  }
+  return { processed: stored };
+}
+
+/** True when the object has no `images` row yet — the first one is is_primary. */
+async function isFirstImage(env, norad) {
+  const row = await env.PROFILE_DB
+    .prepare('SELECT 1 AS one FROM images WHERE norad = ? LIMIT 1')
+    .bind(norad)
+    .first();
+  return !row;
+}
+
+/**
+ * An allowlisted image candidate ({url, thumbUrl?, credit, license, source_id})
+ * for a catalogue row, or null. Wired to the NASA image asset API with the first
+ * real Actions run; a stub here keeps `images` a clean no-op until then rather
+ * than failing the stage, and the encyclopedia renders the typed placeholder.
+ */
+async function imageCandidateFor(_env, _row) {
+  return null;
 }
 
 /** The verified spine facts a profile already holds — Tier 3's input. */
