@@ -283,6 +283,12 @@ staying public. Made private, its 705 min/month becomes billable and, with
   against that. Storage ~110 MB against 5 GB. **This is the one part of the
   system that does not need read-cost optimisation** — a genuine inversion of the
   orbital work.
+
+  **This is a property of the paid plan, not of the workload.** On 2026-09-01 two
+  `orbit-ingest` runs failed on the free tier's D1 limit; the $5 plan is what
+  fixed them. The headroom is real and worth using, but the query discipline that
+  produced the folded orbital queries still applies — a plan change is not a
+  licence to reintroduce unindexed `GROUP BY` scans.
 - **R2** — ~2k images × ~135 KB ≈ 270 MB against 10 GB. Egress free, which is why
   R2 is correct here. 10M Class B reads/mo covers ~300k pageviews at 2 fetches
   each, and edge caching means most never reach R2.
@@ -326,9 +332,10 @@ burden are.**
 - `media-mirror/` and `media-manifest.txt` no longer exist — leftovers from the
   playground split. Stale references remain in `.gitignore:17-18`,
   `AGENTS.md:27`, `CLAUDE.md:160`. Trivial cleanup, unrelated to this work.
-- **Two `orbit-ingest` failures on 2026-09-01**, uninvestigated. Out of scope
-  here, but the daily profile delta will hang off that job — worth understanding
-  before adding a dependent subsystem.
+- **Two `orbit-ingest` failures on 2026-09-01** — cause identified: the free
+  tier's D1 limit was exceeded. Resolved by moving to the $5 Workers Paid plan.
+  Not a code defect, and no longer a risk to the daily profile delta that will
+  hang off that job.
 
 ---
 
