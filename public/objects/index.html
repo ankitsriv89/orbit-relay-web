@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Object Encyclopedia — Orbital Relay</title>
+    <meta name="description" content="A descriptive knowledge base for every catalogued space object: mission purpose, operator, bus, mass and status, each fact carrying its source and licence. Browse and filter 28,000+ objects.">
+    <meta name="theme-color" content="#050810">
+    <link rel="canonical" href="https://orbitalrelay.space/objects/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Object Encyclopedia — Orbital Relay">
+    <meta property="og:description" content="Mission, operator, bus, mass and status for every catalogued space object — each fact sourced and licensed.">
+    <meta property="og:url" content="https://orbitalrelay.space/objects/">
+    <meta property="og:image" content="https://orbitalrelay.space/icons/og-cover.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Object Encyclopedia — Orbital Relay">
+    <meta name="twitter:description" content="Mission, operator, bus, mass and status for every catalogued space object — each fact sourced.">
+    <meta name="twitter:image" content="https://orbitalrelay.space/icons/og-cover.png">
+    <meta name="twitter:image:alt" content="The Orbital Relay 3D globe, showing tracked satellites and their orbital trails above Earth.">
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/docs.css">
+    <link rel="stylesheet" href="/objects/objects.css">
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="wordmark" href="/" aria-label="Orbital Relay home">
+                <img src="/icons/logo.png" alt="" width="28" height="28" class="wordmark__logo">
+                ORBITAL<span class="wordmark__accent">·</span>RELAY
+            </a>
+            <a class="header-cta" href="/orbit/">LAUNCH →</a>
+        </div>
+    </header>
+
+    <main id="main" class="docs-main obj">
+        <div class="docs-hero">
+            <span class="eyebrow">ENCYCLOPEDIA</span>
+            <h1>Object Encyclopedia</h1>
+            <p>What each catalogued object <em>is</em> — mission, operator, bus, mass and
+               status — as opposed to where it is right now. Every fact carries its source
+               and licence.</p>
+        </div>
+
+        <form class="obj-filters" id="filters" aria-label="Filter objects">
+            <label class="obj-field obj-field--search">
+                <span class="obj-field__label">Search</span>
+                <input type="search" name="q" id="f-q" placeholder="name, COSPAR id or operator" autocomplete="off">
+            </label>
+            <label class="obj-field">
+                <span class="obj-field__label">Country</span>
+                <select name="country" id="f-country"><option value="">Any</option></select>
+            </label>
+            <label class="obj-field">
+                <span class="obj-field__label">Mission type</span>
+                <select name="type" id="f-type"><option value="">Any</option></select>
+            </label>
+            <label class="obj-field">
+                <span class="obj-field__label">Operator</span>
+                <select name="operator" id="f-operator"><option value="">Any</option></select>
+            </label>
+            <label class="obj-field">
+                <span class="obj-field__label">Status</span>
+                <select name="status" id="f-status"><option value="">Any</option></select>
+            </label>
+            <label class="obj-field">
+                <span class="obj-field__label">Sort</span>
+                <select name="sort" id="f-sort">
+                    <option value="name">Name</option>
+                    <option value="norad">Catalog number</option>
+                    <option value="country">Country</option>
+                    <option value="type">Mission type</option>
+                </select>
+            </label>
+            <button type="button" class="obj-reset" id="f-reset">Reset</button>
+        </form>
+
+        <p class="obj-count" id="count" role="status" aria-live="polite">Loading…</p>
+
+        <p class="obj-note">
+            <strong>Operator is derived</strong> from the object name where a sourced value
+            is absent — it is an inference, not a Space-Track field.
+        </p>
+
+        <div class="obj-tablewrap">
+            <table class="obj-table" id="results">
+                <thead>
+                    <tr>
+                        <th scope="col">Object</th>
+                        <th scope="col">COSPAR</th>
+                        <th scope="col">Operator</th>
+                        <th scope="col">Country</th>
+                        <th scope="col">Mission type</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+
+        <button type="button" class="obj-more" id="more" hidden>Load more</button>
+
+        <p class="obj-provenance">
+            Descriptive facts from NASA NSSDCA and NASA/USGS/NOAA imagery (public domain),
+            GCAT © Jonathan C. McDowell (CC&nbsp;BY&nbsp;4.0), and the Space-Track SATCAT.
+            Orbital data: Space-Track.org (USSPACECOM / 18th Space Defense Squadron).
+        </p>
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <div class="site-footer__bottom">
+                <p>Built on Space-Track.org, NASA NSSDCA and CelesTrak. No build step.</p>
+                <p class="site-footer__meta">© 2026 Orbital Relay · Descriptive facts: NASA NSSDCA / GCAT (CC BY 4.0) / Space-Track SATCAT · Orbital data: Space-Track.org (USSPACECOM / 18th Space Defense Squadron), redistributed under USSPACECOM express blanket approval for basic SSA data.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module" src="/objects/objects.js"></script>
+</body>
+</html>

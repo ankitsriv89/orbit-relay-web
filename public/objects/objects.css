@@ -1,0 +1,336 @@
+/* ==========================================================================
+   objects.css — the /objects/ encyclopedia (index + detail).
+
+   No globe on this route, so it does not inherit the orbit.css link-order
+   constraint. Shared colour/font tokens come from css/tokens.css; layout
+   shell (site-header, docs-main, site-footer) from css/docs.css.
+
+   Mobile is a requirement: no horizontal page scroll at any viewport — the
+   results table scrolls inside its own .obj-tablewrap. Touch targets ≥ 44px.
+   ========================================================================== */
+
+.obj {
+  max-width: 1100px;
+}
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+.obj-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin: 24px 0 12px;
+}
+
+.obj-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.obj-field--search {
+  grid-column: 1 / -1;
+}
+
+.obj-field__label {
+  font: 600 0.72rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.obj-field input,
+.obj-field select {
+  min-height: 44px;
+  padding: 8px 10px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  color: var(--c-text);
+  font: 0.92rem/1.3 inherit;
+}
+
+.obj-field input:focus,
+.obj-field select:focus,
+.obj-reset:focus,
+.obj-more:focus {
+  outline: 2px solid var(--c-signal);
+  outline-offset: 1px;
+}
+
+.obj-reset {
+  min-height: 44px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  color: var(--c-text-dim);
+  font: 600 0.8rem/1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.obj-reset:hover {
+  color: var(--c-text);
+  border-color: var(--c-signal-dim);
+}
+
+.obj-count {
+  font: 600 0.85rem/1.4 var(--font-mono);
+  color: var(--c-signal);
+  margin: 4px 0;
+}
+
+.obj-note,
+.obj-provenance {
+  font-size: 0.8rem;
+  color: var(--c-text-dim);
+  line-height: 1.5;
+}
+
+.obj-note {
+  margin: 4px 0 16px;
+}
+
+.obj-provenance {
+  margin-top: 32px;
+  border-top: 1px solid var(--c-line);
+  padding-top: 16px;
+}
+
+/* ── Results table ───────────────────────────────────────────────────────── */
+.obj-tablewrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+}
+
+.obj-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 640px;
+}
+
+.obj-table th,
+.obj-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--c-line);
+  vertical-align: top;
+}
+
+.obj-table th {
+  font: 600 0.72rem/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+  background: var(--c-panel);
+  position: sticky;
+  top: 0;
+}
+
+.obj-table tbody tr:hover {
+  background: var(--c-panel-alt);
+}
+
+.obj-name {
+  color: var(--c-signal);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.obj-name:hover {
+  text-decoration: underline;
+}
+
+.obj-sub {
+  display: block;
+  font: 0.72rem/1.3 var(--font-mono);
+  color: var(--c-text-dim);
+}
+
+.obj-mono {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--c-text-dim);
+}
+
+.obj-derived .obj-derived__tag {
+  font: 0.68rem/1 var(--font-mono);
+  color: var(--c-text-dim);
+  margin-left: 4px;
+}
+
+.obj-status {
+  text-transform: lowercase;
+}
+
+.obj-more {
+  display: block;
+  margin: 16px auto 0;
+  min-height: 44px;
+  padding: 0 24px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-signal-dim);
+  border-radius: 6px;
+  color: var(--c-signal);
+  font: 600 0.82rem/1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.obj-more:hover {
+  background: var(--c-panel-alt);
+}
+
+/* ── Detail page ─────────────────────────────────────────────────────────── */
+.obj-detail {
+  max-width: 760px;
+}
+
+.obj-crumb a,
+.obj-detail__sub {
+  font: 0.82rem/1.4 var(--font-mono);
+  color: var(--c-text-dim);
+}
+
+.obj-crumb a {
+  color: var(--c-signal-dim);
+  text-decoration: none;
+}
+
+.obj-crumb a:hover {
+  color: var(--c-signal);
+}
+
+.obj-prose {
+  font-size: 1.02rem;
+  line-height: 1.65;
+  margin: 16px 0;
+}
+
+.obj-tiernote,
+.obj-loading,
+.obj-error {
+  font-size: 0.85rem;
+  color: var(--c-text-dim);
+}
+
+.obj-error {
+  color: var(--c-warn);
+}
+
+.obj-figure {
+  margin: 16px 0;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--c-panel);
+}
+
+.obj-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.obj-figure figcaption {
+  padding: 8px 12px;
+  font: 0.75rem/1.4 var(--font-mono);
+  color: var(--c-text-dim);
+}
+
+.obj-figure--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.obj-figure__glyph {
+  font-size: 2.4rem;
+  opacity: 0.5;
+}
+
+.obj-dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  margin: 20px 0;
+  font-size: 0.92rem;
+}
+
+.obj-dl dt {
+  font: 600 0.78rem/1.5 var(--font-mono);
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.obj-dl dd {
+  margin: 0;
+}
+
+.obj-sources {
+  margin: 24px 0;
+}
+
+.obj-sources h2 {
+  font: 600 0.8rem/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.obj-sources ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.obj-sources li {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.obj-sources__field {
+  min-width: 120px;
+  color: var(--c-text-dim);
+  text-transform: capitalize;
+}
+
+.obj-sources a {
+  color: var(--c-signal-dim);
+}
+
+@media (max-width: 600px) {
+  .obj-dl {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
+  .obj-dl dd {
+    margin-bottom: 10px;
+  }
+  .obj-sources li {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

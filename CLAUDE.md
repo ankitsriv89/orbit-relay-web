@@ -22,12 +22,13 @@ paths): `testing-e2e` (running the Playwright suite on this box) · `ingest-d1`
 
 ## What this repo is
 
-`orbitalrelay.space` — a satellite visualization platform on Cloudflare Pages. Ten
+`orbitalrelay.space` — a satellite visualization platform on Cloudflare Pages. Eleven
 routes, all static ES modules with **no build step**: `/`, `/orbit/`, `/spacetrack/`
 (+ `/signal/`, `/conjunctions/`, `/brief/`, `/analytics/`), `/constellations/`,
-`/about/`, `/wiki/`. Backed by 9 Pages Functions in `functions/api/` over D1 + R2,
-fed by `workers/orbit-ingest/` on a GitHub Actions schedule. (Route table with
-descriptions: `AGENTS.md`.)
+`/objects/` (+ crawlable per-object shells), `/about/`, `/wiki/`. Backed by Pages
+Functions in `functions/api/` over D1 + R2 — the `orbit-catalog` D1 fed by
+`workers/orbit-ingest/` and the `orbit-profiles` D1 fed by `workers/orbit-profiles/`,
+both on GitHub Actions. (Route table with descriptions: `AGENTS.md`.)
 
 ## The no-build-step rule shapes everything
 

@@ -16,6 +16,7 @@
 /starlink/*              /constellations/?c=starlink   301
 /spacetrack               /spacetrack/               301
 /constellations          /constellations/           301
+/objects                 /objects/                  301
 /spacetrack/signal        /spacetrack/signal/        301
 /spacetrack/conjunctions  /spacetrack/conjunctions/  301
 /spacetrack/brief         /spacetrack/brief/         301

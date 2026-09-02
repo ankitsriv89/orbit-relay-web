@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "description": "Pages Functions routing. Default is that Functions handle every path; this narrows it so static assets under /objects/ are never shadowed by the functions/objects/[norad]/ dynamic route (a request for /objects/objects.js would otherwise bind norad='objects.js' and 404).",
+  "include": ["/*"],
+  "exclude": [
+    "/objects/objects.js",
+    "/objects/object.js",
+    "/objects/objects.css",
+    "/objects/index.html"
+  ]
+}

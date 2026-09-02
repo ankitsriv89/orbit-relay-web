@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The 10 public routes. /admin/ is deliberately absent (password-gated,
+<!-- The 11 public routes. /admin/ is deliberately absent (password-gated,
      and Disallow'd in robots.txt). Keep in sync with the routes table in
-     CLAUDE.md and the app-card grid on / when a route is added or removed. -->
+     CLAUDE.md and the app-card grid on / when a route is added or removed.
+     Per-object pages (/objects/<norad>/) are not enumerated here — there are
+     ~28k of them; a crawler reaches them from the /objects/ index. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://orbitalrelay.space/</loc>
@@ -42,6 +44,11 @@
     <loc>https://orbitalrelay.space/spacetrack/analytics/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://orbitalrelay.space/objects/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://orbitalrelay.space/about/</loc>

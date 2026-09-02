@@ -46,6 +46,15 @@
 /constellations/*
   Cache-Control: public, no-cache, must-revalidate
 
+# The /objects/ encyclopedia — hand-edited HTML + un-hashed ES modules, same as
+# the other app routes. NOT immutable, not stale-while-revalidate. The per-object
+# detail pages are served by functions/objects/[norad]/index.js, which sets its
+# OWN Cache-Control (a longer max-age, since profiles change on a bulk-import
+# cadence) — a static rule here would not reach a Function response anyway. This
+# rule covers /objects/ itself and its index.html / objects.js / object.js / css.
+/objects/*
+  Cache-Control: public, no-cache, must-revalidate
+
 /about/*
   Cache-Control: public, no-cache, must-revalidate
 
