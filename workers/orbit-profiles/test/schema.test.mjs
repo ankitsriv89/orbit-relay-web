@@ -19,7 +19,9 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 
-const sql = fs.readFileSync(path.join(ROOT, 'd1/profiles.sql'), 'utf8');
+// Normalise CRLF so the per-line `/--.*$/` comment strip below works on a
+// core.autocrlf checkout (`.` and `$` both stop at the `\r` otherwise).
+const sql = fs.readFileSync(path.join(ROOT, 'd1/profiles.sql'), 'utf8').replace(/\r\n/g, '\n');
 
 /** Column names a CREATE TABLE declares, minus table-level constraints. */
 function tableColumns(table) {

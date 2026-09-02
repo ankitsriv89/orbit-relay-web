@@ -23,7 +23,10 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 
-const sql = fs.readFileSync(path.join(ROOT, 'd1/orbit.sql'), 'utf8');
+// Normalise CRLF: on a core.autocrlf checkout the per-line `/--.*$/` strip below
+// leaves the comment in place (`.` and `$` both stop at the `\r`), leaking comment
+// prose into the column list.
+const sql = fs.readFileSync(path.join(ROOT, 'd1/orbit.sql'), 'utf8').replace(/\r\n/g, '\n');
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(HERE, '../fixtures', name), 'utf8'));

@@ -1,0 +1,38 @@
+# Normalise line endings. This repo has a no-build-step static frontend — what is
+# committed is what the browser parses and what the Node test harness regexes
+# against `\n` literals — so text files are LF in the repo and on every checkout,
+# regardless of a contributor's core.autocrlf setting.
+* text=auto eol=lf
+
+# Explicitly LF for everything we author or test.
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.ts    text eol=lf
+*.json  text eol=lf
+*.jsonc text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.svg   text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+*.toml  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.txt   text eol=lf
+*.sh    text eol=lf
+
+# Binary assets — never touch.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.wasm  binary
+*.gz    binary
+*.zip   binary
