@@ -18,6 +18,29 @@ binding = "ORBIT_DB"
 database_name = "orbit-catalog"
 database_id = "e5fe1563-71ef-4fb4-9e04-554c87caf821"
 
+# ---- Object profiles D1 binding --------------------------------------
+# Read side only. functions/api/_profiles.js queries this for the descriptive
+# knowledge base (/api/profile, /api/objects, and the `profile` key on
+# /api/object); the orbit-profiles Worker owns writing to it and carries its own
+# copy of this binding.
+#
+# A second database rather than more tables in orbit-catalog because D1 cannot
+# join across databases and the isolation is worth that cost — enrichment writes
+# stay away from the orbital read budget.
+#
+# As with ORBIT_DB above, this block is documentation: the binding that actually
+# takes effect at runtime is the one added in the Pages dashboard (Settings →
+# Functions → Bindings), name PROFILE_DB, database orbit-profiles. When it is
+# absent, profileFor() returns null and every endpoint degrades to
+# `profile: null` rather than erroring.
+#
+# Schema:
+#   wrangler d1 execute orbit-profiles --remote --file d1/profiles.sql
+[[d1_databases]]
+binding = "PROFILE_DB"
+database_name = "orbit-profiles"
+database_id = "0b90f275-abe7-47c4-bf55-4c43af24d8cc"
+
 # ---- Orbit artifacts R2 binding (shared from signal-playground) ------
 # Pre-rendered TLE bundles + feed JSON, regenerated after each ingest so the
 # globe's hot path is a flat object read rather than a D1 query. Read side only

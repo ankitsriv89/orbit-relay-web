@@ -8,7 +8,7 @@
     "dev": "wrangler pages dev public",
     "check:syntax": "node scripts/check/syntax.mjs",
     "check:resolve": "node scripts/check/resolve.mjs",
-    "test": "npm run check:syntax && npm run check:resolve && npm --prefix workers/orbit-ingest test"
+    "test": "npm run check:syntax && npm run check:resolve && npm --prefix workers/orbit-ingest test && npm --prefix workers/orbit-profiles test"
   },
   "keywords": ["orbit", "satellite", "space-track", "celestrak"],
   "author": "Ankit Srivastava",

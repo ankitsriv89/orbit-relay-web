@@ -1,0 +1,10 @@
+{
+  "name": "orbit-profiles",
+  "private": true,
+  "type": "module",
+  "description": "Object-profile enrichment for the Orbital Relay — writes the orbit-profiles D1. No dependencies and no build step; the bulk pass runs from GitHub Actions.",
+  "scripts": {
+    "test": "node --no-warnings test/schema.test.mjs",
+    "deploy": "wrangler deploy"
+  }
+}

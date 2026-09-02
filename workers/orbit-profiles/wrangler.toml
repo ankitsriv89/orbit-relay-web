@@ -1,0 +1,35 @@
+# orbit-profiles — the write side of the object-profile knowledge base.
+#
+# Deploy (from this directory):
+#   npx wrangler deploy
+#
+# Apply the schema (from the repo root):
+#   npx wrangler d1 execute orbit-profiles --remote --file d1/profiles.sql
+
+name = "orbit-profiles"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# ---- No [triggers] block, deliberately -------------------------------------
+# The bulk pass is a GitHub Actions job (.github/workflows/orbit-profiles.yml),
+# not a cron Worker: 28k objects exceeds Worker CPU limits, the same reason
+# orbit-ingest's heavy stages run from Actions.
+#
+# Nor is any of this folded INTO orbit-ingest, whose 6-hourly cadence runs
+# against a Space-Track rate budget whose ceiling is account suspension.
+# Separate Workers keep the failure domains apart: a stuck enrichment run must
+# not be able to delay a GP delta.
+
+# ---- Storage ----------------------------------------------------------------
+# Write side. The Pages project (../../wrangler.toml) carries a read-side copy
+# of PROFILE_DB; nothing in Pages writes here.
+[[d1_databases]]
+binding = "PROFILE_DB"
+database_name = "orbit-profiles"
+database_id = "0b90f275-abe7-47c4-bf55-4c43af24d8cc"
+
+# Shared with orbit-ingest — profile imagery lands under profiles/<norad>/ and
+# does not collide with the pre-rendered orbital artifacts.
+[[r2_buckets]]
+binding = "ORBIT_R2"
+bucket_name = "orbit-data"
