@@ -146,3 +146,11 @@ export const DEFAULT_MODELS = {
   'workers-ai': '@cf/meta/llama-3.1-8b-instruct',
   groq: 'llama-3.3-70b-versatile',
 };
+
+/**
+ * The object-profiles Tier 3 default (a separate pipeline from the daily brief,
+ * so it does not share DEFAULT_MODELS.groq). Groq-hosted, ~20B, chosen for
+ * constrained rewriting of verified facts — validated on a sample before it was
+ * committed (see the Task 6 commit). Overridable by ORBIT_AI_MODEL.
+ */
+export const PROFILE_TIER3_MODEL = 'openai/gpt-oss-20b';

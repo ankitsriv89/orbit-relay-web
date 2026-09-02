@@ -1,0 +1,205 @@
+/**
+ * orbit-profiles — the enrichment pipeline (Task 6).
+ *
+ * Four stages — match, facts, prose, images — each independently restartable
+ * and checkpointed by last-completed NORAD. A run that dies at object 14,000
+ * restarts at 14,000. GitHub caps a single job at 6 hours, so the Actions
+ * workflow chunks by NORAD range (`toNorad`) and a resumed run is a narrower
+ * query, not a re-scan.
+ *
+ * Orchestration mirrors workers/orbit-ingest/src/index.js's step() pattern:
+ * per-stage failures are captured and the run continues — a stuck image fetch
+ * must not cost the prose that was already generated — and the report records
+ * what failed so a quietly-degrading run still shows up red.
+ *
+ * FOLLOW-UP, do not build here: after v1 only new launches need profiling — a
+ * small daily delta hooked to the existing SATCAT ingest in
+ * workers/orbit-ingest. It piggybacks that run; there is deliberately NO
+ * schedule in orbit-profiles.yml and no cron in this worker.
+ */
+import { readCheckpoint, writeCheckpoint, STAGES } from './checkpoint.js';
+import { normalizeCospar } from './match.js';
+import { resolveConflicts, writeFacts } from './facts.js';
+import { tier2Prose } from './prose-tier2.js';
+import { tier3Prose, isSubstantive } from './prose-tier3.js';
+
+export { STAGES };
+
+/** Rows per chunk-internal page — keeps a stage's working set bounded. */
+const PAGE = 500;
+
+async function step(report, name, fn) {
+  const t0 = Date.now();
+  try {
+    const result = await fn();
+    report.steps.push({ name, ok: true, ms: Date.now() - t0, ...result });
+  } catch (err) {
+    report.ok = false;
+    report.steps.push({ name, ok: false, ms: Date.now() - t0, error: String((err && err.message) || err) });
+    console.error(`[orbit-profiles] ${name} failed:`, err);
+  }
+}
+
+/**
+ * @param {object} env  { PROFILE_DB, ORBIT_DB, ORBIT_R2, ORBIT_AI, ORBIT_AI_MODEL }
+ * @param {object} [opts]
+ * @param {number} [opts.toNorad]   upper NORAD bound for this chunk (exclusive of higher)
+ * @param {string} [opts.only]      run just this one stage
+ * @param {Record<string, Function>} [opts.stages]  injected stage impls (tests)
+ * @param {{read:Function, write:Function}} [opts.checkpointIO]  injected checkpoint store (tests)
+ */
+export async function runProfiles(env, opts = {}) {
+  const report = { job: 'profiles', ok: true, steps: [] };
+  const stages = opts.stages || DEFAULT_STAGES;
+  const io = opts.checkpointIO || { read: readCheckpoint, write: writeCheckpoint };
+  const toRun = opts.only ? [opts.only] : STAGES;
+
+  for (const name of toRun) {
+    const fn = stages[name];
+    if (!fn) continue;
+    await step(report, name, async () => {
+      const fromNorad = await io.read(env.PROFILE_DB, name);
+      const ctx = {
+        env,
+        fromNorad,
+        toNorad: opts.toNorad ?? Infinity,
+        checkpoint: (norad) => io.write(env.PROFILE_DB, name, norad),
+      };
+      return fn(ctx);
+    });
+  }
+
+  return report;
+}
+
+/* ── the real stages ───────────────────────────────────────────────────────
+ *
+ * Each pages a NORAD-ordered slice of the catalogue (fromNorad, toNorad],
+ * processes it, writes, then checkpoints the last NORAD it finished — the
+ * checkpoint lands AFTER the D1 write returns, so a crash between the two
+ * re-does an idempotent chunk rather than skipping it.
+ */
+
+/** Catalogue rows for one page above `after`, up to `to`. */
+async function catalogPage(env, after, to) {
+  const bound = Number.isFinite(to) ? to : 9_999_999;
+  const { results } = await env.ORBIT_DB.prepare(`
+    SELECT NORAD_CAT_ID, OBJECT_NAME, OBJECT_TYPE, OBJECT_ID, LAUNCH_DATE,
+           INCLINATION, APOAPSIS, PERIAPSIS, COUNTRY_CODE, regime
+    FROM objects
+    WHERE NORAD_CAT_ID > ? AND NORAD_CAT_ID <= ?
+    ORDER BY NORAD_CAT_ID
+    LIMIT ?
+  `).bind(after, bound, PAGE).all();
+  return results || [];
+}
+
+async function runMatch(ctx) {
+  const { env } = ctx;
+  let after = ctx.fromNorad;
+  let matched = 0;
+  let rows = await catalogPage(env, after, ctx.toNorad);
+  while (rows.length) {
+    for (const row of rows) {
+      const cospar = normalizeCospar(row.OBJECT_ID);
+      if (!cospar) continue;
+      await env.PROFILE_DB.prepare(`
+        INSERT INTO profiles (norad, cospar, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT(norad) DO UPDATE SET cospar = excluded.cospar, updated_at = excluded.updated_at
+      `).bind(row.NORAD_CAT_ID, cospar, new Date().toISOString()).run();
+      matched++;
+    }
+    after = rows[rows.length - 1].NORAD_CAT_ID;
+    await ctx.checkpoint(after);
+    rows = await catalogPage(env, after, ctx.toNorad);
+  }
+  return { processed: matched };
+}
+
+async function runFacts(ctx) {
+  const { env } = ctx;
+  const sources = await loadSourceIndex(env);   // COSPAR → merged NSSDCA/GCAT fields
+  let after = ctx.fromNorad;
+  let written = 0;
+  let rows = await catalogPage(env, after, ctx.toNorad);
+  while (rows.length) {
+    for (const row of rows) {
+      const cospar = normalizeCospar(row.OBJECT_ID);
+      const candidate = cospar && sources.get(cospar);
+      if (!candidate) continue;
+      const resolved = resolveConflicts(candidate.byField);
+      await writeFacts(env.PROFILE_DB, row.NORAD_CAT_ID, resolved, candidate.spine);
+      written++;
+    }
+    after = rows[rows.length - 1].NORAD_CAT_ID;
+    await ctx.checkpoint(after);
+    rows = await catalogPage(env, after, ctx.toNorad);
+  }
+  return { processed: written };
+}
+
+async function runProse(ctx) {
+  const { env } = ctx;
+  const model = env.ORBIT_AI_MODEL || 'openai/gpt-oss-20b';
+  let after = ctx.fromNorad;
+  let t2 = 0;
+  let t3 = 0;
+  let rows = await catalogPage(env, after, ctx.toNorad);
+  while (rows.length) {
+    for (const row of rows) {
+      const fallback = tier2Prose(row);
+      const facts = await loadProfileFacts(env, row.NORAD_CAT_ID);
+      const { prose, tier } = isSubstantive(facts)
+        ? await tier3Prose(env.ORBIT_AI, model, facts, fallback)
+        : { prose: fallback, tier: 2 };
+      await env.PROFILE_DB.prepare(`
+        UPDATE profiles SET prose = ?, prose_tier = ?, updated_at = ? WHERE norad = ?
+      `).bind(prose, tier, new Date().toISOString(), row.NORAD_CAT_ID).run();
+      if (tier === 3) t3++; else t2++;
+    }
+    after = rows[rows.length - 1].NORAD_CAT_ID;
+    await ctx.checkpoint(after);
+    rows = await catalogPage(env, after, ctx.toNorad);
+  }
+  return { processed: t2 + t3, tier2: t2, tier3: t3 };
+}
+
+async function runImages(ctx) {
+  // Wired in Task 7: for each profiled object, resolve an allowlisted image
+  // (NSSDCA / NASA imagery only), fetch → WebP → R2 via images.js#ingestImage,
+  // insert an `images` row, checkpoint. Until then this stage is a no-op and
+  // the encyclopedia renders the typed placeholder on the miss.
+  await ctx.checkpoint(ctx.fromNorad);
+  return { processed: 0, note: 'images stage lands in Task 7' };
+}
+
+/** The verified spine facts a profile already holds — Tier 3's input. */
+async function loadProfileFacts(env, norad) {
+  const row = await env.PROFILE_DB
+    .prepare('SELECT * FROM profiles WHERE norad = ?')
+    .bind(norad)
+    .first();
+  return row || {};
+}
+
+/**
+ * COSPAR → {byField, spine} from the NSSDCA and GCAT bulk dumps.
+ *
+ * The dumps are fetched once per run and held in memory (~a few MB). Parsing
+ * and the actual fetch URLs are wired here — kept behind one function so the
+ * pipeline shape above is testable without them. matchByCospar() from Task 4 is
+ * the join primitive; this builds its `sourceRows` input.
+ */
+async function loadSourceIndex(_env) {
+  // v1 bulk source wiring lands with the first real Actions run (Task 6 step 6).
+  // Returning an empty index keeps `facts` a clean no-op until then rather than
+  // failing the stage.
+  return new Map();
+}
+
+const DEFAULT_STAGES = {
+  match: runMatch,
+  facts: runFacts,
+  prose: runProse,
+  images: runImages,
+};

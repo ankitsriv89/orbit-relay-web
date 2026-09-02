@@ -1,0 +1,104 @@
+# Object-profiles enrichment pipeline (docs/superpowers/plans/2026-09-02-object-profiles).
+#
+# workflow_dispatch ONLY — there is no schedule. The v1 bulk pass is a one-off
+# per stage; after v1 only new launches need profiling, and that is a small
+# daily delta the SATCAT ingest will carry (a comment in
+# workers/orbit-profiles/src/index.js names it) — NOT a cron here.
+#
+# GitHub caps a single job at 6 hours, which is the real reason to chunk (Actions
+# minutes on this public repo are free and unlimited). Chunk by NORAD range with
+# `to`; the pipeline checkpoints per stage, so a resumed or narrowed run picks up
+# where the last one stopped.
+#
+# The runner (scripts/run-profiles.mjs) calls the same runProfiles() the Worker
+# would; only `env` differs, via scripts/env-node.mjs.
+#
+# Repo secrets required (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_ACCOUNT_ID
+#   CLOUDFLARE_API_TOKEN     D1:Edit — used for the D1 HTTP API on BOTH databases
+#   ORBIT_D1_DATABASE_ID     orbit-catalog — READ-ONLY here (the `objects` input)
+#   PROFILE_D1_DATABASE_ID   orbit-profiles — the write target
+#   R2_ACCESS_KEY_ID         from an R2 API token (Object Read & Write)
+#   R2_SECRET_ACCESS_KEY     SigV4 cannot consume a Cloudflare API token
+# Optional (Tier 3 generation; all absent ⇒ whole catalogue is Tier 2, run still ok):
+#   GROQ_API_KEY
+#   vars.ORBIT_AI_PROVIDER   set to `groq` to enable Tier 3
+#   vars.ORBIT_AI_MODEL      overrides the openai/gpt-oss-20b default
+name: orbit-profiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'Run a single stage (blank = all four, in order)'
+        required: false
+        default: ''
+        type: choice
+        options: ['', match, facts, prose, images]
+      to:
+        description: 'Upper NORAD bound for this chunk (blank = no bound)'
+        required: false
+        default: ''
+        type: string
+
+# One profile run at a time. A second concurrent run would race the per-stage
+# checkpoints (last-completed NORAD), which is how a chunk gets skipped or
+# double-processed. Queued, not cancelled: a killed run mid-chunk is fine to
+# resume (idempotent upserts) but should not be silently dropped.
+concurrency:
+  group: orbit-profiles
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  profiles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # just under GitHub's 6h job cap
+    defaults:
+      run:
+        working-directory: workers/orbit-profiles
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Dispatch inputs reach a shell, so they are validated against a fixed
+      # list / numeric check here regardless of the `type:` on the input — the
+      # API enforces `choice`, the runner does not.
+      - name: Validate inputs
+        id: args
+        env:
+          ONLY: ${{ github.event.inputs.only }}
+          TO: ${{ github.event.inputs.to }}
+        run: |
+          case "$ONLY" in
+            ''|match|facts|prose|images) ;;
+            *) echo "::error::unexpected stage '$ONLY'"; exit 2 ;;
+          esac
+          if [ -n "$TO" ] && ! printf '%s' "$TO" | grep -Eq '^[0-9]+$'; then
+            echo "::error::'to' must be a positive integer"; exit 2
+          fi
+          argv=""
+          [ -n "$ONLY" ] && argv="$argv --only $ONLY"
+          [ -n "$TO" ]   && argv="$argv --to $TO"
+          echo "argv=$argv" >> "$GITHUB_OUTPUT"
+          echo "Running orbit-profiles${argv:+ with}$argv"
+
+      # Plain ESM, no dependencies, no build step — node and a checkout.
+      - name: Run the pipeline
+        run: node --no-warnings scripts/run-profiles.mjs $ARGV
+        env:
+          ARGV:                  ${{ steps.args.outputs.argv }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ORBIT_D1_DATABASE_ID:  ${{ secrets.ORBIT_D1_DATABASE_ID }}
+          PROFILE_D1_DATABASE_ID: ${{ secrets.PROFILE_D1_DATABASE_ID }}
+          R2_ACCESS_KEY_ID:      ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY:  ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ORBIT_AI_PROVIDER:     ${{ vars.ORBIT_AI_PROVIDER }}
+          ORBIT_AI_MODEL:        ${{ vars.ORBIT_AI_MODEL }}
+          GROQ_API_KEY:          ${{ secrets.GROQ_API_KEY }}
