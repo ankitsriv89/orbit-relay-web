@@ -25,10 +25,13 @@ function test(name, fn) {
 /** opts wiring a checkpoint Map + injected stage impls. */
 function harness(stages, checkpoints = {}) {
   const cp = new Map(Object.entries(checkpoints));
+  const seeded = [];
   return {
     cp,
+    seeded,
     opts: {
       stages,
+      seedSources: async (db) => { seeded.push(db); return 4; },
       checkpointIO: {
         read: async (_db, stage) => cp.get(stage) ?? 0,
         write: async (_db, stage, norad) => { cp.set(stage, norad); },
@@ -42,6 +45,39 @@ console.log('\n-- the four stages --');
 
 test('STAGES is exactly match, facts, prose, images in order', () => {
   assert.deepEqual(STAGES, ['match', 'facts', 'prose', 'images']);
+});
+
+console.log('\n-- the licence allowlist is seeded before any stage runs --');
+
+test('seedSources runs once against PROFILE_DB and is reported as a step', async () => {
+  const { opts, seeded } = harness({
+    match: async () => ({ processed: 0 }), facts: async () => ({ processed: 0 }),
+    prose: async () => ({ processed: 0 }), images: async () => ({ processed: 0 }),
+  });
+  const report = await runProfiles(ENV, opts);
+  assert.equal(seeded.length, 1);
+  assert.equal(seeded[0], ENV.PROFILE_DB);
+  const seed = report.steps.find((s) => s.name === 'seed-sources');
+  assert.ok(seed && seed.ok);
+  assert.equal(report.steps[0].name, 'seed-sources', 'seeding must be the first step');
+});
+
+test('a { only } run still seeds — the sources table is a precondition for facts', async () => {
+  const { opts, seeded } = harness({ facts: async () => ({ processed: 0 }) });
+  await runProfiles(ENV, { ...opts, only: 'facts' });
+  assert.equal(seeded.length, 1);
+});
+
+test('a seedSources failure fails the run but does not stop the stages', async () => {
+  const { opts } = harness({
+    match: async () => ({ processed: 1 }), facts: async () => ({ processed: 1 }),
+    prose: async () => ({ processed: 1 }), images: async () => ({ processed: 1 }),
+  });
+  opts.seedSources = async () => { throw new Error('sources upsert failed'); };
+  const report = await runProfiles(ENV, opts);
+  assert.equal(report.ok, false);
+  assert.match(report.steps.find((s) => s.name === 'seed-sources').error, /sources upsert failed/);
+  assert.equal(report.steps.filter((s) => s.ok).length, 4, 'all four stages still ran');
 });
 
 console.log('\n-- a failing stage does not abort the rest --');
@@ -70,7 +106,7 @@ test('an all-clean run reports ok', async () => {
   });
   const report = await runProfiles(ENV, opts);
   assert.equal(report.ok, true);
-  assert.equal(report.steps.length, 4);
+  assert.equal(report.steps.length, 5);   // seed-sources + the four stages
 });
 
 console.log('\n-- resuming from a checkpoint --');

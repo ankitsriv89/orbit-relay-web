@@ -23,6 +23,8 @@ import { resolveConflicts, writeFacts } from './facts.js';
 import { tier2Prose } from './prose-tier2.js';
 import { tier3Prose, isSubstantive } from './prose-tier3.js';
 import { ingestImage } from './images.js';
+import { buildGcatIndex } from './gcat.js';
+import { seedSources } from './sources.js';
 
 export { STAGES };
 
@@ -48,12 +50,20 @@ async function step(report, name, fn) {
  * @param {string} [opts.only]      run just this one stage
  * @param {Record<string, Function>} [opts.stages]  injected stage impls (tests)
  * @param {{read:Function, write:Function}} [opts.checkpointIO]  injected checkpoint store (tests)
+ * @param {Function} [opts.seedSources]  injected allowlist seeder (tests)
  */
 export async function runProfiles(env, opts = {}) {
   const report = { job: 'profiles', ok: true, steps: [] };
   const stages = opts.stages || DEFAULT_STAGES;
   const io = opts.checkpointIO || { read: readCheckpoint, write: writeCheckpoint };
+  const seed = opts.seedSources || seedSources;
   const toRun = opts.only ? [opts.only] : STAGES;
+
+  // The `sources` table is a precondition, not a stage: facts.js enforces the
+  // allowlist against the SOURCES constant, but the UI renders attribution from
+  // this table, so it must be populated before any facts land. Idempotent
+  // upsert of four rows — cheap enough to run unconditionally, every run.
+  await step(report, 'seed-sources', async () => ({ seeded: await seed(env.PROFILE_DB) }));
 
   for (const name of toRun) {
     const fn = stages[name];
@@ -224,19 +234,38 @@ async function loadProfileFacts(env, norad) {
   return row || {};
 }
 
+/** GCAT bulk files. Overridable by env for pinning a revision or a local mirror. */
+const GCAT_SATCAT_URL = 'https://planet4589.org/space/gcat/tsv/cat/satcat.tsv';
+const GCAT_ORGS_URL = 'https://planet4589.org/space/gcat/tsv/tables/orgs.tsv';
+
+async function fetchText(url) {
+  const resp = await fetch(url, { headers: { 'user-agent': 'orbit-relay-web/orbit-profiles (+orbitalrelay.space)' } });
+  if (!resp.ok) throw new Error(`GET ${url} -> ${resp.status}`);
+  return resp.text();
+}
+
 /**
- * COSPAR → {byField, spine} from the NSSDCA and GCAT bulk dumps.
+ * COSPAR → {byField, spine} — the fact index runFacts() joins the catalogue to.
  *
- * The dumps are fetched once per run and held in memory (~a few MB). Parsing
- * and the actual fetch URLs are wired here — kept behind one function so the
- * pipeline shape above is testable without them. matchByCospar() from Task 4 is
- * the join primitive; this builds its `sourceRows` input.
+ * v1 source is GCAT satcat.tsv (CC-BY), fetched once per run and held in memory
+ * (~5 MB), with its Owner / State / Manufacturer codes resolved through
+ * orgs.tsv. Parsing is in gcat.js; this is the fetch shim, kept behind one
+ * function so the pipeline shape stays testable without the network.
+ *
+ * NSSDCA is the intended second source (best descriptive text — it would own
+ * mission_summary, mission_type, power_w, design_life_years, and win
+ * operator/owner conflicts at priority 100). It has no bulk dump, so it is a
+ * per-object scrape and a separate task. When it lands it builds a second
+ * COSPAR → {byField, spine} index of the same shape and merges in HERE: append
+ * its byField candidates (resolveConflicts picks the winner by priority) and
+ * fill spine columns GCAT left null.
  */
-async function loadSourceIndex(_env) {
-  // v1 bulk source wiring lands with the first real Actions run (Task 6 step 6).
-  // Returning an empty index keeps `facts` a clean no-op until then rather than
-  // failing the stage.
-  return new Map();
+async function loadSourceIndex(env) {
+  const [satcat, orgs] = await Promise.all([
+    fetchText(env.GCAT_SATCAT_URL || GCAT_SATCAT_URL),
+    fetchText(env.GCAT_ORGS_URL || GCAT_ORGS_URL),
+  ]);
+  return buildGcatIndex(satcat, orgs);
 }
 
 const DEFAULT_STAGES = {
