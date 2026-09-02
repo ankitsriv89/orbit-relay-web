@@ -13,6 +13,7 @@
 // test — audit finding M-19.
 
 import { json, preflight, requireDb, withCitation, safeParse, cached } from '../_catalog.js';
+import { profileFor } from '../_profiles.js';
 
 const SQL = `
   SELECT
@@ -79,9 +80,13 @@ async function handle(context) {
     return json({ error: `No catalogued object with NORAD ${norad}.` }, { status: 404 });
   }
 
-  const [decay, events] = await Promise.all([
+  // profileFor() joins the same Promise.all rather than a fourth sequential
+  // await — a profile failure or an unbound PROFILE_DB resolves to null (see
+  // _profiles.js) and never adds latency or a 500 to the dossier.
+  const [decay, events, profile] = await Promise.all([
     env.ORBIT_DB.prepare(DECAY_SQL).bind(norad).all(),
     env.ORBIT_DB.prepare(EVENTS_SQL).bind(norad).all(),
+    profileFor(env, norad),
   ]);
 
   return json(withCitation({
@@ -100,5 +105,8 @@ async function handle(context) {
     events: (events.results || []).map((e) => ({
       ...e, detail: safeParse(e.detail),
     })),
+    // null when PROFILE_DB is unbound or has no row — the dossier is complete
+    // without it, so its absence is invisible rather than an error.
+    profile,
   }), { maxAge: 300 });
 }
