@@ -1,0 +1,37 @@
+[
+  {
+    "nssdc_id": "1998-067A",
+    "spacecraft": "ISS (Zarya)",
+    "launch_date": "1998-11-20",
+    "launch_vehicle": "Proton-K",
+    "launch_site": "Baikonur Cosmodrome, U.S.S.R",
+    "operator": "NASA / Roscosmos",
+    "owner_country": "International",
+    "mass_kg": 19323,
+    "mission_type": "Engineering; Human Crew",
+    "description": "Zarya (Sunrise) was the first module of the International Space Station, providing propulsion, power and storage during early assembly. It was built by the Khrunichev State Research and Production Space Center and funded by the United States.",
+    "status": "operational"
+  },
+  {
+    "nssdc_id": "1999-025A",
+    "spacecraft": "Fengyun 1C",
+    "launch_date": "1999-05-10",
+    "launch_vehicle": "Long March 4B",
+    "launch_site": "Taiyuan, China",
+    "operator": "China Meteorological Administration",
+    "owner_country": "China",
+    "mass_kg": 958,
+    "mission_type": "Earth Observation; Meteorology",
+    "description": "Fengyun 1C was a Chinese polar-orbiting weather satellite. It was destroyed in a 2007 anti-satellite test that produced a large, long-lived debris cloud.",
+    "status": "destroyed"
+  },
+  {
+    "nssdc_id": "1974-089A",
+    "spacecraft": "Source-only record with no catalogue match",
+    "launch_date": "1974-11-15",
+    "mass_kg": 900,
+    "mission_type": "Unknown",
+    "description": "Has no corresponding entry in the supplied catalogue rows — exercises the unmatched-source return path.",
+    "status": "unknown"
+  }
+]

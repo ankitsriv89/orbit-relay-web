@@ -1,0 +1,5 @@
+#JCAT	Piece	Type	Name	LDate	Parent	Manufacturer	Bus	MassKg	DryMassKg	Power	Notes
+S26758	1998-067A	P	Zarya (FGB)	1998 Nov 20	Earth	Khrunichev	FGB	19323	18500	3000	First ISS module; funded by NASA, built by Khrunichev
+S25730	1999-025A	P	Fengyun 1C	1999 May 10	Earth	SAST	FY-1	958	950	-	Polar weather sat; ASAT-tested 2007
+S27424	98067A	P	Zarya cross-check (compact COSPAR spelling)	1998 Nov 20	Earth	Khrunichev	FGB	19323	-	-	Same object as S26758, designator written in compact form to exercise the join
+S00002	1957-001B	P	Sputnik 1	1957 Oct 04	Earth	OKB-1	PS-1	83.6	83.6	1	First artificial satellite; catalogue-only, no source object here
