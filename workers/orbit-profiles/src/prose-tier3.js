@@ -61,6 +61,13 @@ function clean(raw) {
   t = t.replace(/\*\*|__|\*|_/g, '');
   t = t.replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
   if (t.length > 1 && /^["'“”]/.test(t) && /["'”]$/.test(t)) t = t.slice(1, -1).trim();
+  // A response truncated at the token ceiling ends mid-sentence — drop that
+  // trailing fragment rather than publishing "...built on the Starlink v1.".
+  // (Step-6 sample: gpt-oss-20b did this often enough to matter.)
+  if (!/[.!?]["'”]?$/.test(t)) {
+    const lastStop = Math.max(t.lastIndexOf('.'), t.lastIndexOf('!'), t.lastIndexOf('?'));
+    t = lastStop > 0 ? t.slice(0, lastStop + 1) : t;
+  }
   return t;
 }
 
@@ -107,7 +114,12 @@ export async function tier3Prose(ai, model, facts, fallback) {
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-      max_tokens: 220,
+      // Sized from the Task 6 step-6 sample: at 220 gpt-oss-20b truncated the
+      // 4-sentence descriptions mid-word often enough to matter (a truncated
+      // sentence reads as filler and can strand a half-written number). 384 is
+      // comfortably clear of a full 4-sentence spacecraft description; the
+      // prompt still caps the length by asking for "two to four sentences".
+      max_tokens: 384,
       temperature: 0.2,
     });
     raw = out && (out.response ?? out.result ?? out);
