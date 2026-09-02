@@ -765,6 +765,110 @@ body[data-page-id="spacetrack-catalog"] #results-hud .key-hud-body::-webkit-scro
     margin-top: 0;
 }
 
+/* ── Inline object-profile panel (object-profiles plan, task 10) ────────────
+ * Content inside #dossier-body — NOT fixed chrome, so it adds no backdrop-filter
+ * of its own (the dossier panel already carries the blur; a second one over the
+ * WebGL canvas is exactly the mobile cost the --hud-blur token exists to bound).
+ * `[hidden]` is honoured by the base reset; the panel toggles el.hidden. */
+.st-profile {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(150, 200, 230, 0.22);
+}
+
+.st-profile__figure {
+    margin: 0 0 8px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.st-profile__figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.st-profile__figure figcaption {
+    padding: 3px 5px;
+    font: 0.5rem/1.4 var(--font-mono);
+    color: rgba(150, 200, 230, 0.6);
+}
+
+.st-profile__figure--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 64px;
+    font-size: 1.6rem;
+    opacity: 0.4;
+    border: 1px solid rgba(150, 200, 230, 0.18);
+}
+
+.st-profile__name {
+    font: 600 0.64rem/1.4 var(--font-mono);
+    letter-spacing: 0.6px;
+    color: rgba(210, 235, 250, 0.95);
+    text-transform: uppercase;
+}
+
+.st-profile__prose {
+    margin: 6px 0;
+    font-size: 0.58rem;
+    line-height: 1.6;
+    color: rgba(200, 225, 240, 0.82);
+}
+
+.st-profile__facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 3px 10px;
+    margin: 8px 0;
+    font-size: 0.56rem;
+    line-height: 1.5;
+}
+
+.st-profile__facts dt {
+    font-family: var(--font-mono);
+    letter-spacing: 0.6px;
+    color: rgba(150, 200, 230, 0.65);
+}
+
+.st-profile__facts dd {
+    margin: 0;
+    color: rgba(215, 235, 248, 0.9);
+}
+
+.st-profile__derived,
+.st-profile__src {
+    font-size: 0.5rem;
+    color: rgba(150, 200, 230, 0.55);
+}
+
+.st-profile__src {
+    margin-left: 4px;
+    text-decoration: none;
+}
+
+.st-profile__src:hover {
+    color: rgba(150, 200, 230, 0.9);
+}
+
+.st-profile__more {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 6px;
+    font: 600 0.56rem/1 var(--font-mono);
+    letter-spacing: 0.6px;
+    color: rgba(120, 210, 255, 0.9);
+    text-decoration: none;
+    text-transform: uppercase;
+}
+
+.st-profile__more:hover {
+    color: rgba(160, 225, 255, 1);
+}
+
 /* ── Time-warp collapse toggle (catalog, conjunctions, signal — wired by
  * shared/globe.js's initTimeWarpButtons) ───────────────────────────────────
  * Collapsed it reads as a compact "⏱ TIME 10×" chip instead of a full row

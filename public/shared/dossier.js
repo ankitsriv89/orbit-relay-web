@@ -15,6 +15,7 @@ import { orbVel, fmtLat, fmtLon } from '/orbit-engine/astro.js';
 import { $, setText, relTime } from '/spacetrack/shared/utils.js';
 import { getApiBase } from '/spacetrack/shared/api.js';
 import { currentRevs, expandHud, wireHudToggle } from '/shared/hud.js';
+import { createProfilePanel } from '/shared/profile-panel.js';
 
 const TRAIL_MAX = 60;            // max positions in the trail
 const TRAIL_STEP_MS = 2000;      // ms between trail samples
@@ -31,6 +32,14 @@ export function createDossier({ viewer, engine, State, trail = false, revs } = {
 
     const getRevs = revs == null ? currentRevs
         : (typeof revs === 'function' ? revs : () => revs);
+
+    // The inline profile panel — unconditional for every caller (same reasoning
+    // as the trail/selection-sync behaviours above), absent rather than empty
+    // when the object has no profile. Mounts into #dossier-profile if the page
+    // ships the hook; a page without it simply has no panel.
+    const profilePanel = $('dossier-profile')
+        ? createProfilePanel({ mount: $('dossier-profile'), getApiBase })
+        : null;
 
     let trailPositions = [];
     let trailEntity = null;
@@ -81,6 +90,7 @@ export function createDossier({ viewer, engine, State, trail = false, revs } = {
         dossierSatrec = null;
         stopTrail();
         if (dossierTimer) { clearInterval(dossierTimer); dossierTimer = null; }
+        profilePanel?.hide();
         if (dossier) dossier.hidden = true;
     }
     dossierClose?.addEventListener('click', close);
@@ -117,6 +127,7 @@ export function createDossier({ viewer, engine, State, trail = false, revs } = {
         dossier.hidden = false;
         if (dossierToggle) expandHud('dossier');
         setText('dossier-status', 'loading…');
+        profilePanel?.hide();      // clear the previous object's panel immediately
 
         if (meta?.satrec) {
             State.set('selectedObject', {
@@ -203,6 +214,10 @@ export function createDossier({ viewer, engine, State, trail = false, revs } = {
         setText('dossier-status', o.operator_derived
             ? `operator: ${o.operator} — inferred from the name, not a Space-Track field`
             : '');
+
+        // Fire, don't await — the profile must never delay the position readout
+        // or the dossier's own fields. show() hides the panel on any failure.
+        profilePanel?.show(o.NORAD_CAT_ID);
     }
 
     return { open, close, refreshLive };
