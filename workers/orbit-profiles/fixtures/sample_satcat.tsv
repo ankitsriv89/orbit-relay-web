@@ -1,6 +1,6 @@
 #JCAT	Satcat	Launch_Tag	Piece	Type	Name	PLName	LDate	Parent	SDate	Primary	DDate	Status	Dest	Owner	State	Manufacturer	Bus	Motor	Mass	MassFlag	DryMass	DryFlag	TotMass	TotFlag	Length	LFlag	Diameter	DFlag	Span	SpanFlag	Shape	ODate	Perigee	PF	Apogee	AF	Inc	IF	OpOrbit	OQUAL	AltNames
 # Updated 2026 Aug 30 2126:09
-S26758	25544	1998-067	1998-067A	P	Zarya	FGB	1998 Nov 20	Earth	1998 Nov 20	Earth	-	O	-	RSA	SU	KHRUN	FGB	-	   19323 	E	   18500 	E	   19323 	E	 12.99 	E	  4.10 	E	   -   	-	Cyl	2024 Jan 1	     410	E	     420	E	 51.64 	E	LEO/I	1	ISS Zarya
+S26758	25544	1998-067	1998-067A	P	Zarya	FGB	1998 Nov 20	Earth	1998 Nov 20	Earth	-	GRP	-	RSA	SU	KHRUN	FGB	-	   19323 	E	   18500 	E	   19323 	E	 12.99 	E	  4.10 	E	   -   	-	Cyl	2024 Jan 1	     410	E	     420	E	 51.64 	E	LEO/I	1	ISS Zarya
 S25730	25730	1999-025	1999-025A	P	Fengyun 1C	FY-1C	1999 May 10	Earth	1999 May 10	Earth	2007 Jan 11	R	-	CMA	CN	SAST	FY-1	-	     958 	E	     950 	E	     958 	E	  1.42 	E	  1.42 	E	  8.6  	E	Box+2Pan	2007 Jan 1	     845	E	     865	E	 98.6  	E	SSO	1	-
 S00002	00002	1957-001	1957-001B	P	Sputnik 1	PS-1	1957 Oct  4	Earth	1957 Oct  4	Earth	1958 Jan  4	R	-	OKB1	SU	OKB1	PS-1	-	    83.6 	E	    83.6 	E	    83.6 	E	  0.58 	E	  0.58 	E	   -   	-	Sphere	1957 Nov 1	     228	E	     947	E	 65.1  	E	LEO/I	1	-
 S27424	27424	1998-067	98067F	D	ISS DEB	-	1998 Nov 20	Earth	-	Earth	2002 Mar 15	R	-	?	?	?	?	-	     -   	?	     -   	?	     -   	?	   -   	?	   -   	?	   -   	?	-	-	     -  	?	     -  	?	  -    	?	-	-	Debris, compact COSPAR, unknown owner

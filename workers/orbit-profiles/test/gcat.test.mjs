@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseTsv, parseOrgs, buildGcatIndex } from '../src/gcat.js';
+import { parseTsv, parseOrgs, buildGcatIndex, mapStatusCode } from '../src/gcat.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (n) => fs.readFileSync(path.join(HERE, '../fixtures', n), 'utf8');
@@ -62,14 +62,18 @@ test('padded numeric and code cells are trimmed', () => {
   assert.equal(rows[0].Owner.trim(), 'OKB1');
 });
 
-console.log('\n-- parseOrgs: code -> {name, stateCode} --');
+console.log('\n-- parseOrgs: code -> {name, ename, shortEName, stateCode} --');
 
-test('resolves an org code to its display name and its owning state code', () => {
+test('captures Name, the English EName/ShortEName, and the owning state code', () => {
   const map = parseOrgs(orgs);
   assert.equal(map.get('KHRUN').name, 'NPO Mashinostroeniya (Khrunichev)');
+  assert.equal(map.get('KHRUN').ename, 'Khrunichev');        // EName: the clean English form
   assert.equal(map.get('KHRUN').stateCode, 'SU');
-  assert.equal(map.get('SU').name, 'Soviet Union');
-  assert.equal(map.get('CN').name, "People's Republic of China");
+  // GCAT's country Name is the transliterated native form; ShortEName is the
+  // usable label ("China", not "Zhonghua Renmin Gongheguo").
+  assert.equal(map.get('CN').name, 'Zhonghua Renmin Gongheguo');
+  assert.equal(map.get('CN').shortEName, 'China');
+  assert.equal(map.get('SU').shortEName, 'USSR');
 });
 
 console.log('\n-- buildGcatIndex: keyed by canonical COSPAR --');
@@ -93,14 +97,20 @@ test('the Zarya spine carries the profiles column set with GCAT-sourced values',
   assert.equal(spine.official_name, 'Zarya');
   assert.equal(spine.bus, 'FGB');
   assert.equal(spine.launch_mass_kg, 19323);
-  assert.equal(spine.status, 'in orbit');   // GCAT 'O' — in free flight, NOT "operational"
+  assert.equal(spine.status, 'in orbit');   // GCAT 'GRP' (grappled to the ISS) — on orbit
 });
 
-test('org codes are resolved to display names in the spine', () => {
+test('org codes resolve to the English name; country codes to the short English name', () => {
   const { spine } = index.get('1998-067A');
-  assert.equal(spine.manufacturer, 'NPO Mashinostroeniya (Khrunichev)');   // KHRUN
-  assert.equal(spine.operator_name, 'Russian Federal Space Agency');       // RSA
-  assert.equal(spine.owner_country, 'Soviet Union');                       // State SU
+  assert.equal(spine.manufacturer, 'Khrunichev');                    // KHRUN EName
+  assert.equal(spine.operator_name, 'Russian Federal Space Agency'); // RSA EName
+  assert.equal(spine.owner_country, 'USSR');                         // State SU ShortEName
+});
+
+test('an org with no English name at all falls back to Name (NOAA, CMA)', () => {
+  const { spine } = index.get('2020-500Z');   // Orphan Sat: Owner NOAA, State US
+  assert.equal(spine.operator_name, 'National Oceanic and Atmospheric Administration');
+  assert.equal(spine.owner_country, 'USA');    // US has a ShortEName
 });
 
 test('the spine has every profiles column present as a key (null where GCAT is silent)', () => {
@@ -116,13 +126,23 @@ test('the spine has every profiles column present as a key (null where GCAT is s
 
 console.log('\n-- Status maps to an honest facet vocabulary --');
 
-test('GCAT O is "in orbit" (not operational — GCAT does not know if it works)', () => {
-  assert.equal(index.get('1998-067A').spine.status, 'in orbit');
+test('the on-orbit codes (O, GRP, DK, AO, N, DEP…) all map to "in orbit"', () => {
+  assert.equal(index.get('1998-067A').spine.status, 'in orbit');   // GRP — grappled to the ISS
+  for (const c of ['O', 'OX', 'GRP', 'DK', 'AO', 'AO IN', 'ATT', 'N', 'DEP', 'REL', 'UDK'])
+    assert.equal(mapStatusCode(c), 'in orbit', `${c} should be "in orbit"`);
 });
 
-test('GCAT R and D (natural / active reentry) both map to "decayed"', () => {
+test('the reentry codes (R, D, S, AR…) map to "decayed"', () => {
   assert.equal(index.get('1999-025A').spine.status, 'decayed');   // R
   assert.equal(index.get('1957-001B').spine.status, 'decayed');   // R (Sputnik)
+  for (const c of ['R', 'D', 'S', 'AR', 'AR IN', 'AS'])
+    assert.equal(mapStatusCode(c), 'decayed', `${c} should be "decayed"`);
+});
+
+test('landed and deep-space codes get their own labels; unknown codes stay null', () => {
+  for (const c of ['L', 'LF', 'AL', 'AL IN']) assert.equal(mapStatusCode(c), 'landed');
+  for (const c of ['DSO', 'DSA', 'EO', 'EN']) assert.equal(mapStatusCode(c), 'deep space');
+  for (const c of ['E', 'REFLT', 'ERR', 'ZZ', '']) assert.equal(mapStatusCode(c), null);
 });
 
 console.log('\n-- absent-value tokens produce no fact --');

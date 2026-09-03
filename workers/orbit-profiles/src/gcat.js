@@ -49,10 +49,15 @@ export function parseTsv(text) {
 }
 
 /**
- * orgs.tsv → Map<code, {name, stateCode}>. `Name` is the long display form;
- * `StateCode` is the country/state code the org rolls up to (itself a key in
- * this same map for a country row).
- * @returns {Map<string, {name: string, stateCode: string|null}>}
+ * orgs.tsv → Map<code, {name, ename, shortEName, stateCode}>.
+ *
+ * GCAT's `Name` for a country is the transliterated NATIVE form ("Zhonghua
+ * Renmin Gongheguo"); `ShortEName` is the usable English label ("China"). For
+ * an organisation `Name` is already Latin-script but often terse/native
+ * ("Roskosmos"); `EName` is the fuller English form ("Russian Federal Space
+ * Agency") and is `-` for many entries. Callers pick the column that fits the
+ * field — see resolveOrg / resolveCountry in buildGcatIndex.
+ * @returns {Map<string, {name:string, ename:string|null, shortEName:string|null, stateCode:string|null}>}
  */
 export function parseOrgs(text) {
   const { rows } = parseTsv(text);
@@ -60,27 +65,42 @@ export function parseOrgs(text) {
   for (const r of rows) {
     const code = clean(r.Code);
     if (!code) continue;
-    map.set(code, { name: clean(r.Name) || code, stateCode: clean(r.StateCode) });
+    map.set(code, {
+      name: clean(r.Name) || code,
+      ename: clean(r.EName),
+      shortEName: clean(r.ShortEName),
+      stateCode: clean(r.StateCode),
+    });
   }
   return map;
 }
 
 /**
- * GCAT Status → an honest facet label. GCAT's `O` is "separated from parent,
- * still in free flight" — it means *in orbit*, NOT operational; GCAT carries no
- * "does it still work" fact. Natural (`R`) and active (`D`) reentry are a real
- * sourced distinction but collapse here so the `status` facet stays a short
- * list. Unmapped codes stay null rather than guessing.
+ * GCAT Status code → an honest facet label, or null for an unmapped code.
+ *
+ * GCAT's `O` means "in free flight" — *in orbit*, NOT operational; GCAT carries
+ * no does-it-still-work fact. "Attached" states (docked, grappled, berthed —
+ * `DK`/`GRP`/`AO`/`ATT`) collapse into "in orbit": a berthed module is on orbit
+ * as far as a catalogue browser is concerned, and the free-flew-or-not
+ * distinction is not what the `status` facet is for. Reentry codes (natural
+ * `R`, active `D`, suborbital `S`, attached `AR`) collapse into "decayed" for
+ * the same reason. Codes are matched exactly, not by prefix — `E` (exploded in
+ * orbit) must not match as `EO` (escape).
  */
-function mapStatus(raw) {
+const STATUS = {
+  O: 'in orbit', OX: 'in orbit', N: 'in orbit', OI: 'in orbit', OE: 'in orbit',
+  UDK: 'in orbit', REL: 'in orbit', DEP: 'in orbit', TO: 'in orbit',
+  AO: 'in orbit', 'AO IN': 'in orbit', DK: 'in orbit', GRP: 'in orbit',
+  ATT: 'in orbit', TFR: 'in orbit', TOA: 'in orbit',
+  D: 'decayed', R: 'decayed', S: 'decayed', AR: 'decayed', 'AR IN': 'decayed', AS: 'decayed',
+  L: 'landed', LF: 'landed', AL: 'landed', 'AL IN': 'landed',
+  DSO: 'deep space', DSA: 'deep space', 'DSA IN': 'deep space', EO: 'deep space', EN: 'deep space',
+};
+
+/** @returns {string|null} */
+export function mapStatusCode(raw) {
   const s = clean(raw);
-  if (!s) return null;
-  if (/^AO/.test(s)) return 'attached';        // AO, AO IN — never separately orbited
-  if (/^O/.test(s)) return 'in orbit';         // O, OX
-  if (/^A?[RD]/.test(s)) return 'decayed';      // R, D, AR — reentered
-  if (/^A?L/.test(s)) return 'landed';          // L, AL — landed / splashed down
-  if (/^(DSO|EO|EL)/.test(s)) return 'deep space';
-  return null;
+  return s && Object.hasOwn(STATUS, s) ? STATUS[s] : null;
 }
 
 const GCAT_URL = 'https://planet4589.org/space/gcat/data/cat/satcat.html';
@@ -95,7 +115,18 @@ const GCAT_URL = 'https://planet4589.org/space/gcat/data/cat/satcat.html';
  */
 export function buildGcatIndex(satcatText, orgsText) {
   const orgs = parseOrgs(orgsText);
-  const orgName = (code) => (code && orgs.get(code) ? orgs.get(code).name : null);
+  // An organisation (operator / manufacturer): the fuller English name where
+  // GCAT has one, else its Latin-script Name.
+  const resolveOrg = (code) => {
+    const o = code && orgs.get(code);
+    return o ? (o.ename || o.name) : null;
+  };
+  // A country (the `State` column): the short English label ("China"), never
+  // the transliterated native Name ("Zhonghua Renmin Gongheguo").
+  const resolveCountry = (code) => {
+    const o = code && orgs.get(code);
+    return o ? (o.shortEName || o.ename || o.name) : null;
+  };
   const { rows } = parseTsv(satcatText);
   const index = new Map();
 
@@ -107,15 +138,15 @@ export function buildGcatIndex(satcatText, orgsText) {
       cospar,
       official_name: clean(row.Name) || clean(row.PLName),
       mission_summary: null,
-      operator_name: orgName(clean(row.Owner)),
-      owner_country: orgName(clean(row.State)),
+      operator_name: resolveOrg(clean(row.Owner)),
+      owner_country: resolveCountry(clean(row.State)),
       bus: clean(row.Bus),
-      manufacturer: orgName(clean(row.Manufacturer)),
+      manufacturer: resolveOrg(clean(row.Manufacturer)),
       launch_mass_kg: numeric(row.Mass),
       power_w: null,
       design_life_years: null,
       mission_type: null,
-      status: mapStatus(row.Status),
+      status: mapStatusCode(row.Status),
     };
 
     const byField = {};

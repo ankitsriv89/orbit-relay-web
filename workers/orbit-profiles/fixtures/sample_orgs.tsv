@@ -2,12 +2,12 @@
 # Updated 2026 Aug 30 2229:11
 EARTH	EARTH	EARTH	AP	C	-	-	Earth	Earth	Earth	-	-	0.0200 	-	Earth (Terra)	Earth	Earth
 US	US	US	CY	C	1776 Jul  4	-	USA	United States of America	Washington, DC	-77.0200 	38.9000 	0.0200 	-	USA	United States of America	United States of America
-SU	SU	SU	CYD	C	1922	1991 Dec 25	USSR	Soviet Union	Moskva	37.6200 	55.7500 	0.0200 	-	USSR	Soviet Union	Soviet Union
-CN	CN	CN	CY	C	1949 Oct  1	-	China	People's Republic of China	Beijing	116.3800 	39.9000 	0.0200 	-	China	People's Republic of China	People's Republic of China
-KHRUN	KHRUN	SU	O/LA/LV/PL/E	C	1932	-	Khrunichev	NPO Mashinostroeniya (Khrunichev)	Moskva	37.6200 	55.7500 	0.0200 	SU	Khrunichev	Design Bureau Khrunichev	Khrunichev
-RSA	RSA	RU	O	C	1992 Feb 25	-	Roscosmos	Russian Federal Space Agency	Moskva	37.6200 	55.7500 	0.0200 	RU	Roscosmos	Roscosmos	Roscosmos
-SAST	SAST	CN	O/M	C	1961	-	SAST	Shanghai Academy of Spaceflight Technology	Shanghai	121.4700 	31.2300 	0.0200 	CN	SAST	Shanghai Academy of Spaceflight Technology	SAST
-CMA	CMA	CN	O	C	1949	-	CMA	China Meteorological Administration	Beijing	116.3800 	39.9000 	0.0200 	CN	CMA	China Meteorological Administration	CMA
-OKB1	OKB1	SU	O/M	C	1946	-	OKB-1	Experimental Design Bureau 1 (Korolev)	Kaliningrad	37.8100 	55.9200 	0.0200 	SU	OKB-1	OKB-1	OKB-1
-NOAA	NOAA	US	O	C	1970 Oct  3	-	NOAA	National Oceanic and Atmospheric Administration	Washington, DC	-77.0200 	38.9000 	0.0200 	US	NOAA	National Oceanic and Atmospheric Admin.	NOAA
-BALL	BALL	US	O/M	C	1956	-	Ball	Ball Aerospace	Boulder, CO	-105.2700 	40.0200 	0.0200 	US	Ball	Ball Aerospace & Technologies Corp.	Ball
+SU	SU	SU	CYD	C	1922	1991 Dec 25	USSR	Soyuz Sovetskikh Sotsialisticheskikh Respublik	Moskva	37.6200 	55.7500 	0.0200 	-	USSR	Union of Soviet Socialist Republics	Soviet Union
+CN	CN	CN	CY	C	1949 Oct  1	-	China	Zhonghua Renmin Gongheguo	Beijing	116.3800 	39.9000 	0.0200 	-	China	China, People's Republic of	China
+KHRUN	KHRUN	SU	O/LA/LV/PL/E	C	1932	-	Khrunichev	NPO Mashinostroeniya (Khrunichev)	Moskva	37.6200 	55.7500 	0.0200 	SU	-	Khrunichev	Khrunichev
+RSA	RSA	RU	O	C	1992 Feb 25	-	Roscosmos	Roskosmos	Moskva	37.6200 	55.7500 	0.0200 	RU	-	Russian Federal Space Agency	Roscosmos
+SAST	SAST	CN	O/M	C	1961	-	SAST	Shanghai Academy of Spaceflight Technology	Shanghai	121.4700 	31.2300 	0.0200 	CN	-	Shanghai Academy of Spaceflight Technology	SAST
+CMA	CMA	CN	O	C	1949	-	CMA	China Meteorological Administration	Beijing	116.3800 	39.9000 	0.0200 	CN	-	-	CMA
+OKB1	OKB1	SU	O/M	C	1946	-	OKB-1	OKB-1 im. S.P. Korolev	Kaliningrad	37.8100 	55.9200 	0.0200 	SU	-	-	OKB-1
+NOAA	NOAA	US	O	C	1970 Oct  3	-	NOAA	National Oceanic and Atmospheric Administration	Washington, DC	-77.0200 	38.9000 	0.0200 	US	-	-	NOAA
+BALL	BALL	US	O/M	C	1956	-	Ball	Ball Aerospace	Boulder, CO	-105.2700 	40.0200 	0.0200 	US	-	Ball Aerospace & Technologies Corp.	Ball
